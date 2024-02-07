@@ -318,3 +318,51 @@ bool IsValidDestinationString(const std::string& str)
 {
     return IsValidDestinationString(str, Params());
 }
+
+std::optional<SilentPaymentsDestination> DecodeSilentPaymentsAddress(
+    const std::string& str, const CChainParams& params, std::string& error_str)
+{
+    static constexpr size_t SILENT_PAYMENTS_V0_DATA_SIZE = 66;
+
+    error_str.clear();
+    const auto dec = bech32::Decode(str, bech32::CharLimit::SILENT_PAYMENTS);
+    if (dec.encoding != bech32::Encoding::BECH32M) {
+        error_str = "Silent Payments address must use Bech32m checksum";
+        return std::nullopt;
+    }
+    if (dec.hrp != params.SilentPaymentsHRP()) {
+        error_str = strprintf("Invalid or unsupported prefix for Silent Payments address (expected %s, got %s).", params.SilentPaymentsHRP(), dec.hrp);
+        return std::nullopt;
+    }
+    if (dec.data.empty()) {
+        error_str = "Empty Bech32 data section";
+        return std::nullopt;
+    }
+    std::vector<unsigned char> data;
+    if (!ConvertBits<5, 8, false>([&](unsigned char c) { data.push_back(c); }, dec.data.begin() + 1, dec.data.end())) {
+        error_str = "Invalid padding in Silent payments address (Bech32m data section)";
+        return std::nullopt;
+    }
+    if (data.size() < SILENT_PAYMENTS_V0_DATA_SIZE) {
+        error_str = strprintf("Silent payments data payload is too small (expected at least %d, got %d).", SILENT_PAYMENTS_V0_DATA_SIZE, data.size());
+        return std::nullopt;
+    }
+    const uint8_t version = dec.data[0];
+    if (version >= 31) {
+        error_str = strprintf("This implementation only supports Silent payments addresses v0 through v30 (got %d).", version);
+        return std::nullopt;
+    }
+    if (version == 0 && data.size() != SILENT_PAYMENTS_V0_DATA_SIZE) {
+        error_str = strprintf("Silent payments version is v0 but data is not the correct size (expected %d, got %d).", SILENT_PAYMENTS_V0_DATA_SIZE, data.size());
+        return std::nullopt;
+    }
+    CPubKey scan_pubkey{data.begin(), data.begin() + CPubKey::COMPRESSED_SIZE};
+    CPubKey spend_pubkey{data.begin() + CPubKey::COMPRESSED_SIZE, data.begin() + 2 * CPubKey::COMPRESSED_SIZE};
+    std::vector<unsigned char> extension_data{data.begin() + 2 * CPubKey::COMPRESSED_SIZE, data.end()};
+    auto sp_dest = SilentPaymentsDestination::From(scan_pubkey, spend_pubkey, version, extension_data);
+    if (!sp_dest) {
+        error_str = "Invalid Silent payments address";
+        return std::nullopt;
+    }
+    return sp_dest;
+}

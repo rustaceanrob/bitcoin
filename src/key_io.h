@@ -8,9 +8,11 @@
 
 #include <addresstype.h>
 #include <chainparams.h>
+#include <common/bip352.h>
 #include <key.h>
 #include <pubkey.h>
 
+#include <optional>
 #include <string>
 
 CKey DecodeSecret(const std::string& str);
@@ -26,5 +28,9 @@ CTxDestination DecodeDestination(const std::string& str);
 CTxDestination DecodeDestination(const std::string& str, std::string& error_msg, std::vector<int>* error_locations = nullptr);
 bool IsValidDestinationString(const std::string& str);
 bool IsValidDestinationString(const std::string& str, const CChainParams& params);
+
+//! Decode a BIP352 "sp1..." address. Returns nullopt on failure; sets error_str with the reason.
+std::optional<SilentPaymentsDestination> DecodeSilentPaymentsAddress(
+    const std::string& str, const CChainParams& params, std::string& error_str);
 
 #endif // BITCOIN_KEY_IO_H
