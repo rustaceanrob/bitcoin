@@ -16,6 +16,7 @@
 #include <consensus/params.h>
 #include <consensus/validation.h>
 #include <core_io.h>
+#include <crypto/common.h>
 #include <deploymentinfo.h>
 #include <deploymentstatus.h>
 #include <flatfile.h>
@@ -40,6 +41,7 @@
 #include <script/descriptor.h>
 #include <serialize.h>
 #include <streams.h>
+#include <swiftsync.h>
 #include <sync.h>
 #include <tinyformat.h>
 #include <txdb.h>
@@ -56,7 +58,10 @@
 #include <versionbits.h>
 
 #include <cstdint>
+#include <cstring>
 
+#include <algorithm>
+#include <array>
 #include <condition_variable>
 #include <iterator>
 #include <memory>
@@ -64,6 +69,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 using kernel::CCoinsStats;
@@ -3564,6 +3570,166 @@ static RPCMethod loadtxoutset()
     };
 }
 
+static RPCMethod generatetxohints()
+{
+    return RPCMethod{
+        "generatetxohints",
+        "Build a file of hints for the state of the UTXO set at a particular height.\n"
+        "The purpose of said hints is to allow clients performing initial block download\n"
+        "to omit unnecessary disk I/O and CPU usage.\n"
+        "The hint file is constructed by reading in blocks sequentially and determining what outputs\n"
+        "will remain in the UTXO set. Network activity will be suspended during this process, and the\n"
+        "hint file may take a few hours to build."
+        "Make sure to use no RPC timeout (bitcoin-cli -rpcclienttimeout=0)",
+        {
+            {"path",
+                RPCArg::Type::STR,
+                RPCArg::Optional::NO,
+                "Path to the hint file. If relative, will be prefixed by datadir."},
+            {"rollback",
+                RPCArg::Type::NUM,
+                RPCArg::Optional::OMITTED,
+                "The block hash or height to build the hint file up to. If none is provided, the file will be built from the current block tip.",
+                RPCArgOptions{
+                    .skip_type_check = true,
+                    .type_str = {"", "string or numeric"},}},
+        },
+        RPCResult{
+            RPCResult::Type::OBJ, "", "",
+                {
+                    {RPCResult::Type::NUM, "height", "The stopping height encoded by the hint file."},
+                    {RPCResult::Type::STR, "path", "Absolute path where the file was written."},
+                    {RPCResult::Type::STR, "duration", "Time taken to build the file."},
+                }
+        },
+        RPCExamples{
+            HelpExampleCli("--rpcclienttimeout=0 generatetxohints", "signet.hints 270000"),
+        },
+        [&](const RPCMethod& self, const JSONRPCRequest& request) -> UniValue
+{
+    const auto start{SteadyClock::now()};
+    NodeContext& node{EnsureAnyNodeContext(request.context)};
+    if (node.chainman->m_blockman.IsPruneMode()) {
+        throw JSONRPCError(RPC_MISC_ERROR, "Creating a hint file in pruned mode is not possible.");
+    }
+    const ArgsManager& args{EnsureAnyArgsman(request.context)};
+    const fs::path path = fsbridge::AbsPathJoin(args.GetDataDirNet(), fs::u8path(self.Arg<std::string_view>("path")));
+    const fs::path temppath = path + ".incomplete";
+    if (fs::exists(path)) {
+        throw JSONRPCError(
+            RPC_INVALID_PARAMETER,
+            path.utf8string() + " already exists. If you are sure this is what you want, "
+            "move it out of the way first");
+    }
+    FILE* file{fsbridge::fopen(temppath, "wb")};
+    AutoFile afile{file};
+    if (afile.IsNull()) {
+        throw JSONRPCError(
+            RPC_INVALID_PARAMETER,
+            "Couldn't open file " + temppath.utf8string() + " for writing.");
+    }
+
+    const CBlockIndex* end_index{nullptr};
+    {
+        LOCK(::cs_main);
+        end_index = request.params[1].isNull()
+            ? node.chainman->ActiveChain().Tip()
+            : ParseHashOrHeight(request.params[1], *node.chainman);
+    }
+    CHECK_NONFATAL(end_index);
+
+    std::vector<const CBlockIndex*> blocks;
+    blocks.reserve(end_index->nHeight);
+    for (const CBlockIndex* bi{end_index}; bi && bi->nHeight > 0; bi = bi->pprev) {
+        blocks.push_back(bi);
+    }
+    std::reverse(blocks.begin(), blocks.end());
+
+    using Fingerprint = std::array<uint8_t, 16>;
+    struct FingerprintHash {
+        size_t operator()(const Fingerprint& fp) const noexcept
+        {
+            return ReadLE64(fp.data());
+        }
+    };
+    auto tag = [](const COutPoint& outpoint) -> Fingerprint {
+        HashWriter hw;
+        hw << outpoint;
+        const uint256 hash{hw.GetSHA256()};
+        Fingerprint fp;
+        std::memcpy(fp.data(), hash.data(), fp.size());
+        return fp;
+    };
+
+    std::unordered_map<Fingerprint, std::pair<uint32_t, uint32_t>, FingerprintHash> outputs;
+
+    for (const CBlockIndex* curr : blocks) {
+        const auto height{static_cast<uint32_t>(curr->nHeight)};
+        if (height % 10000 == 0) {
+            LogDebug(BCLog::RPC, "Processing block %d, tracked outputs %d", height, outputs.size());
+        }
+        CBlock block;
+        if (!node.chainman->m_blockman.ReadBlock(block, *curr)) {
+            throw JSONRPCError(RPC_DATABASE_ERROR, "Block could not be read from disk.");
+        }
+        const bool bip30_unspendable{IsBIP30Unspendable(curr->GetBlockHash(), curr->nHeight)};
+        uint32_t index_in_block{0};
+        for (size_t tx_idx{0}; tx_idx < block.vtx.size(); ++tx_idx) {
+            const auto& tx = block.vtx[tx_idx];
+            const bool is_coinbase{tx_idx == 0};
+            if (is_coinbase && bip30_unspendable) continue;
+            const Txid& txid = tx->GetHash();
+            for (uint32_t vout{0}; vout < tx->vout.size(); ++vout) {
+                if (tx->vout[vout].scriptPubKey.IsUnspendable()) continue;
+                outputs[tag(COutPoint{txid, vout})] = {height, index_in_block};
+                ++index_in_block;
+            }
+            if (!is_coinbase) {
+                for (const CTxIn& txin : tx->vin) {
+                    outputs.erase(tag(txin.prevout));
+                }
+            }
+        }
+        node.rpc_interruption_point();
+    }
+
+    // Bucket surviving outputs by the block they were created in, then sort
+    // each bucket so Elias-Fano can compress the ascending index list.
+    std::vector<std::vector<uint32_t>> per_height_indices(end_index->nHeight + 1);
+    for (const auto& [_fp, pos] : outputs) {
+        per_height_indices[pos.first].push_back(pos.second);
+    }
+    for (auto& v : per_height_indices) {
+        std::sort(v.begin(), v.end());
+    }
+
+    swiftsync::HintsfileWriter writer{afile};
+    if (!writer.WriteStopHeight(static_cast<uint32_t>(end_index->nHeight))) {
+        throw JSONRPCError(RPC_DATABASE_ERROR, "Failed to commit changes to hint file.");
+    }
+    for (int h{1}; h <= end_index->nHeight; ++h) {
+        if (h % 10000 == 0) {
+            LogDebug(BCLog::RPC, "Writing Elias-Fano hints from height %d", h);
+        }
+        auto ef{swiftsync::EliasFano::Compress(per_height_indices[h])};
+        if (!writer.WriteHints(ef)) {
+            throw JSONRPCError(RPC_DATABASE_ERROR, "Failed to commit changes to hint file.");
+        }
+        node.rpc_interruption_point();
+    }
+
+    fs::rename(temppath, path);
+    const auto end{SteadyClock::now()};
+    const auto duration = std::chrono::duration_cast<std::chrono::minutes>(end - start).count();
+    UniValue result(UniValue::VOBJ);
+    result.pushKV("height", end_index->nHeight);
+    result.pushKV("path", path.utf8string());
+    result.pushKV("duration", tfm::format("%d minutes", duration));
+    return result;
+},
+    };
+}
+
 const std::vector<RPCResult> RPCHelpForChainstate{
     {RPCResult::Type::NUM, "blocks", "number of blocks in this chainstate"},
     {RPCResult::Type::STR_HEX, "bestblockhash", "blockhash of the tip"},
@@ -3663,6 +3829,7 @@ void RegisterBlockchainRPCCommands(CRPCTable& t)
         {"blockchain", &getblockfilter},
         {"blockchain", &dumptxoutset},
         {"blockchain", &loadtxoutset},
+        {"blockchain", &generatetxohints},
         {"blockchain", &getchainstates},
         {"hidden", &invalidateblock},
         {"hidden", &reconsiderblock},
