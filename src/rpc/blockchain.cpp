@@ -3,6 +3,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "logging.h"
 #include <rpc/blockchain.h>
 
 #include <blockfilter.h>
@@ -39,6 +40,7 @@
 #include <script/descriptor.h>
 #include <serialize.h>
 #include <streams.h>
+#include <swiftsync.h>
 #include <sync.h>
 #include <tinyformat.h>
 #include <txdb.h>
@@ -127,8 +129,23 @@ static const CBlockIndex* ParseHashOrHeight(const UniValue& param, ChainstateMan
 {
     LOCK(::cs_main);
     CChain& active_chain = chainman.ActiveChain();
+    auto is_str = param.isStr();
+    if (is_str) {
+        LogDebug(BCLog::RPC, "Type is str!");
+    }
+    auto is_obj = param.isObject();
+    if (is_obj) {
+        LogDebug(BCLog::RPC, "Type is object!");
+    }
+    auto is_arr = param.isArray();
+    if (is_arr) {
+        LogDebug(BCLog::RPC, "Type is array!");
+    }
+    auto type_of = param.getType();
+    LogDebug(BCLog::RPC, "What: %s", type_of);
 
     if (param.isNum()) {
+        LogDebug(BCLog::RPC, "Type is number!");
         const int height{param.getInt<int>()};
         if (height < 0) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Target block height %d is negative", height));
@@ -140,6 +157,7 @@ static const CBlockIndex* ParseHashOrHeight(const UniValue& param, ChainstateMan
 
         return active_chain[height];
     } else {
+        LogDebug(BCLog::RPC, "Type is hash!");
         const uint256 hash{ParseHashV(param, "hash_or_height")};
         const CBlockIndex* pindex = chainman.m_blockman.LookupBlockIndex(hash);
 
@@ -1057,7 +1075,7 @@ static RPCHelpMan gettxoutsetinfo()
         blockman = &active_chainstate.m_blockman;
         pindex = blockman->LookupBlockIndex(coins_view->GetBestBlock());
     }
-
+    pindex = ParseHashOrHeight(request.params[1], chainman);
     if (!request.params[1].isNull()) {
         if (!g_coin_stats_index) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Querying specific block heights requires coinstatsindex");
@@ -3396,6 +3414,122 @@ static RPCHelpMan loadtxoutset()
     };
 }
 
+static RPCHelpMan genhints()
+{
+    return RPCHelpMan{
+        "genhints",
+        "Build a file of hints for the current state of the UTXO set.\n"
+        "The purpose of said hints is to allow clients performing initial block download"
+        "to omit unnecessary disk I/O and CPU usage.\n"
+        "The hint file is constructed by reading in blocks sequentially and determining what outputs"
+        "will remain in the UTXO set. Network activity will be suspended during this process, and the"
+        "hint file may take an hour or more to build."
+        "Make sure to use no RPC timeout (bitcoin-cli -rpcclienttimeout=0)",
+        {
+            {"path",
+                RPCArg::Type::STR,
+                RPCArg::Optional::NO,
+                "Path to the hint file. If relative, will be prefixed by datadir."},
+            {"hash_or_height", RPCArg::Type::NUM, RPCArg::Optional::OMITTED,
+                "",
+                RPCArgOptions{
+                    .skip_type_check = true,
+                    .type_str={"", "string or numeric"}},
+            },
+        },
+        RPCResult{
+            RPCResult::Type::OBJ, "", "",
+                {
+                    {RPCResult::Type::NUM, "height", "height of the blockchain the file encodes UTXO hints for."},
+                }
+        },
+        RPCExamples{
+            HelpExampleCli("-rpcclienttimeout=0 generateutxohints", "hints.bin")
+        },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
+{
+    using swiftsync::Hintfile;
+    NodeContext& node = EnsureAnyNodeContext(request.context);
+    if (node.chainman->m_blockman.IsPruneMode()) {
+        throw JSONRPCError(RPC_MISC_ERROR, "Creating a hint file in pruned mode is not possible.");
+    }
+
+    const ArgsManager& args = EnsureAnyArgsman(request.context);
+    const fs::path path = fsbridge::AbsPathJoin(args.GetDataDirNet(), fs::u8path(self.Arg<std::string_view>("path")));
+    const fs::path temppath = path + ".incomplete";
+    if (fs::exists(path)) {
+        throw JSONRPCError(
+            RPC_INVALID_PARAMETER,
+            path.utf8string() + " already exists. If you are sure this is what you want, "
+            "move it out of the way first");
+    }
+    FILE* file{fsbridge::fopen(temppath, "wb")};
+    AutoFile afile{file};
+    if (afile.IsNull()) {
+        throw JSONRPCError(
+            RPC_INVALID_PARAMETER,
+            "Couldn't open file " + temppath.utf8string() + " for writing.");
+    }
+
+    CConnman& connman = EnsureConnman(node);
+    NetworkDisable disable_net = NetworkDisable(connman);
+    ChainstateManager& chainman = EnsureChainman(node);
+    std::optional<TemporaryRollback> rollback{};
+    if (!request.params[1].isNull()) {
+        auto invalidate_index = ParseHashOrHeight(request.params[1], chainman);
+        rollback.emplace(chainman, *invalidate_index);
+    }
+    LOCK(chainman.GetMutex());
+    CChain& active_chain = chainman.ActiveChain();
+    Chainstate& active_state = chainman.ActiveChainstate();
+    active_state.ForceFlushStateToDisk();
+    CBlockIndex* end_index = active_chain.Tip();
+    auto tip_height = end_index->nHeight;
+    LogDebug(BCLog::RPC, "Active chain best tip %d", tip_height);
+    auto coins_db_best = active_state.CoinsDB().GetBestBlock();
+    LogDebug(BCLog::RPC, "Coins DB best hash %s", coins_db_best.ToString());
+    Hintfile hintfile = Hintfile::CreateNew(afile, end_index->GetBlockHash(), tip_height);
+    CBlockIndex* curr = active_chain.Next(active_chain.Genesis());
+
+    while (curr) {
+        auto height = curr->nHeight;
+        if (height % 10000 == 0) {
+            LogDebug(BCLog::RPC, "Wrote hints up to height (%s)", height);
+        }
+        FlatFilePos file_pos = curr->GetBlockPos();
+        std::unique_ptr<CBlock> pblock = std::make_unique<CBlock>();
+        bool read = chainman.m_blockman.ReadBlock(*pblock, file_pos, curr->GetBlockHash());
+        if (!read) {
+            throw JSONRPCError(RPC_DATABASE_ERROR, "Block could not be read from disk.");
+        }
+        std::vector<uint64_t> unspent_offsets;
+        uint64_t curr_offset = 0;
+        for (const auto& tx: pblock->vtx) {
+            const Txid& txid = tx->GetHash();
+            for (size_t vout = 0; vout < tx->vout.size(); vout++) {
+                COutPoint outpoint = COutPoint(txid, vout);
+                if (active_state.CoinsDB().HaveCoin(outpoint)) {
+                    unspent_offsets.push_back(curr_offset);
+                    curr_offset = 0;
+                }
+                curr_offset++;
+            }
+        }
+        if (!hintfile.WriteNextBlock(unspent_offsets)) {
+            throw JSONRPCError(RPC_DATABASE_ERROR, "Failed to commit changes to hint file.");
+        }
+        node.rpc_interruption_point();
+        curr = active_chain.Next(curr);
+    }
+    fs::rename(temppath, path);
+
+    UniValue result(UniValue::VOBJ);
+    result.pushKV("height", tip_height);
+    return result;
+},
+    };
+}
+
 const std::vector<RPCResult> RPCHelpForChainstate{
     {RPCResult::Type::NUM, "blocks", "number of blocks in this chainstate"},
     {RPCResult::Type::STR_HEX, "bestblockhash", "blockhash of the tip"},
@@ -3496,6 +3630,7 @@ void RegisterBlockchainRPCCommands(CRPCTable& t)
         {"blockchain", &getblockfilter},
         {"blockchain", &dumptxoutset},
         {"blockchain", &loadtxoutset},
+        {"blockchain", &genhints},
         {"blockchain", &getchainstates},
         {"hidden", &invalidateblock},
         {"hidden", &reconsiderblock},
