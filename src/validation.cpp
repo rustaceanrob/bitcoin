@@ -1987,6 +1987,13 @@ void Chainstate::InitCoinsCache(size_t cache_size_bytes)
     m_coins_views->InitCache();
 }
 
+void Chainstate::AddUtxoHints(const fs::path& path)
+{
+    FILE* file{fsbridge::fopen(path, "rb")};
+    AutoFile afile{file};
+    m_swiftsync_ctx.LoadHints(afile);
+}
+
 // Note that though this is marked const, we may end up modifying `m_cached_finished_ibd`, which
 // is a performance-related implementation detail. This function must be marked
 // `const` so that `CValidationInterface` clients (which are given a `const Chainstate*`)
@@ -2417,6 +2424,7 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
     // Special case for the genesis block, skipping connection of its transactions
     // (its coinbase is unspendable)
     if (block_hash == params.GetConsensus().hashGenesisBlock) {
+        m_swiftsync_ctx.StartBlockIsGenesis();
         if (!fJustCheck)
             view.SetBestBlock(pindex->GetBlockHash());
         return true;
@@ -5668,6 +5676,9 @@ Chainstate& ChainstateManager::InitializeChainstate(CTxMemPool* mempool)
     assert(!m_active_chainstate);
 
     m_ibd_chainstate = std::make_unique<Chainstate>(mempool, m_blockman, *this);
+    if (m_options.utxo_hints) {
+        m_ibd_chainstate->AddUtxoHints(m_options.utxo_hints.value());
+    }
     m_active_chainstate = m_ibd_chainstate.get();
     return *m_active_chainstate;
 }

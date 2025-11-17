@@ -69,6 +69,10 @@ util::Result<void> ApplyArgsManOptions(const ArgsManager& args, ChainstateManage
         opts.signature_cache_bytes = clamped_size_each;
     }
 
+    if (args.IsArgSet("-utxohints")) {
+        opts.utxo_hints = fs::absolute(args.GetPathArg("-ibdboosterfile"));
+    }
+
     return {};
 }
 } // namespace node

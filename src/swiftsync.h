@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <hash.h>
+#include <optional>
 #include <primitives/transaction.h>
 #include <streams.h>
 #include <uint256.h>
@@ -51,12 +52,10 @@ private:
     AutoFile m_file;
     uint256 m_stop_hash;
     uint32_t m_stop_height;
-    Hintfile(AutoFile& file);
     Hintfile(AutoFile& file, const uint256& stop_hash, const uint32_t& stop_height);
 
 public:
-    // Construct a hint file and immediately read the stop hash and height.
-    static Hintfile FromExisting(AutoFile& file);
+    Hintfile(AutoFile& file);
     // Construct a hint file and write the stop hash and height.
     static Hintfile CreateNew(AutoFile& file, const uint256& stop_hash, const uint32_t& stop_height);
     BlockUnspentHints ReadNextBlock();
@@ -65,4 +64,25 @@ public:
     uint256 StopHash() { return m_stop_hash; };
     uint32_t StopHeight() { return m_stop_height; };
 };
-}
+
+class Context
+{
+private:
+    std::optional<Hintfile> m_hintfile{};
+    Aggregate m_agg{};
+    bool m_connecting_to_genesis{false};
+
+public:
+    Context();
+    bool IsStartBlockGenesis() { return m_connecting_to_genesis; };
+    bool IsActive() { return m_connecting_to_genesis && m_hintfile.has_value(); };
+    void LoadHints(AutoFile& file);
+    void StartBlockIsGenesis() { m_connecting_to_genesis = true; };
+    uint256 StopHash() { return m_hintfile->StopHash(); };
+    uint32_t StopHeight() { return m_hintfile->StopHeight(); };
+    BlockUnspentHints ReadNextBlock() { return m_hintfile->ReadNextBlock(); };
+    void Add(const COutPoint& outpoint) { m_agg.Add(outpoint); };
+    void Spend(const COutPoint& outpoint) { m_agg.Spend(outpoint); };
+    bool EmptySet() { return m_agg.IsZero(); };
+};
+} // namespace swiftsync

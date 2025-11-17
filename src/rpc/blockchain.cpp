@@ -39,7 +39,6 @@
 #include <script/descriptor.h>
 #include <serialize.h>
 #include <streams.h>
-#include <swiftsync.h>
 #include <sync.h>
 #include <tinyformat.h>
 #include <txdb.h>

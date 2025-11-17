@@ -25,6 +25,7 @@
 #include <script/sigcache.h>
 #include <script/verify_flags.h>
 #include <sync.h>
+#include <swiftsync.h>
 #include <txdb.h>
 #include <txmempool.h>
 #include <uint256.h>
@@ -563,6 +564,8 @@ protected:
 
     std::optional<const char*> m_last_script_check_reason_logged GUARDED_BY(::cs_main){};
 
+    swiftsync::Context m_swiftsync_ctx {};
+
 public:
     //! Reference to a BlockManager instance which itself is shared across all
     //! Chainstate instances.
@@ -791,6 +794,8 @@ public:
         size_t max_mempool_size_bytes) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
     std::string ToString() EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+
+    void AddUtxoHints(const fs::path& path);
 
     //! Indirection necessary to make lock annotations work with an optional mempool.
     RecursiveMutex* MempoolMutex() const LOCK_RETURNED(m_mempool->cs)

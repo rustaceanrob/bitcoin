@@ -5,6 +5,7 @@
 #ifndef BITCOIN_KERNEL_CHAINSTATEMANAGER_OPTS_H
 #define BITCOIN_KERNEL_CHAINSTATEMANAGER_OPTS_H
 
+#include "util/fs.h"
 #include <kernel/notifications_interface.h>
 
 #include <arith_uint256.h>
@@ -15,7 +16,6 @@
 #include <util/time.h>
 
 #include <cstdint>
-#include <functional>
 #include <optional>
 
 class CChainParams;
@@ -32,6 +32,7 @@ namespace kernel {
  */
 struct ChainstateManagerOpts {
     const CChainParams& chainparams;
+    std::optional<fs::path> utxo_hints{};
     fs::path datadir;
     std::optional<int32_t> check_block_index{};
     //! If set, it will override the minimum work we will assume exists on some valid chain.

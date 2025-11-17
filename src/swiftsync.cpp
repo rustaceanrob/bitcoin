@@ -41,11 +41,6 @@ Hintfile::Hintfile(AutoFile& file) : m_file(file.release())
     m_file >> m_stop_hash;
 }
 
-Hintfile Hintfile::FromExisting(AutoFile& file)
-{
-    return Hintfile(file);
-}
-
 Hintfile::Hintfile(AutoFile& file, const uint256& stop_hash, const uint32_t& stop_height) : m_file(file.release())
 {
     m_file << stop_height;
@@ -93,4 +88,11 @@ bool Hintfile::WriteNextBlock(const std::vector<uint64_t>& unspent_offsets)
         WriteCompactSize(m_file, offset);
     }
     return m_file.Commit();
+}
+
+Context::Context() = default;
+
+void Context::LoadHints(AutoFile& file)
+{
+    m_hintfile.emplace(file);
 }
