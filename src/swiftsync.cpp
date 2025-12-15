@@ -17,6 +17,17 @@
 
 using namespace swiftsync;
 
+void BitsWriter::WriteBitInternal(uint8_t is_not_spent) noexcept
+{
+    m_curr_byte <<= 1;
+    m_curr_byte |= (is_not_spent & 0x01);
+    ++m_bits_written;
+    if (m_bits_written % 8 == 0) {
+        m_hints.push_back(m_curr_byte);
+        m_curr_byte = 0;
+    }
+}
+
 HintsfileWriter::HintsfileWriter(AutoFile& file, const uint32_t& preallocate) : m_file(file.release())
 {
     uint64_t dummy_file_pos{};
@@ -29,7 +40,7 @@ HintsfileWriter::HintsfileWriter(AutoFile& file, const uint32_t& preallocate) : 
     }
 }
 
-bool HintsfileWriter::WriteNextUnspents(const std::vector<uint64_t>& unspent_offsets, const uint32_t& height)
+bool HintsfileWriter::WriteNextUnspents(BitsWriter& writer, const uint32_t& height)
 {
     // First write the current file position for the current height in the header section.
     uint64_t curr_pos = m_file.size();
@@ -39,10 +50,7 @@ bool HintsfileWriter::WriteNextUnspents(const std::vector<uint64_t>& unspent_off
     m_file << curr_pos;
     // Next append the positions of the unspent offsets in the block at this height.
     m_file.seek(curr_pos, SEEK_SET);
-    WriteCompactSize(m_file, unspent_offsets.size());
-    for (const auto& offset : unspent_offsets) {
-        WriteCompactSize(m_file, offset);
-    }
+    writer.EncodeToStream(m_file);
     ++m_index;
     return m_file.Commit();
 }

@@ -7,11 +7,11 @@
 #include <primitives/transaction.h>
 #include <streams.h>
 #include <uint256.h>
+#include <util/fs.h>
 #include <util/hasher.h>
 #include <array>
 #include <cstdint>
 #include <unordered_map>
-#include <util/fs.h>
 #include <vector>
 
 namespace swiftsync {
@@ -39,6 +39,24 @@ public:
     void Spend(const COutPoint& outpoint) { m_spent += m_hasher(outpoint); }
 };
 
+class BitsWriter
+{
+private:
+    std::vector<uint8_t> m_hints{};
+    uint8_t m_curr_byte{};
+    uint32_t m_bits_written{};
+    void WriteBitInternal(uint8_t bit) noexcept;
+
+public:
+    void PushHighBit() noexcept { return WriteBitInternal(0x01); }
+    void PushLowBit() noexcept { return WriteBitInternal(0x00); }
+    void EncodeToStream(AutoFile& file)
+    {
+        file << m_bits_written;
+        file << m_hints;
+    };
+};
+
 /**
  * Create a new hint file for writing.
  */
@@ -56,7 +74,7 @@ public:
         (void)m_file.fclose();
     }
     // Write the next hints to file.
-    bool WriteNextUnspents(const std::vector<uint64_t>& unspent_offsets, const uint32_t& height);
+    bool WriteNextUnspents(BitsWriter& writer, const uint32_t& height);
     // Close the underlying file.
     int Close() { return m_file.fclose(); };
 };
