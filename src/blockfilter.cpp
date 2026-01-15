@@ -21,6 +21,7 @@ using util::Join;
 
 static const std::map<BlockFilterType, std::string> g_filter_types = {
     {BlockFilterType::BASIC, "basic"},
+    {BlockFilterType::TAPROOT, "taproot"},
 };
 
 uint64_t GCSFilter::HashToRange(const Element& element) const
@@ -208,6 +209,30 @@ static GCSFilter::ElementSet BasicFilterElements(const CBlock& block,
     return elements;
 }
 
+static GCSFilter::ElementSet TaprootFilterElements(const CBlock& block,
+                                                   const CBlockUndo& block_undo)
+{
+    GCSFilter::ElementSet elements;
+
+    for (const CTransactionRef& tx : block.vtx) {
+        for (const CTxOut& txout : tx->vout) {
+            const CScript& script = txout.scriptPubKey;
+            if (!script.IsPayToTaproot() || script.empty()) continue;
+            elements.emplace(script.begin(), script.end());
+        }
+    }
+
+    for (const CTxUndo& tx_undo : block_undo.vtxundo) {
+        for (const Coin& prevout : tx_undo.vprevout) {
+            const CScript& script = prevout.out.scriptPubKey;
+            if (!script.IsPayToTaproot() || script.empty()) continue;
+            elements.emplace(script.begin(), script.end());
+        }
+    }
+
+    return elements;
+}
+
 BlockFilter::BlockFilter(BlockFilterType filter_type, const uint256& block_hash,
                          std::vector<unsigned char> filter, bool skip_decode_check)
     : m_filter_type(filter_type), m_block_hash(block_hash)
@@ -226,13 +251,24 @@ BlockFilter::BlockFilter(BlockFilterType filter_type, const CBlock& block, const
     if (!BuildParams(params)) {
         throw std::invalid_argument("unknown filter_type");
     }
-    m_filter = GCSFilter(params, BasicFilterElements(block, block_undo));
+    if (filter_type == BlockFilterType::BASIC) {
+        m_filter = GCSFilter(params, BasicFilterElements(block, block_undo));
+    }
+    if (filter_type == BlockFilterType::TAPROOT) {
+        m_filter = GCSFilter(params, TaprootFilterElements(block, block_undo));
+    }
 }
 
 bool BlockFilter::BuildParams(GCSFilter::Params& params) const
 {
     switch (m_filter_type) {
     case BlockFilterType::BASIC:
+        params.m_siphash_k0 = m_block_hash.GetUint64(0);
+        params.m_siphash_k1 = m_block_hash.GetUint64(1);
+        params.m_P = BASIC_FILTER_P;
+        params.m_M = BASIC_FILTER_M;
+        return true;
+    case BlockFilterType::TAPROOT:
         params.m_siphash_k0 = m_block_hash.GetUint64(0);
         params.m_siphash_k1 = m_block_hash.GetUint64(1);
         params.m_P = BASIC_FILTER_P;
