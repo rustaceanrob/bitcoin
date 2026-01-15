@@ -3237,7 +3237,7 @@ bool PeerManagerImpl::PrepareBlockFilterRequest(CNode& node, Peer& peer,
                                                 BlockFilterIndex*& filter_index)
 {
     const bool supported_filter_type =
-        (filter_type == BlockFilterType::BASIC &&
+        ((filter_type == BlockFilterType::BASIC || filter_type == BlockFilterType::TAPROOT) &&
          (peer.m_our_services & NODE_COMPACT_FILTERS));
     if (!supported_filter_type) {
         LogDebug(BCLog::NET, "peer requested unsupported block filter type: %d, %s\n",

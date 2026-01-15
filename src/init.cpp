@@ -977,7 +977,7 @@ bool AppInitParameterInteraction(const ArgsManager& args)
 
     // Signal NODE_COMPACT_FILTERS if peerblockfilters and basic filters index are both enabled.
     if (args.GetBoolArg("-peerblockfilters", DEFAULT_PEERBLOCKFILTERS)) {
-        if (!g_enabled_filter_types.contains(BlockFilterType::BASIC)) {
+        if (!g_enabled_filter_types.contains(BlockFilterType::BASIC) && !g_enabled_filter_types.contains(BlockFilterType::TAPROOT)) {
             return InitError(_("Cannot set -peerblockfilters without -blockfilterindex."));
         }
 
