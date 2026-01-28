@@ -59,12 +59,14 @@ NODE_WITNESS = (1 << 3)
 NODE_COMPACT_FILTERS = (1 << 6)
 NODE_NETWORK_LIMITED = (1 << 10)
 NODE_P2P_V2 = (1 << 11)
+NODE_BLOCK_UNDO = (1 << 21)
 
 MSG_TX = 1
 MSG_BLOCK = 2
 MSG_FILTERED_BLOCK = 3
 MSG_CMPCT_BLOCK = 4
 MSG_WTX = 5
+MSG_BLOCK_UNDO = 6
 MSG_WITNESS_FLAG = 1 << 30
 MSG_TYPE_MASK = 0xffffffff >> 2
 MSG_WITNESS_TX = MSG_TX | MSG_WITNESS_FLAG
@@ -865,6 +867,25 @@ class CBlock(CBlockHeader):
             % (self.nVersion, self.hashPrevBlock, self.hashMerkleRoot,
                time.ctime(self.nTime), self.nBits, self.nNonce, repr(self.vtx))
 
+class Coin:
+    __slots__ = ("height", "is_coinbase", "value", "script_pubkey")
+
+    def __init__(self, height=0, is_coinbase=False, value=0, script_pubkey=b""):
+        self.height = height
+        self.is_coinbase = is_coinbase
+        self.value = value
+        self.script_pubkey = script_pubkey
+
+    def deserialize(self, f):
+        code = int.from_bytes(f.read(4), "little")
+        self.height = code >> 1
+        self.is_coinbase = (code & 1) != 0
+        self.value = int.from_bytes(f.read(8), "little")
+        self.script_pubkey = decompress_script(f)
+        return self
+
+    def __repr__(self):
+        return "Coin(height=%d, coinbase=%d, value=%d, script=%s)" % (self.height, self.is_coinbase, self.value, self.script_pubkey.hex())
 
 class PrefilledTransaction:
     __slots__ = ("index", "tx")
@@ -1753,6 +1774,22 @@ class msg_no_witness_blocktxn(msg_blocktxn):
 
     def serialize(self):
         return self.block_transactions.serialize(with_witness=False)
+
+
+class msg_block_undo:
+    __slots__ = ("block_hash", "coins")
+    msgtype = b"blockundo"
+
+    def __init__(self, block_hash=0, coins=[]) -> None:
+        self.block_hash = block_hash
+        self.coins = coins
+
+    def deserialize(self, f):
+        self.block_hash = deser_uint256(f)
+        self.coins = deser_vector(f, Coin)
+
+    def __repr__(self):
+        return "msg_blockundo(block_transactions=%s)" % (repr(self.block_transactions))
 
 
 class msg_getcfilters:

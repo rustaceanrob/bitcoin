@@ -11,6 +11,7 @@
 #include <consensus/consensus.h>
 #include <primitives/transaction.h>
 #include <serialize.h>
+#include <uint256.h>
 
 /** Formatter for undo information for a CTxIn
  *
@@ -48,6 +49,26 @@ struct TxInUndoFormatter
     }
 };
 
+struct NetworkCoinFormatter
+{
+    template<typename Stream>
+    void Ser(Stream& s, const Coin& coin) {
+        ::Serialize(s, coin.nHeight * uint32_t{2} + coin.fCoinBase);
+        ::Serialize(s, coin.out.nValue);
+        ::Serialize(s, Using<ReconstructableScript>(coin.out.scriptPubKey));
+    }
+
+    template<typename Stream>
+    void Unser(Stream& s, Coin& coin) {
+        uint32_t n_code = 0x00;
+        ::Unserialize(s, n_code);
+        coin.nHeight = n_code >> 1;
+        coin.fCoinBase = n_code & 1;
+        ::Unserialize(s, coin.out.nValue);
+        ::Unserialize(s, Using<ReconstructableScript>(coin.out.scriptPubKey));
+    }
+};
+
 /** Undo information for a CTransaction */
 class CTxUndo
 {
@@ -67,4 +88,34 @@ public:
     SERIALIZE_METHODS(CBlockUndo, obj) { READWRITE(obj.vtxundo); }
 };
 
+class NetworkBlockUndo
+{
+public:
+    std::vector<Coin> m_coins;
+    uint256 m_hash;
+
+    NetworkBlockUndo(): m_coins{}, m_hash{} {};
+
+    NetworkBlockUndo(uint256 hash, CBlockUndo& undo, uint32_t cutoff): m_hash{hash} {
+        for (const auto& tx_undo : undo.vtxundo) {
+            for (const auto& coin : tx_undo.vprevout) {
+                if (cutoff == 0x00 || coin.nHeight < cutoff) {
+                    m_coins.push_back(coin);
+                }
+            }
+        }
+    }
+
+    template <typename Stream>
+    void Serialize(Stream& s) const {
+        ::Serialize(s, m_hash);
+        ::Serialize(s, Using<VectorFormatter<NetworkCoinFormatter>>(m_coins));
+    }
+
+    template <typename Stream>
+    void Unserialize(Stream& s) {
+        ::Unserialize(s, m_hash);
+        ::Unserialize(s, Using<VectorFormatter<NetworkCoinFormatter>>(m_coins));
+    }
+};
 #endif // BITCOIN_UNDO_H

@@ -216,6 +216,10 @@ inline constexpr const char* GETBLOCKTXN{"getblocktxn"};
  * @since protocol version 70014 as described by BIP 152
  */
 inline constexpr const char* BLOCKTXN{"blocktxn"};
+
+inline constexpr const char* GETBLOCKUNDO{"getbundo"};
+
+inline constexpr const char* BLOCKUNDO{"bundo"};
 /**
  * getcfilters requests compact filters for a range of blocks.
  * Only available with service bit NODE_COMPACT_FILTERS as described by
@@ -303,6 +307,8 @@ inline const std::array ALL_NET_MESSAGE_TYPES{std::to_array<std::string>({
     NetMsgType::CFCHECKPT,
     NetMsgType::WTXIDRELAY,
     NetMsgType::SENDTXRCNCL,
+    NetMsgType::BLOCKUNDO,
+    NetMsgType::GETBLOCKUNDO,
 })};
 
 /** nServices flags */
@@ -336,6 +342,7 @@ enum ServiceFlags : uint64_t {
     // collisions and other cases where nodes may be advertising a service they
     // do not actually support. Other service bits should be allocated via the
     // BIP process.
+    NODE_BLOCK_UNDO = (1 << 21),
 };
 
 /**
