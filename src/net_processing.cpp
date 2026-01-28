@@ -56,6 +56,7 @@
 #include <tinyformat.h>
 #include <txmempool.h>
 #include <uint256.h>
+#include <undo.h>
 #include <util/check.h>
 #include <util/strencodings.h>
 #include <util/time.h>
@@ -1075,6 +1076,8 @@ private:
      * @param[in]   vRecv           The raw message received
      */
     void ProcessGetCFCheckPt(CNode& node, Peer& peer, DataStream& vRecv);
+
+    void ProcessGetBlockUndo(CNode& node, Peer& peer, DataStream& vRecv);
 
     /** Checks if address relay is permitted with peer. If needed, initializes
      * the m_addr_known bloom filter and sets m_addr_relay_enabled to true.
@@ -3394,6 +3397,48 @@ void PeerManagerImpl::ProcessGetCFCheckPt(CNode& node, Peer& peer, DataStream& v
               headers);
 }
 
+void PeerManagerImpl::ProcessGetBlockUndo(CNode& pfrom, Peer& peer, DataStream& vRecv)
+{
+    uint256 blockhash;
+    vRecv >> blockhash;
+    uint32_t cutoff;
+    vRecv >> cutoff;
+    if ((peer.m_our_services & NODE_BLOCK_UNDO) != NODE_BLOCK_UNDO) {
+        LogDebug(BCLog::NET, "ignoring unsupported block undo request, %s\n", pfrom.DisconnectMsg(fLogIPs));
+        pfrom.fDisconnect = true;
+        return;
+    }
+    CBlockIndex* pindex{nullptr};
+    {
+        LOCK(cs_main);
+        pindex = m_chainman.m_blockman.LookupBlockIndex(blockhash);
+        if (!pindex) {
+            return;
+        }
+        if (!BlockRequestAllowed(pindex)) {
+            LogDebug(BCLog::NET, "%s: ignoring request from peer=%i for old block that isn't in the main chain\n", __func__, pfrom.GetId());
+            return;
+        }
+        // disconnect node in case we have reached the outbound limit for serving historical blocks
+        if (m_connman.OutboundTargetReached(true) &&
+            (((m_chainman.m_best_header != nullptr) && (m_chainman.m_best_header->GetBlockTime() - pindex->GetBlockTime() > HISTORICAL_BLOCK_AGE))) &&
+            !pfrom.HasPermission(NetPermissionFlags::Download) // nodes with the download permission may exceed target
+        ) {
+            LogDebug(BCLog::NET, "historical block serving limit reached, %s\n", pfrom.DisconnectMsg(fLogIPs));
+            pfrom.fDisconnect = true;
+            return;
+        }
+    }
+    CBlockUndo block_undo{};
+    if (m_chainman.m_blockman.ReadBlockUndo(block_undo, *pindex)) {
+        auto hash = pindex->GetBlockHash();
+        NetworkBlockUndo undo{hash, block_undo, cutoff};
+        MakeAndPushMessage(pfrom, NetMsgType::BLOCKUNDO, undo);
+    } else {
+        LogError("Cannot load block undo from disk, %s\n", pfrom.DisconnectMsg(fLogIPs));
+    }
+}
+
 void PeerManagerImpl::ProcessBlock(CNode& node, const std::shared_ptr<const CBlock>& block, bool force_processing, bool min_pow_checked)
 {
     bool new_block{false};
@@ -5118,6 +5163,10 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
     if (msg_type == NetMsgType::GETCFCHECKPT) {
         ProcessGetCFCheckPt(pfrom, *peer, vRecv);
         return;
+    }
+
+    if (msg_type == NetMsgType::GETBLOCKUNDO) {
+        ProcessGetBlockUndo(pfrom, *peer, vRecv);
     }
 
     if (msg_type == NetMsgType::NOTFOUND) {

@@ -4,6 +4,8 @@
 
 #include <compressor.h>
 #include <script/script.h>
+#include <streams.h>
+#include <serialize.h>
 #include <test/util/random.h>
 #include <test/util/setup_common.h>
 
@@ -162,6 +164,183 @@ BOOST_AUTO_TEST_CASE(compress_p2pk_scripts_not_on_curve)
         bool success = DecompressScript(uncompressed_script, compression_id, compressed_script);
         BOOST_CHECK_EQUAL(success, false);
     }
+}
+
+BOOST_AUTO_TEST_CASE(reconstructable_script_p2pkh)
+{
+    std::vector<uint8_t> buf{};
+    VectorWriter s{buf, 0};
+    CPubKey key = GenerateRandomKey().GetPubKey();
+    CKeyID key_id = key.GetID();
+    // BOOST_TEST_MESSAGE("Generated Key ID: " << HexStr(key_id));
+    CScript want =  CScript() << OP_DUP << OP_HASH160 << ToByteVector(key_id) << OP_EQUALVERIFY << OP_CHECKSIG;
+    // BOOST_TEST_MESSAGE("P2PKH Script: " << HexStr(want));
+    s << Using<ReconstructableScript>(want);
+    // BOOST_TEST_MESSAGE("Reconstructable script produced: " << HexStr(buf));
+    BOOST_CHECK_EQUAL(buf[0], static_cast<uint8_t>(ReconstructableScriptType::P2pkh));
+    BOOST_CHECK_EQUAL_COLLECTIONS(buf.begin() + 1, buf.end(), key_id.begin(), key_id.end());
+    CScript got;
+    SpanReader span{buf};
+    Unserialize(span, Using<ReconstructableScript>(got));
+    // BOOST_TEST_MESSAGE("Script decoded: " << HexStr(got));
+    BOOST_CHECK_EQUAL_COLLECTIONS(want.begin(), want.end(), got.begin(), got.end());
+}
+
+BOOST_AUTO_TEST_CASE(reconstructable_script_p2sh)
+{
+    std::vector<uint8_t> buf{};
+    VectorWriter s{buf, 0};
+    CScript redeem_script;
+    CScriptID redeem_id{redeem_script};
+    // BOOST_TEST_MESSAGE("Generated script hash ID: " << HexStr(redeem_id));
+    CScript want = CScript() << OP_HASH160 << ToByteVector(redeem_id) << OP_EQUAL;
+    // BOOST_TEST_MESSAGE("P2SH Script: " << HexStr(want));
+    s << Using<ReconstructableScript>(want);
+    // BOOST_TEST_MESSAGE("Reconstructable script produced: " << HexStr(buf));
+    BOOST_CHECK_EQUAL(buf[0], static_cast<uint8_t>(ReconstructableScriptType::P2sh));
+    BOOST_CHECK_EQUAL_COLLECTIONS(buf.begin() + 1, buf.end(), redeem_id.begin(), redeem_id.end());
+    CScript got;
+    SpanReader span{buf};
+    Unserialize(span, Using<ReconstructableScript>(got));
+    // BOOST_TEST_MESSAGE("Script decoded: " << HexStr(got));
+    BOOST_CHECK_EQUAL_COLLECTIONS(want.begin(), want.end(), got.begin(), got.end());
+}
+
+BOOST_AUTO_TEST_CASE(reconstructable_script_p2tr)
+{
+    std::vector<uint8_t> buf{};
+    VectorWriter s{buf, 0};
+    CPubKey key = GenerateRandomKey().GetPubKey();
+    XOnlyPubKey x_only{key};
+    // BOOST_TEST_MESSAGE("Generated X-only public key: " << HexStr(x_only));
+    CScript want =  CScript() << OP_1 << ToByteVector(x_only);
+    // BOOST_TEST_MESSAGE("P2TR Script: " << HexStr(want));
+    s << Using<ReconstructableScript>(want);
+    // BOOST_TEST_MESSAGE("Reconstructable script produced: " << HexStr(buf));
+    BOOST_CHECK_EQUAL(buf[0], static_cast<uint8_t>(ReconstructableScriptType::P2tr));
+    BOOST_CHECK_EQUAL_COLLECTIONS(buf.begin() + 1, buf.end(), x_only.begin(), x_only.end());
+    CScript got;
+    SpanReader span{buf};
+    Unserialize(span, Using<ReconstructableScript>(got));
+    // BOOST_TEST_MESSAGE("Script decoded: " << HexStr(got));
+    BOOST_CHECK_EQUAL_COLLECTIONS(want.begin(), want.end(), got.begin(), got.end());
+}
+
+BOOST_AUTO_TEST_CASE(reconstructable_script_p2wpkh)
+{
+    std::vector<uint8_t> buf{};
+    VectorWriter s{buf, 0};
+    CPubKey key = GenerateRandomKey().GetPubKey();
+    CKeyID key_id = key.GetID();
+    // BOOST_TEST_MESSAGE("Generated Key ID: " << HexStr(key_id));
+    CScript want = CScript() << OP_0 << ToByteVector(key_id);
+    // BOOST_TEST_MESSAGE("P2WPKH Script: " << HexStr(want));
+    s << Using<ReconstructableScript>(want);
+    // BOOST_TEST_MESSAGE("Reconstructable script produced: " << HexStr(buf));
+    BOOST_CHECK_EQUAL(buf[0], static_cast<uint8_t>(ReconstructableScriptType::P2wpkh));
+    BOOST_CHECK_EQUAL_COLLECTIONS(buf.begin() + 1, buf.end(), key_id.begin(), key_id.end());
+    CScript got;
+    SpanReader span{buf};
+    Unserialize(span, Using<ReconstructableScript>(got));
+    // BOOST_TEST_MESSAGE("Script decoded: " << HexStr(got));
+    BOOST_CHECK_EQUAL_COLLECTIONS(want.begin(), want.end(), got.begin(), got.end());
+}
+
+BOOST_AUTO_TEST_CASE(reconstructable_script_p2wsh)
+{
+    std::vector<uint8_t> buf{};
+    VectorWriter s{buf, 0};
+    uint256 hash;
+    // BOOST_TEST_MESSAGE("Generated script hash ID: " << HexStr(hash));
+    CScript want = CScript() << OP_0 << ToByteVector(hash);
+    // BOOST_TEST_MESSAGE("P2SH Script: " << HexStr(want));
+    s << Using<ReconstructableScript>(want);
+    // BOOST_TEST_MESSAGE("Reconstructable script produced: " << HexStr(buf));
+    BOOST_CHECK_EQUAL(buf[0], static_cast<uint8_t>(ReconstructableScriptType::P2wsh));
+    BOOST_CHECK_EQUAL_COLLECTIONS(buf.begin() + 1, buf.end(), hash.begin(), hash.end());
+    CScript got;
+    SpanReader span{buf};
+    Unserialize(span, Using<ReconstructableScript>(got));
+    // BOOST_TEST_MESSAGE("Script decoded: " << HexStr(got));
+    BOOST_CHECK_EQUAL_COLLECTIONS(want.begin(), want.end(), got.begin(), got.end());
+}
+
+BOOST_AUTO_TEST_CASE(reconstructable_script_p2pk_odd)
+{
+    std::vector<uint8_t> buf{};
+    VectorWriter s{buf, 0};
+    CKey key_odd;
+    do {
+        key_odd.MakeNewKey(true);
+    } while (key_odd.GetPubKey()[0] != 0x03);
+    CPubKey pk{key_odd.GetPubKey()};
+    // BOOST_TEST_MESSAGE("Odd parity public key: " << HexStr(pk));
+    CScript want = CScript() << ToByteVector(pk) << OP_CHECKSIG;
+    // BOOST_TEST_MESSAGE("P2PK Script: " << HexStr(want));
+    s << Using<ReconstructableScript>(want);
+    // BOOST_TEST_MESSAGE("Reconstructable script produced: " << HexStr(buf));
+    BOOST_CHECK_EQUAL_COLLECTIONS(buf.begin(), buf.end(), pk.begin(), pk.end());
+    CScript got;
+    SpanReader span{buf};
+    Unserialize(span, Using<ReconstructableScript>(got));
+    // BOOST_TEST_MESSAGE("Script decoded: " << HexStr(got));
+    BOOST_CHECK_EQUAL_COLLECTIONS(want.begin(), want.end(), got.begin(), got.end());
+}
+
+BOOST_AUTO_TEST_CASE(reconstructable_script_p2pk_even)
+{
+    std::vector<uint8_t> buf{};
+    VectorWriter s{buf, 0};
+    CKey key_even;
+    do {
+        key_even.MakeNewKey(true);
+    } while (key_even.GetPubKey()[0] != 0x02);
+    CPubKey pk{key_even.GetPubKey()};
+    // BOOST_TEST_MESSAGE("Even parity public key: " << HexStr(pk));
+    CScript want = CScript() << ToByteVector(pk) << OP_CHECKSIG;
+    // BOOST_TEST_MESSAGE("P2PK Script: " << HexStr(want));
+    s << Using<ReconstructableScript>(want);
+    // BOOST_TEST_MESSAGE("Reconstructable script produced: " << HexStr(buf));
+    BOOST_CHECK_EQUAL_COLLECTIONS(buf.begin(), buf.end(), pk.begin(), pk.end());CScript got;
+    SpanReader span{buf};
+    Unserialize(span, Using<ReconstructableScript>(got));
+    // BOOST_TEST_MESSAGE("Script decoded: " << HexStr(got));
+    BOOST_CHECK_EQUAL_COLLECTIONS(want.begin(), want.end(), got.begin(), got.end());
+}
+
+BOOST_AUTO_TEST_CASE(reconstructable_script_p2pk_uncompressed)
+{
+    std::vector<uint8_t> buf{};
+    VectorWriter s{buf, 0};
+    CKey key;
+    key.MakeNewKey(false);
+    CPubKey pk{key.GetPubKey()};
+    // BOOST_TEST_MESSAGE("Uncompressed public key: " << HexStr(pk));
+    CScript want = CScript() << ToByteVector(pk) << OP_CHECKSIG;
+    // BOOST_TEST_MESSAGE("P2PK Script: " << HexStr(want));
+    s << Using<ReconstructableScript>(want);
+    // BOOST_TEST_MESSAGE("Reconstructable script produced: " << HexStr(buf));
+    BOOST_CHECK_EQUAL_COLLECTIONS(buf.begin(), buf.end(), pk.begin(), pk.end());
+    CScript got;
+    SpanReader span{buf};
+    Unserialize(span, Using<ReconstructableScript>(got));
+    // BOOST_TEST_MESSAGE("Script decoded: " << HexStr(got));
+    BOOST_CHECK_EQUAL_COLLECTIONS(want.begin(), want.end(), got.begin(), got.end());
+}
+
+BOOST_AUTO_TEST_CASE(reconstructable_script_unknown) {
+    std::vector<uint8_t> buf{};
+    VectorWriter s{buf, 0};
+    CScript want = CScript() << OP_RETURN;
+    // BOOST_TEST_MESSAGE("Unknown reconstructable script: " << HexStr(want));
+    s << Using<ReconstructableScript>(want);
+    // BOOST_TEST_MESSAGE("Reconstructable script produced: " << HexStr(buf));
+    BOOST_CHECK_EQUAL_COLLECTIONS(buf.begin() + 2, buf.end(), want.begin(), want.end());
+    CScript got;
+    SpanReader span{buf};
+    Unserialize(span, Using<ReconstructableScript>(got));
+    // BOOST_TEST_MESSAGE("Script decoded: " << HexStr(got));
+    BOOST_CHECK_EQUAL_COLLECTIONS(want.begin(), want.end(), got.begin(), got.end());
 }
 
 BOOST_AUTO_TEST_SUITE_END()
