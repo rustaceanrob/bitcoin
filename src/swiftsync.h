@@ -6,6 +6,7 @@
 
 #include <serialize.h>
 #include <span.h>
+#include <streams.h>
 
 #include <algorithm>
 #include <array>
@@ -204,6 +205,30 @@ public:
     }
 };
 
+/**
+ * Simple wrapper class to assist in writing UTXO set hints to file.
+ *
+ * The hints of a block are represented as the Elias-Fano encoding of the indices within a block that will remain unspent.
+ */
+class HintsfileWriter
+{
+private:
+    AutoFile m_file;
+
+public:
+    /**
+     * Write the file magic and version number to file.
+     */
+    HintsfileWriter(AutoFile& file);
+    /**
+     * Write the termination height this file encodes for.
+     */
+    bool WriteStopHeight(uint32_t stop);
+    /**
+     * Write the hints for a block.
+     */
+    bool WriteHints(const EliasFano& ef);
+};
 } // namespace swiftsync
 
 #endif // BITCOIN_SWIFTSYNC_H
