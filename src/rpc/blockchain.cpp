@@ -3502,10 +3502,14 @@ static RPCHelpMan generatetxohints()
     }
     CBlockIndex* curr{active_chain.Next(active_chain.Genesis())};
     uint64_t total_outputs_written{0};
+    std::set<COutPoint> spent_outpoints{};
     while (curr) {
         auto height{curr->nHeight};
         if (height % 10000 == 0) {
             LogDebug(BCLog::RPC, "Wrote hints up to height %s, total outputs written %d", height, total_outputs_written);
+        }
+        if (height % 10 == 0 && height != 0) {
+            spent_outpoints.clear();
         }
         FlatFilePos file_pos = curr->GetBlockPos();
         std::unique_ptr<CBlock> pblock = std::make_unique<CBlock>();
@@ -3513,7 +3517,15 @@ static RPCHelpMan generatetxohints()
         if (!read) {
             throw JSONRPCError(RPC_DATABASE_ERROR, "Block could not be read from disk.");
         }
-        uint32_t output_index{};
+        for (const auto& transaction : pblock->vtx) {
+            if (transaction->IsCoinBase()) {
+                continue;
+            }
+            for (const auto& txin : transaction->vin) {
+                spent_outpoints.insert(txin.prevout);
+            }
+        }
+        uint32_t running_index{};
         std::vector<uint32_t> unspent;
         for (const auto& tx: pblock->vtx) {
             const Txid& txid = tx->GetHash();
@@ -3522,10 +3534,13 @@ static RPCHelpMan generatetxohints()
                     continue;
                 }
                 const COutPoint outpoint = COutPoint(txid, vout);
-                if (active_state.CoinsDB().HaveCoin(outpoint)) {
-                    unspent.push_back(output_index);
+                if (spent_outpoints.contains(outpoint)) {
+                    continue;
                 }
-                ++output_index;
+                if (active_state.CoinsDB().HaveCoin(outpoint)) {
+                    unspent.push_back(running_index);
+                }
+                ++running_index;
                 ++total_outputs_written;
             }
         }
