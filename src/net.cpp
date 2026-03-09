@@ -7,6 +7,8 @@
 
 #include <net.h>
 
+#include <net_ibd_peer.h>
+
 #include <addrdb.h>
 #include <addrman.h>
 #include <banman.h>
@@ -36,6 +38,10 @@
 #include <util/trace.h>
 #include <util/translation.h>
 #include <util/vector.h>
+
+// Forward declarations for IBD peer selection
+std::chrono::seconds GetNextIBDEpoch();
+void EvaluateIBDPeers(CConnman& connman);
 
 #include <algorithm>
 #include <array>
@@ -2560,6 +2566,8 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect, std
     auto next_feeler = start + rng.rand_exp_duration(FEELER_INTERVAL);
     auto next_extra_block_relay = start + rng.rand_exp_duration(EXTRA_BLOCK_RELAY_ONLY_PEER_INTERVAL);
     auto next_extra_network_peer{start + rng.rand_exp_duration(EXTRA_NETWORK_PEER_INTERVAL)};
+    // Next IBD peer evaluation timestamp
+    auto next_ibd_peer_eval = start + GetNextIBDEpoch();
     const bool dnsseed = gArgs.GetBoolArg("-dnsseed", DEFAULT_DNSSEED);
     bool add_fixed_seeds = gArgs.GetBoolArg("-fixedseeds", DEFAULT_FIXEDSEEDS);
     const bool use_seednodes{!gArgs.GetArgs("-seednode").empty()};
@@ -2592,6 +2600,13 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect, std
         }
 
         PerformReconnections();
+
+        // Evaluate IBD peers periodically to find better connections
+        auto now_ibd = GetTime<std::chrono::microseconds>();
+        if (now_ibd > next_ibd_peer_eval) {
+            EvaluateIBDPeers(*this);
+            next_ibd_peer_eval = now_ibd + GetNextIBDEpoch();
+        }
 
         CountingSemaphoreGrant<> grant(*semOutbound);
         if (m_interrupt_net->interrupted()) {
@@ -4222,3 +4237,65 @@ std::function<void(const CAddress& addr,
                    std::span<const unsigned char> data,
                    bool is_incoming)>
     CaptureMessage = CaptureMessageToFile;
+
+// IBD Peer Selection Implementation
+//
+// During Initial Block Download, we want to connect to the best possible peers
+// (low latency, high bandwidth) to speed up sync. This function is called
+// periodically to evaluate our peers and potentially swap to better ones.
+
+std::chrono::seconds GetNextIBDEpoch()
+{
+    // Configurable epoch length
+    static const auto epoch_length = std::chrono::seconds{gArgs.GetArg("-ibd-peer-epoch", DEFAULT_IBD_PEER_EPOCH_LENGTH.count())};
+    return epoch_length;
+}
+
+void EvaluateIBDPeers(CConnman& connman)
+{
+    // Only run if IBD check callback is available
+    if (!connman.IsInIBD()) return;
+
+    // Get all full outbound relay peers
+    std::vector<CNode*> outbound_peers;
+    connman.ForEachNode([&outbound_peers](CNode* node) {
+        if (node->IsFullOutboundConn() && node->fSuccessfullyConnected) {
+            outbound_peers.push_back(node);
+        }
+    });
+
+    // Need minimum peers to consider swapping
+    if (outbound_peers.size() < IBD_PEER_MIN_PEERS) {
+        return;
+    }
+
+    // Calculate scores for all peers
+    std::vector<IBDPeerScore> scores;
+    for (const CNode* node : outbound_peers) {
+        auto score = CalculateIBDScore(node);
+        if (score) {
+            scores.push_back(*score);
+        }
+    }
+
+    if (scores.empty()) return;
+
+    // Sort by score (highest first)
+    std::sort(scores.begin(), scores.end(), [](const IBDPeerScore& a, const IBDPeerScore& b) {
+        return a.CalculateScore() > b.CalculateScore();
+    });
+
+    // Log scores for debugging
+    for (const auto& score : scores) {
+        LogIBDPeerScore(score);
+    }
+
+    // If the lowest scoring peer is below threshold, try to find a better one
+    const auto& lowest = scores.back();
+    if (lowest.CalculateScore() < IBD_PEER_SCORE_THRESHOLD) {
+        // Mark this peer for potential eviction
+        // We'll request a new outbound connection attempt
+        connman.SetTryNewOutboundPeer(true);
+        LogDebug(BCLog::NET, "IBD: Low scoring peer detected, attempting to find better peer\n");
+    }
+}

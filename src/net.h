@@ -1099,6 +1099,9 @@ public:
         bool whitelist_forcerelay = DEFAULT_WHITELISTFORCERELAY;
         bool whitelist_relay = DEFAULT_WHITELISTRELAY;
         bool m_capture_messages = false;
+        //! Callback to check if we're in Initial Block Download.
+        //! If set, used for preferential peer selection during IBD.
+        std::function<bool()> m_is_in_ibd_callback;
     };
 
     void Init(const Options& connOptions) EXCLUSIVE_LOCKS_REQUIRED(!m_added_nodes_mutex, !m_total_bytes_sent_mutex)
@@ -1115,6 +1118,7 @@ public:
         m_client_interface = connOptions.uiInterface;
         m_banman = connOptions.m_banman;
         m_msgproc = connOptions.m_msgproc;
+        m_is_in_ibd_callback = connOptions.m_is_in_ibd_callback;
         nSendBufferMaxSize = connOptions.nSendBufferMaxSize;
         nReceiveFloodSize = connOptions.nReceiveFloodSize;
         m_peer_connect_timeout = std::chrono::seconds{connOptions.m_peer_connect_timeout};
@@ -1165,6 +1169,7 @@ public:
 
     void Interrupt() EXCLUSIVE_LOCKS_REQUIRED(!mutexMsgProc);
     bool GetNetworkActive() const { return fNetworkActive; };
+    bool IsInIBD() const { return m_is_in_ibd_callback && m_is_in_ibd_callback(); };
     bool GetUseAddrmanOutgoing() const { return m_use_addrman_outgoing; };
     void SetNetworkActive(bool active);
 
@@ -1684,6 +1689,8 @@ private:
     NetEventsInterface* m_msgproc;
     /** Pointer to this node's banman. May be nullptr - check existence before dereferencing. */
     BanMan* m_banman;
+    /** Callback to check if we're in Initial Block Download. */
+    std::function<bool()> m_is_in_ibd_callback;
 
     /**
      * Addresses that were saved during the previous clean shutdown. We'll
