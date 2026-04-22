@@ -174,7 +174,7 @@ bool BlockFilterIndex::ReadFilterFromDisk(const FlatFilePos& pos, const uint256&
     return true;
 }
 
-size_t BlockFilterIndex::WriteFilterToDisk(FlatFilePos& pos, const BlockFilter& filter)
+size_t BlockFilterIndex::WriteFilterToDisk(FlatFilePos& pos, const BlockFilterBase& filter)
 {
     assert(filter.GetFilterType() == GetFilterType());
 
@@ -249,14 +249,14 @@ std::optional<uint256> BlockFilterIndex::ReadFilterHeader(int height, const uint
 
 bool BlockFilterIndex::CustomAppend(const interfaces::BlockInfo& block)
 {
-    BlockFilter filter(m_filter_type, *Assert(block.data), *Assert(block.undo_data));
-    const uint256& header = filter.ComputeHeader(m_last_header);
-    bool res = Write(filter, block.height, header);
+    std::unique_ptr<BlockFilterBase> filter = CreateBlockFilter(m_filter_type, *Assert(block.data), *Assert(block.undo_data));
+    const uint256& header = filter->ComputeHeader(m_last_header);
+    bool res = Write(*filter, block.height, header);
     if (res) m_last_header = header; // update last header
     return res;
 }
 
-bool BlockFilterIndex::Write(const BlockFilter& filter, uint32_t block_height, const uint256& filter_header)
+bool BlockFilterIndex::Write(const BlockFilterBase& filter, uint32_t block_height, const uint256& filter_header)
 {
     size_t bytes_written = WriteFilterToDisk(m_next_filter_pos, filter);
     if (bytes_written == 0) return false;
@@ -363,6 +363,21 @@ bool BlockFilterIndex::LookupFilter(const CBlockIndex* block_index, BlockFilter&
     }
 
     return ReadFilterFromDisk(entry.pos, entry.hash, filter_out);
+}
+
+std::unique_ptr<BlockFilterBase> BlockFilterIndex::LookupFilter(const CBlockIndex* block_index) const
+{
+    DBVal entry;
+    if (!index_util::LookUpOne(*m_db, {block_index->GetBlockHash(), block_index->nHeight}, entry)) {
+        return nullptr;
+    }
+
+    BlockFilter filter;
+    if (!ReadFilterFromDisk(entry.pos, entry.hash, filter)) {
+        return nullptr;
+    }
+
+    return CreateBlockFilter(filter.GetFilterType(), filter.GetBlockHash(), filter.GetEncodedFilter());
 }
 
 bool BlockFilterIndex::LookupFilterHeader(const CBlockIndex* block_index, uint256& header_out)

@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <ios>
+#include <memory>
 #include <set>
 #include <string>
 #include <string_view>
@@ -21,6 +22,8 @@
 
 class CBlock;
 class CBlockUndo;
+class CScript;
+template<typename T> class Span;
 
 /**
  * This implements a Golomb-coded set as defined in BIP 158. It is a
@@ -172,5 +175,46 @@ public:
         m_filter = GCSFilter(params, std::move(encoded_filter), /*skip_decode_check=*/false);
     }
 };
+
+/**
+ * Abstract interface for block filters.
+ * Callers can query filters by script without knowing the internal encoding.
+ */
+class BlockFilterBase {
+public:
+    virtual ~BlockFilterBase() = default;
+
+    //! Filter type
+    virtual BlockFilterType GetFilterType() const = 0;
+
+    //! Block this filter is for
+    virtual const uint256& GetBlockHash() const = 0;
+
+    //! Query: does the filter possibly contain this script?
+    virtual bool Match(const CScript& script) const = 0;
+
+    //! Query: does the filter possibly contain any of these scripts?
+    virtual bool MatchAny(const std::vector<CScript>& scripts) const = 0;
+
+    //! Serialized filter data (for P2P/storage)
+    virtual const std::vector<unsigned char>& GetEncodedFilter() const = 0;
+
+    //! Filter hash (BIP 157)
+    virtual uint256 GetHash() const = 0;
+
+    //! Filter header (BIP 157)
+    virtual uint256 ComputeHeader(const uint256& prev_header) const = 0;
+};
+
+/**
+ * Create a block filter from a block and its undo data.
+ * The filter type determines the encoding algorithm used internally.
+ */
+std::unique_ptr<BlockFilterBase> CreateBlockFilter(BlockFilterType type, const CBlock& block, const CBlockUndo& block_undo);
+
+/**
+ * Create a block filter from serialized data.
+ */
+std::unique_ptr<BlockFilterBase> CreateBlockFilter(BlockFilterType type, const uint256& block_hash, std::vector<unsigned char> encoded);
 
 #endif // BITCOIN_BLOCKFILTER_H

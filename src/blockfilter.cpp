@@ -254,3 +254,63 @@ uint256 BlockFilter::ComputeHeader(const uint256& prev_header) const
 {
     return Hash(GetHash(), prev_header);
 }
+
+// --- BlockFilterBase implementation ---
+
+/**
+ * GCS-based implementation of BlockFilterBase.
+ * Wraps the existing BlockFilter class, exposing a clean interface
+ * that operates on scripts rather than GCS internal elements.
+ */
+class GCSBlockFilter : public BlockFilterBase {
+public:
+    explicit GCSBlockFilter(BlockFilter filter) : m_filter(std::move(filter)) {}
+
+    BlockFilterType GetFilterType() const override { return m_filter.GetFilterType(); }
+    const uint256& GetBlockHash() const override { return m_filter.GetBlockHash(); }
+
+    bool Match(const CScript& script) const override {
+        GCSFilter::Element element(script.begin(), script.end());
+        return m_filter.GetFilter().Match(element);
+    }
+
+    bool MatchAny(const std::vector<CScript>& scripts) const override {
+        GCSFilter::ElementSet elements;
+        for (const CScript& script : scripts) {
+            elements.emplace(script.begin(), script.end());
+        }
+        return m_filter.GetFilter().MatchAny(elements);
+    }
+
+    const std::vector<unsigned char>& GetEncodedFilter() const override {
+        return m_filter.GetEncodedFilter();
+    }
+
+    uint256 GetHash() const override { return m_filter.GetHash(); }
+
+    uint256 ComputeHeader(const uint256& prev_header) const override {
+        return m_filter.ComputeHeader(prev_header);
+    }
+
+private:
+    BlockFilter m_filter;
+};
+
+// --- Factory functions ---
+
+std::unique_ptr<BlockFilterBase> CreateBlockFilter(BlockFilterType type, const CBlock& block, const CBlockUndo& block_undo)
+{
+    return std::make_unique<GCSBlockFilter>(BlockFilter(type, block, block_undo));
+}
+
+std::unique_ptr<BlockFilterBase> CreateBlockFilter(BlockFilterType type, const uint256& block_hash, std::vector<unsigned char> encoded)
+{
+    return std::make_unique<GCSBlockFilter>(BlockFilter(type, block_hash, std::move(encoded), /*skip_decode_check=*/false));
+}
+
+std::unique_ptr<BlockFilterBase> CreateBlockFilter(BlockFilterType type, SpanReader& stream)
+{
+    BlockFilter filter;
+    filter.Unserialize(stream);
+    return std::make_unique<GCSBlockFilter>(std::move(filter));
+}

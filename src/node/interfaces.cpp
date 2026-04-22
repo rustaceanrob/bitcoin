@@ -32,6 +32,7 @@
 #include <net_processing.h>
 #include <netaddress.h>
 #include <netbase.h>
+#include <script/script.h>
 #include <node/blockstorage.h>
 #include <node/coin.h>
 #include <node/context.h>
@@ -576,15 +577,17 @@ public:
     {
         return GetBlockFilterIndex(filter_type) != nullptr;
     }
-    std::optional<bool> blockFilterMatchesAny(BlockFilterType filter_type, const uint256& block_hash, const GCSFilter::ElementSet& filter_set) override
+    std::optional<bool> blockFilterMatchesAny(BlockFilterType filter_type, const uint256& block_hash, const std::vector<CScript>& scripts) override
     {
         const BlockFilterIndex* block_filter_index{GetBlockFilterIndex(filter_type)};
         if (!block_filter_index) return std::nullopt;
 
-        BlockFilter filter;
         const CBlockIndex* index{WITH_LOCK(::cs_main, return chainman().m_blockman.LookupBlockIndex(block_hash))};
-        if (index == nullptr || !block_filter_index->LookupFilter(index, filter)) return std::nullopt;
-        return filter.GetFilter().MatchAny(filter_set);
+        if (!index) return std::nullopt;
+
+        std::unique_ptr<BlockFilterBase> filter = block_filter_index->LookupFilter(index);
+        if (!filter) return std::nullopt;
+        return filter->MatchAny(scripts);
     }
     bool findBlock(const uint256& hash, const FoundBlock& block) override
     {

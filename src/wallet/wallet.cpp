@@ -338,7 +338,7 @@ public:
 
     std::optional<bool> MatchesBlock(const uint256& block_hash) const
     {
-        return m_wallet.chain().blockFilterMatchesAny(BlockFilterType::BASIC, block_hash, m_filter_set);
+        return m_wallet.chain().blockFilterMatchesAny(BlockFilterType::BASIC, block_hash, m_scripts);
     }
 
 private:
@@ -350,12 +350,12 @@ private:
       * take possible keypool top-ups into account.
       */
     std::map<uint256, int32_t> m_last_range_ends;
-    GCSFilter::ElementSet m_filter_set;
+    std::vector<CScript> m_scripts;
 
     void AddScriptPubKeys(const DescriptorScriptPubKeyMan* desc_spkm, int32_t last_range_end = 0)
     {
         for (const auto& script_pub_key : desc_spkm->GetScriptPubKeys(last_range_end)) {
-            m_filter_set.emplace(script_pub_key.begin(), script_pub_key.end());
+            m_scripts.push_back(script_pub_key);
         }
     }
 };

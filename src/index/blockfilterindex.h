@@ -47,7 +47,7 @@ private:
     std::unique_ptr<FlatFileSeq> m_filter_fileseq;
 
     bool ReadFilterFromDisk(const FlatFilePos& pos, const uint256& hash, BlockFilter& filter) const;
-    size_t WriteFilterToDisk(FlatFilePos& pos, const BlockFilter& filter);
+    size_t WriteFilterToDisk(FlatFilePos& pos, const BlockFilterBase& filter);
 
     Mutex m_cs_headers_cache;
     /** cache of block hash to filter header, to avoid disk access when responding to getcfcheckpt. */
@@ -58,7 +58,7 @@ private:
 
     bool AllowPrune() const override { return true; }
 
-    bool Write(const BlockFilter& filter, uint32_t block_height, const uint256& filter_header);
+    bool Write(const BlockFilterBase& filter, uint32_t block_height, const uint256& filter_header);
 
     std::optional<uint256> ReadFilterHeader(int height, const uint256& expected_block_hash);
 
@@ -84,6 +84,9 @@ public:
 
     /** Get a single filter by block. */
     bool LookupFilter(const CBlockIndex* block_index, BlockFilter& filter_out) const;
+
+    /** Get a single filter by block (returns interface pointer). */
+    std::unique_ptr<BlockFilterBase> LookupFilter(const CBlockIndex* block_index) const;
 
     /** Get a single filter header by block. */
     bool LookupFilterHeader(const CBlockIndex* block_index, uint256& header_out) EXCLUSIVE_LOCKS_REQUIRED(!m_cs_headers_cache);
