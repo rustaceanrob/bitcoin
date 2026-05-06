@@ -2,8 +2,14 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <cassert>
+#include <cmath>
+#include <csignal>
+#include <cstdint>
 #include <mutex>
+#include <queue>
 #include <set>
+#include <stack>
 #include <string_view>
 
 #include <blockfilter.h>
@@ -21,6 +27,7 @@ using util::Join;
 
 static const std::map<BlockFilterType, std::string> g_filter_types = {
     {BlockFilterType::BASIC, "basic"},
+    {BlockFilterType::FUSE, "fuse"},
 };
 
 uint64_t GCSFilter::HashToRange(const Element& element) const
@@ -145,6 +152,115 @@ bool GCSFilter::MatchAny(const ElementSet& elements) const
     return MatchInternal(queries.data(), queries.size());
 }
 
+uint64_t BinaryFuseFilter::Hash(const BinaryFuseFilter::Element& element) const
+{
+    return CSipHasher(m_siphash_k0, m_siphash_k1)
+        .Write(element)
+        .Finalize();
+}
+
+uint64_t BinaryFuseFilter::Mix(uint64_t key) const {
+    return CSipHasher(m_siphash_k0, m_siphash_k1)
+        .Write(key)
+        .Finalize();
+}
+
+uint16_t BinaryFuseFilter::Fingerprint(uint64_t key) const
+{
+    return static_cast<uint16_t>(key) ^ key >> 48;
+}
+
+std::tuple<uint32_t, uint32_t, uint32_t> BinaryFuseFilter::Slots(const uint64_t key) const
+{
+    uint32_t start_seg = key % (m_num_segments - m_arity + 1);
+    const auto h0_entropy = Mix(key);
+    const auto h1_entropy = Mix(h0_entropy);
+    const auto h2_entropy = Mix(h1_entropy);
+    uint32_t h0 = static_cast<uint32_t>((start_seg + 0) * m_segment_len + FastRange32(h0_entropy, m_segment_len));
+    uint32_t h1 = static_cast<uint32_t>((start_seg + 1) * m_segment_len + FastRange32(h1_entropy, m_segment_len));
+    uint32_t h2 = static_cast<uint32_t>((start_seg + 2) * m_segment_len + FastRange32(h2_entropy, m_segment_len));
+    return {h0, h1, h2};
+}
+
+bool BinaryFuseFilter::Query(const Element& element) const
+{
+    const auto key = Hash(element);
+    const auto [h0, h1, h2] = Slots(key);
+    const auto f = Fingerprint(key);
+    return f == (m_fingerprints[h0] ^ m_fingerprints[h1] ^ m_fingerprints[h2]);
+}
+
+BinaryFuseFilter::BinaryFuseFilter(const ElementSet& elements, const uint256& hash) {
+    m_siphash_k0 = hash.GetUint64(0);
+    m_siphash_k1 = hash.GetUint64(1);
+    const uint32_t n = static_cast<uint32_t>(elements.size());
+    const auto exp = static_cast<uint32_t>(std::floor((std::log(static_cast<double>(n)) / std::log(3.33) + 2.25)));
+    m_segment_len = std::max(uint32_t{2}, uint32_t{1} << exp);
+    auto target_array_len = static_cast<uint32_t>(std::ceil(n * 1.125));
+    m_num_segments = std::max(CeilDiv(target_array_len, m_segment_len), m_arity);
+    auto array_len = m_num_segments * m_segment_len;
+    m_fingerprints.assign(array_len, 0);
+    std::vector degrees = std::vector<Degree>(array_len);
+    degrees.assign(array_len, Degree());
+    for (const auto& element : elements) {
+        const auto key = Hash(element);
+        auto [h0, h1, h2] = Slots(key);
+        degrees[h0].m_degree++; degrees[h0].m_xor ^= key;
+        degrees[h1].m_degree++; degrees[h1].m_xor ^= key;
+        degrees[h2].m_degree++; degrees[h2].m_xor ^= key;
+    }
+    std::queue q = std::queue<uint32_t>{};
+    for (uint32_t i{0}; i < array_len; ++i) {
+        if (degrees[i].m_degree == 1) {
+            q.push(i);
+        }
+    }
+    std::stack p = std::stack<Assignment>{};
+    while (!q.empty()) {
+        const auto index = q.front();
+        q.pop();
+        if (degrees[index].m_degree != 1) continue;
+        uint64_t hash = degrees[index].m_xor;
+        p.emplace(index, hash);
+        const auto [h0, h1, h2] = Slots(hash);
+        degrees[h0].m_degree--;
+        degrees[h1].m_degree--;
+        degrees[h2].m_degree--;
+        degrees[h0].m_xor ^= hash;
+        degrees[h1].m_xor ^= hash;
+        degrees[h2].m_xor ^= hash;
+        if (degrees[h0].m_degree == 1) q.push(h0);
+        if (degrees[h1].m_degree == 1) q.push(h1);
+        if (degrees[h2].m_degree == 1) q.push(h2);
+    }
+    // check P is size N
+    // assert(p.size() == n);
+    while (!p.empty()) {
+        const auto assignment = p.top();
+        p.pop();
+        const auto hash = assignment.m_hash;
+        const auto f = Fingerprint(hash);
+        const auto [h0, h1, h2] = Slots(hash);
+        const auto i = assignment.m_index;
+        m_fingerprints[i] = f ^ m_fingerprints[h0] ^ m_fingerprints[h1] ^ m_fingerprints[h2];
+    }
+    DataStream writer{m_encoded};
+    this->Serialize(writer);
+}
+
+bool BinaryFuseFilter::MatchAny(const ElementSet& elements) const {
+    for (const auto& element : elements) {
+        if (Match(element)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool BinaryFuseFilter::Match(const Element& element) const {
+    return Query(element);
+}
+
 const std::string& BlockFilterTypeName(BlockFilterType filter_type)
 {
     static std::string unknown_retval;
@@ -226,7 +342,12 @@ BlockFilter::BlockFilter(BlockFilterType filter_type, const CBlock& block, const
     if (!BuildParams(params)) {
         throw std::invalid_argument("unknown filter_type");
     }
-    m_filter = std::make_unique<GCSFilter>(params, BasicFilterElements(block, block_undo));
+    if (filter_type == BlockFilterType::BASIC) {
+        m_filter = std::make_unique<GCSFilter>(params, BasicFilterElements(block, block_undo));
+    }
+    if (filter_type == BlockFilterType::FUSE) {
+        m_filter = std::make_unique<BinaryFuseFilter>(BinaryFuseFilter::build(BasicFilterElements(block, block_undo), m_block_hash));
+    }
 }
 
 bool BlockFilter::BuildParams(GCSFilter::Params& params) const
@@ -238,6 +359,7 @@ bool BlockFilter::BuildParams(GCSFilter::Params& params) const
         params.m_P = BASIC_FILTER_P;
         params.m_M = BASIC_FILTER_M;
         return true;
+    case BlockFilterType::FUSE: return true;
     case BlockFilterType::INVALID:
         return false;
     }

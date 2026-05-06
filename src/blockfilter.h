@@ -17,6 +17,7 @@
 #include <vector>
 
 #include <attributes.h>
+#include <serialize.h>
 #include <uint256.h>
 #include <util/bytevectorhash.h>
 
@@ -106,12 +107,64 @@ public:
     bool MatchAny(const ElementSet& elements) const override;
 };
 
+class BinaryFuseFilter : public BlockFilterBase
+{
+private:
+    struct Degree
+    {
+        uint32_t m_degree = 0;
+        uint64_t m_xor = 0;
+    };
+
+    struct Assignment
+    {
+        uint32_t m_index = 0;
+        uint64_t m_hash = 0;
+    };
+
+    static constexpr uint32_t m_arity{3};
+    static constexpr double m_load_factor{1.125};
+    uint64_t m_siphash_k0;
+    uint64_t m_siphash_k1;
+    uint32_t m_num_segments;
+    uint32_t m_segment_len;
+    std::vector<uint16_t> m_fingerprints;
+    std::vector<unsigned char> m_encoded;
+
+    uint64_t Hash(const Element& element) const;
+
+    uint64_t Mix(uint64_t key) const;
+
+    uint16_t Fingerprint(uint64_t key) const;
+
+    std::tuple<uint32_t, uint32_t, uint32_t> Slots(uint64_t key) const;
+
+    bool Query(const Element& element) const;
+
+    BinaryFuseFilter(const ElementSet& elements, const uint256& hash);
+
+public:
+    static BinaryFuseFilter build(const ElementSet& elements, const uint256& hash) {
+        return BinaryFuseFilter{elements, hash};
+    }
+
+    SERIALIZE_METHODS(BinaryFuseFilter, obj) { READWRITE(obj.m_fingerprints); }
+
+    const std::vector<unsigned char>& GetEncoded() const LIFETIMEBOUND override { return m_encoded; };
+
+    bool Match(const Element& element) const override;
+
+    bool MatchAny(const ElementSet& elements) const override;
+
+};
+
 constexpr uint8_t BASIC_FILTER_P = 19;
 constexpr uint32_t BASIC_FILTER_M = 784931;
 
 enum class BlockFilterType : uint8_t
 {
     BASIC = 0,
+    FUSE = 1,
     INVALID = 255,
 };
 
