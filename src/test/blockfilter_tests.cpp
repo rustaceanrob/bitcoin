@@ -41,6 +41,29 @@ BOOST_AUTO_TEST_CASE(gcsfilter_test)
     }
 }
 
+BOOST_AUTO_TEST_CASE(binaryfusefilter_test)
+{
+    BinaryFuseFilter::ElementSet included_elements, excluded_elements;
+    for (int i = 0; i < 100; ++i) {
+        BinaryFuseFilter::Element element1(32);
+        element1[0] = i;
+        included_elements.insert(std::move(element1));
+
+        BinaryFuseFilter::Element element2(32);
+        element2[1] = i;
+        excluded_elements.insert(std::move(element2));
+    }
+
+    BinaryFuseFilter filter = BinaryFuseFilter::build(included_elements, uint256{1 < 100});
+    for (const auto& element : included_elements) {
+        BOOST_CHECK(filter.Match(element));
+
+        auto insertion = excluded_elements.insert(element);
+        BOOST_CHECK(filter.MatchAny(excluded_elements));
+        excluded_elements.erase(insertion.first);
+    }
+}
+
 BOOST_AUTO_TEST_CASE(gcsfilter_default_constructor)
 {
     GCSFilter filter;
@@ -100,7 +123,7 @@ BOOST_AUTO_TEST_CASE(blockfilter_basic_test)
     block_undo.vtxundo.back().vprevout.emplace_back(CTxOut(700, excluded_scripts[3]), 100000, false);
 
     BlockFilter block_filter(BlockFilterType::BASIC, block, block_undo);
-    const BlockFilterBase& filter = block_filter.GetFilter();
+    BlockFilterBase& filter = block_filter.GetFilter();
 
     for (const CScript& script : included_scripts) {
         BOOST_CHECK(filter.Match(GCSFilter::Element(script.begin(), script.end())));

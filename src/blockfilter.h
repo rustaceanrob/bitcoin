@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "serialize.h"
 #include <attributes.h>
 #include <uint256.h>
 #include <util/bytevectorhash.h>
@@ -35,10 +36,10 @@ public:
     virtual ~BlockFilterBase() = default;
 
     /** Checks if a single element may be in the set. */
-    virtual bool Match(const Element& element) const = 0;
+    virtual bool Match(const Element& element) = 0;
 
     /** Checks if any element may be in the set. */
-    virtual bool MatchAny(const ElementSet& elements) const = 0;
+    virtual bool MatchAny(const ElementSet& elements) = 0;
 
     /** Serialization of the probabilistic data structure. */
     virtual const std::vector<unsigned char>& GetEncoded() const LIFETIMEBOUND = 0;
@@ -96,14 +97,69 @@ public:
      * Checks if the element may be in the set. False positives are possible
      * with probability 1/M.
      */
-    bool Match(const Element& element) const override;
+    bool Match(const Element& element) override;
 
     /**
      * Checks if any of the given elements may be in the set. False positives
      * are possible with probability 1/M per element checked. This is more
      * efficient that checking Match on multiple elements separately.
      */
-    bool MatchAny(const ElementSet& elements) const override;
+    bool MatchAny(const ElementSet& elements) override;
+};
+
+class BinaryFuseFilter : public BlockFilterBase
+{
+private:
+    struct Degree
+    {
+        uint32_t m_degree;
+        uint64_t m_xor;
+
+        Degree(uint32_t m_degree = 0, uint64_t m_xor = 0) {}
+    };
+
+    struct Assignment
+    {
+        uint32_t m_index;
+        uint64_t m_hash;
+
+        Assignment(uint32_t m_index = 0, uint64_t m_hash = 0) {}
+    };
+
+    static constexpr uint32_t m_arity{3};
+    static constexpr double m_load_factor{1.125};
+    uint64_t m_siphash_k0;
+    uint64_t m_siphash_k1;
+    uint32_t m_num_segments;
+    uint32_t m_segment_len;
+    std::vector<uint16_t> m_fingerprints;
+    std::vector<unsigned char> m_encoded;
+
+    uint64_t Hash(const Element& element);
+
+    uint64_t Mix(uint64_t key, uint8_t times);
+
+    uint16_t Fingerprint(uint64_t key);
+
+    std::tuple<uint32_t, uint32_t, uint32_t> Slots(uint64_t key);
+
+    bool Query(const Element& element);
+
+    BinaryFuseFilter(const ElementSet& elements, const uint256& hash);
+
+public:
+    static BinaryFuseFilter build(const ElementSet& elements, const uint256& hash) {
+        return BinaryFuseFilter{elements, hash};
+    }
+
+    SERIALIZE_METHODS(BinaryFuseFilter, obj) { READWRITE(obj.m_fingerprints); }
+
+    const std::vector<unsigned char>& GetEncoded() const LIFETIMEBOUND override { return m_encoded; };
+
+    bool Match(const Element& element) override;
+
+    bool MatchAny(const ElementSet& elements) override;
+
 };
 
 constexpr uint8_t BASIC_FILTER_P = 19;
@@ -153,7 +209,7 @@ public:
 
     BlockFilterType GetFilterType() const { return m_filter_type; }
     const uint256& GetBlockHash() const LIFETIMEBOUND { return m_block_hash; }
-    const BlockFilterBase& GetFilter() const LIFETIMEBOUND { return *m_filter; }
+    BlockFilterBase& GetFilter() const LIFETIMEBOUND { return *m_filter; }
 
     const std::vector<unsigned char>& GetEncodedFilter() const LIFETIMEBOUND
     {
