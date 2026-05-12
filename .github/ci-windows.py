@@ -34,7 +34,6 @@ GENERATE_OPTIONS = {
     "fuzz": [
         "-DVCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON",
         "-DVCPKG_MANIFEST_FEATURES=wallet",
-        "-DBUILD_GUI=OFF",
         "-DWITH_ZMQ=OFF",
         "-DBUILD_FOR_FUZZING=ON",
         "-DCMAKE_COMPILE_WARNING_AS_ERROR=ON",
@@ -119,7 +118,6 @@ def check_manifests(ci_type):
     skips = {  # Skip as they currently do not have manifests
         "fuzz.exe",
         "bench_bitcoin.exe",
-        "test_bitcoin-qt.exe",
         "bitcoin-chainstate.exe",
     }
     for entry in release_dir.iterdir():

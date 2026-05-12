@@ -15,19 +15,14 @@ The following are some helpful notes on how to run Bitcoin Core on your native p
 
 Unpack the files into a directory and run:
 
-- `bin/bitcoin-qt` (GUI) or
-- `bin/bitcoind` (headless)
+- `bin/bitcoind` (daemon)
 - `bin/bitcoin` (wrapper command)
 
-The `bitcoin` command supports subcommands like `bitcoin gui`, `bitcoin node`, and `bitcoin rpc` exposing different functionality. Subcommands can be listed with `bitcoin help`.
+The `bitcoin` command supports subcommands like `bitcoin node` and `bitcoin rpc` exposing different functionality. Subcommands can be listed with `bitcoin help`.
 
 ### Windows
 
-Unpack the files into a directory, and then run bitcoin-qt.exe.
-
-### macOS
-
-Drag Bitcoin Core to your applications folder, and then run Bitcoin Core.
+Unpack the files into a directory, and then run bitcoind.exe from the `daemon\` subdirectory.
 
 ### Need Help?
 
@@ -57,7 +52,6 @@ The Bitcoin repo's [root README](/README.md) contains relevant information on th
 - [Productivity Notes](productivity.md)
 - [Release Process](release-process.md)
 - [Source Code Documentation (External Link)](https://doxygen.bitcoincore.org/)
-- [Translation Process](translation_process.md)
 - [Translation Strings Policy](translation_strings_policy.md)
 - [JSON-RPC Interface](JSON-RPC-interface.md)
 - [Unauthenticated REST Interface](REST-interface.md)

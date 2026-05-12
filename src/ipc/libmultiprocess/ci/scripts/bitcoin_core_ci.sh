@@ -92,13 +92,10 @@ configure_bitcoin_core() {
   cmake -S . -B build \
     --preset=dev-mode \
     -DCMAKE_BUILD_TYPE=Debug \
-    -DBUILD_GUI=OFF \
-    -DBUILD_GUI_TESTS=OFF \
     -DWITH_ZMQ=OFF \
     -DWITH_USDT=OFF \
     -DBUILD_BENCH=OFF \
     -DBUILD_FUZZ_BINARY=OFF \
-    -DWITH_QRENCODE=OFF \
     -G Ninja \
     "${cmake_args[@]}"
 }
@@ -112,10 +109,8 @@ build_depends_without_ipc() {
     CC=clang \
     CXX=clang++ \
     CXXFLAGS="${LIBCXX_FLAGS}" \
-    NO_QT=1 \
     NO_ZMQ=1 \
     NO_USDT=1 \
-    NO_QR=1 \
     NO_IPC=1
 }
 
@@ -124,10 +119,8 @@ build_depends_with_ipc() {
     CC=clang \
     CXX=clang++ \
     CXXFLAGS="${LIBCXX_FLAGS}" \
-    NO_QT=1 \
     NO_ZMQ=1 \
-    NO_USDT=1 \
-    NO_QR=1
+    NO_USDT=1
 }
 
 run_ipc_unit_tests() {

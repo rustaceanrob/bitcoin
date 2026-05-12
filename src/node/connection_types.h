@@ -13,8 +13,7 @@
  * connection. Aside from INBOUND, all types are initiated by us.
  *
  * If adding or removing types, please update CONNECTION_TYPE_DOC in
- * src/rpc/net.cpp and src/qt/rpcconsole.cpp, as well as the descriptions in
- * src/qt/guiutil.cpp and src/bitcoin-cli.cpp::NetinfoRequestHandler. */
+ * src/rpc/net.cpp and src/bitcoin-cli.cpp::NetinfoRequestHandler. */
 enum class ConnectionType {
     /**
      * Inbound connections are those initiated by a peer. This is the only

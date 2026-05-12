@@ -321,9 +321,6 @@ configuration options and toggled while bitcoind is running with the `logging`
 RPC.  For instance, launching bitcoind with `-debug` or `-debug=1` will turn on
 all log categories and `-loglevel=trace` will turn on all log severity levels.
 
-The Qt code routes `qDebug()` output to `debug.log` under category "qt": run with `-debug=qt`
-to see it.
-
 ### Signet, testnet, and regtest modes
 
 If you are testing multi-machine code that needs to operate across the internet,

@@ -78,30 +78,6 @@ git clone https://github.com/bitcoin/bitcoin.git
 
 #### GUI Dependencies
 
-###### Qt
-
-Bitcoin Core includes a GUI built with the cross-platform Qt Framework. To compile the GUI, we need to install
-Qt, libqrencode and pass `-DBUILD_GUI=ON`. Skip if you don't intend to use the GUI.
-
-``` bash
-brew install qt@6
-```
-
-Note: Building with Qt binaries downloaded from the Qt website is not officially supported.
-See the notes in [#7714](https://github.com/bitcoin/bitcoin/issues/7714).
-
-###### libqrencode
-
-The GUI will be able to encode addresses in QR codes unless this feature is explicitly disabled. To install libqrencode, run:
-
-``` bash
-brew install qrencode
-```
-
-Otherwise, if you don't need QR encoding support, you can pass `-DWITH_QRENCODE=OFF` to disable this feature.
-
----
-
 #### ZMQ Dependencies
 
 Support for ZMQ notifications requires the following dependency.
@@ -139,16 +115,7 @@ It is required that you have `python` and `zip` installed.
 
 There are many ways to configure Bitcoin Core, here are a few common examples:
 
-##### Wallet and GUI:
-
-This enables the GUI.
-If `sqlite` or `qt` are not installed, this will throw an error.
-
-``` bash
-cmake -B build -DBUILD_GUI=ON
-```
-
-##### No Wallet or GUI
+##### No Wallet
 
 ``` bash
 cmake -B build -DENABLE_WALLET=OFF
@@ -184,13 +151,12 @@ cmake --build build --target deploy
 ## Running Bitcoin Core
 
 Bitcoin Core should now be available at `./build/bin/bitcoind`.
-If you compiled support for the GUI, it should be available at `./build/bin/bitcoin-qt`.
 
 There is also a multifunction command line interface at `./build/bin/bitcoin`
-supporting subcommands like `bitcoin node`, `bitcoin gui`, `bitcoin rpc`, and
-others that can be listed with `bitcoin help`.
+supporting subcommands like `bitcoin node`, `bitcoin rpc`, and others that can
+be listed with `bitcoin help`.
 
-The first time you run `bitcoind` or `bitcoin-qt`, it will start downloading the blockchain.
+The first time you run `bitcoind`, it will start downloading the blockchain.
 This process could take many hours, or even days on slower than average systems.
 
 By default, blockchain and wallet data files will be stored in:
@@ -221,5 +187,4 @@ tail -f $HOME/Library/Application\ Support/Bitcoin/debug.log
 ./build/bin/bitcoind -daemon      # Starts the bitcoin daemon.
 ./build/bin/bitcoin-cli --help    # Outputs a list of command-line options.
 ./build/bin/bitcoin-cli help      # Outputs a list of RPC commands when the daemon is running.
-./build/bin/bitcoin-qt -server # Starts the bitcoin-qt server mode, allows bitcoin-cli control
 ```

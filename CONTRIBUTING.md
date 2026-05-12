@@ -96,13 +96,6 @@ For all other issues and pull requests, the https://github.com/bitcoin/bitcoin n
 
 The master branch for all monotree repositories is identical.
 
-As a rule of thumb, everything that only modifies `src/qt` is a GUI-only pull
-request. However:
-
-* For global refactoring or other transversal changes the node repository
-  should be used.
-* For GUI-related build system changes, the node repository should be used
-  because the change needs review by the build systems reviewers.
 * Changes in `src/interfaces` need to go to the node repository because they
   might affect other components like the wallet.
 
@@ -150,7 +143,6 @@ the pull request affects. Valid areas are:
 
   - `consensus` for changes to consensus critical code
   - `doc` for changes to the documentation
-  - `qt` or `gui` for changes to bitcoin-qt
   - `log` for changes to log messages
   - `mining` for changes to the mining code
   - `net` or `p2p` for changes to the peer-to-peer network code
@@ -181,11 +173,6 @@ any users mentioned in the description will be annoyingly notified each time a
 fork of Bitcoin Core copies the merge. Instead, make any username mentions in a
 subsequent comment to the PR.
 
-### Translation changes
-
-Note that translations should not be submitted as pull requests. Please see
-[Translation Process](/doc/translation_process.md)
-for more information on helping with translations.
 
 ### Work in Progress Changes and Requests for Comments
 
