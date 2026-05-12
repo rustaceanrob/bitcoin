@@ -468,8 +468,8 @@ public:
      * Emplace a coin into cacheCoins without performing any checks, marking
      * the emplaced coin as dirty.
      *
-     * NOT FOR GENERAL USE. Used only when loading coins from a UTXO snapshot.
-     * @sa ChainstateManager::PopulateAndValidateSnapshot()
+     * NOT FOR GENERAL USE. Bypasses normal cache-state bookkeeping; intended
+     * only for bulk loading paths and tests that have to fabricate coin entries.
      */
     void EmplaceCoinInternalDANGER(COutPoint&& outpoint, Coin&& coin);
 

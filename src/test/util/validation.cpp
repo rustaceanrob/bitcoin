@@ -10,8 +10,6 @@
 #include <validation.h>
 #include <validationinterface.h>
 
-using kernel::ChainstateRole;
-
 void TestBlockManager::CleanupForFuzzing()
 {
     m_dirty_blockindex.clear();
@@ -25,8 +23,8 @@ void TestChainstateManager::DisableNextWrite()
         void ResetNextWrite() { m_next_write = NodeClock::time_point::max() - 1s; }
     };
     LOCK(::cs_main);
-    for (const auto& cs : m_chainstates) {
-        static_cast<TestChainstate&>(*cs).ResetNextWrite();
+    if (m_chainstate) {
+        static_cast<TestChainstate&>(*m_chainstate).ResetNextWrite();
     }
 }
 
@@ -44,12 +42,11 @@ void TestChainstateManager::JumpOutOfIbd()
 }
 
 void ValidationInterfaceTest::BlockConnected(
-    const ChainstateRole& role,
     CValidationInterface& obj,
     const std::shared_ptr<const CBlock>& block,
     const CBlockIndex* pindex)
 {
-    obj.BlockConnected(role, block, pindex);
+    obj.BlockConnected(block, pindex);
 }
 void TestChainstateManager::InvalidBlockFound(CBlockIndex* pindex, const BlockValidationState& state)
 {

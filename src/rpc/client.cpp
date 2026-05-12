@@ -160,7 +160,6 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "verifymessage", 1, "signature", ParamFormat::STRING },
     { "verifymessage", 2, "message", ParamFormat::STRING },
     { "echoipc", 0, "arg", ParamFormat::STRING },
-    { "loadtxoutset", 0, "path", ParamFormat::STRING },
     { "signmessagewithprivkey", 1, "message", ParamFormat::STRING },
 };
 // clang-format on
