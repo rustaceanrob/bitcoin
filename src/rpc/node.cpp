@@ -7,10 +7,6 @@
 
 #include <chainparams.h>
 #include <httpserver.h>
-#include <index/blockfilterindex.h>
-#include <index/coinstatsindex.h>
-#include <index/txindex.h>
-#include <index/txospenderindex.h>
 #include <interfaces/chain.h>
 #include <interfaces/echo.h>
 #include <interfaces/init.h>
@@ -24,6 +20,7 @@
 #include <scheduler.h>
 #include <tinyformat.h>
 #include <univalue.h>
+#include <validationinterface.h>
 #include <util/any.h>
 #include <util/check.h>
 #include <util/time.h>
@@ -341,75 +338,11 @@ static RPCMethod echoipc()
     };
 }
 
-static UniValue SummaryToJSON(const IndexSummary&& summary, std::string index_name)
-{
-    UniValue ret_summary(UniValue::VOBJ);
-    if (!index_name.empty() && index_name != summary.name) return ret_summary;
-
-    UniValue entry(UniValue::VOBJ);
-    entry.pushKV("synced", summary.synced);
-    entry.pushKV("best_block_height", summary.best_block_height);
-    ret_summary.pushKV(summary.name, std::move(entry));
-    return ret_summary;
-}
-
-static RPCMethod getindexinfo()
-{
-    return RPCMethod{
-        "getindexinfo",
-        "Returns the status of one or all available indices currently running in the node.\n",
-                {
-                    {"index_name", RPCArg::Type::STR, RPCArg::Optional::OMITTED, "Filter results for an index with a specific name."},
-                },
-                RPCResult{
-                    RPCResult::Type::OBJ_DYN, "", "", {
-                        {
-                            RPCResult::Type::OBJ, "name", "The name of the index",
-                            {
-                                {RPCResult::Type::BOOL, "synced", "Whether the index is synced or not"},
-                                {RPCResult::Type::NUM, "best_block_height", "The block height to which the index is synced"},
-                            }
-                        },
-                    },
-                },
-                RPCExamples{
-                    HelpExampleCli("getindexinfo", "")
-                  + HelpExampleRpc("getindexinfo", "")
-                  + HelpExampleCli("getindexinfo", "txindex")
-                  + HelpExampleRpc("getindexinfo", "txindex")
-                },
-                [](const RPCMethod& self, const JSONRPCRequest& request) -> UniValue
-{
-    UniValue result(UniValue::VOBJ);
-    const std::string index_name{self.MaybeArg<std::string_view>("index_name").value_or("")};
-
-    if (g_txindex) {
-        result.pushKVs(SummaryToJSON(g_txindex->GetSummary(), index_name));
-    }
-
-    if (g_coin_stats_index) {
-        result.pushKVs(SummaryToJSON(g_coin_stats_index->GetSummary(), index_name));
-    }
-
-    if (g_txospenderindex) {
-        result.pushKVs(SummaryToJSON(g_txospenderindex->GetSummary(), index_name));
-    }
-
-    ForEachBlockFilterIndex([&result, &index_name](const BlockFilterIndex& index) {
-        result.pushKVs(SummaryToJSON(index.GetSummary(), index_name));
-    });
-
-    return result;
-},
-    };
-}
-
 void RegisterNodeRPCCommands(CRPCTable& t)
 {
     static const CRPCCommand commands[]{
         {"control", &getmemoryinfo},
         {"control", &logging},
-        {"util", &getindexinfo},
         {"hidden", &setmocktime},
         {"hidden", &mockscheduler},
         {"hidden", &echo},

@@ -681,7 +681,6 @@ public:
         "           \"n\" - NETWORK: peer can serve the full block chain\n"
         "           \"b\" - BLOOM: peer can handle bloom-filtered connections (see BIP 111)\n"
         "           \"w\" - WITNESS: peer can be asked for blocks and transactions with witness data (SegWit)\n"
-        "           \"c\" - COMPACT_FILTERS: peer can handle basic block filter requests (see BIPs 157 and 158)\n"
         "           \"l\" - NETWORK_LIMITED: peer limited to serving only the last 288 blocks (~2 days)\n"
         "           \"2\" - P2P_V2: peer supports version 2 P2P transport protocol, as defined in BIP 324\n"
         "           \"u\" - UNKNOWN: unrecognized bit flag\n"

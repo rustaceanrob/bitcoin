@@ -52,7 +52,7 @@ def filter_output_indices_by_value(vouts, value):
 class RESTTest (BitcoinTestFramework):
     def set_test_params(self):
         self.num_nodes = 2
-        self.extra_args = [["-rest", "-blockfilterindex=1"], []]
+        self.extra_args = [["-rest"], []]
         # whitelist peers to speed up tx relay / mempool sync
         self.noban_tx_relay = True
         self.supports_cli = False
@@ -224,7 +224,7 @@ class RESTTest (BitcoinTestFramework):
 
         self.generate(self.nodes[0], 1)  # generate block to not affect upcoming tests
 
-        self.log.info("Test the /block, /blockhashbyheight, /headers, and /blockfilterheaders URIs")
+        self.log.info("Test the /block, /blockhashbyheight, and /headers URIs")
         bb_hash = self.nodes[0].getbestblockhash()
 
         # Check result if block does not exists
@@ -289,7 +289,7 @@ class RESTTest (BitcoinTestFramework):
         assert_equal(json_obj[0]['hash'], bb_hash)  # request/response hash should be the same
 
         # Check invalid uri (% symbol at the end of the request)
-        for invalid_uri in [f"/headers/{bb_hash}%", f"/blockfilterheaders/basic/{bb_hash}%", "/mempool/contents.json?%"]:
+        for invalid_uri in [f"/headers/{bb_hash}%", "/mempool/contents.json?%"]:
             resp = self.test_rest_request(invalid_uri, ret_type=RetType.OBJ, status=400)
             assert_equal(resp.read().decode('utf-8').rstrip(), "URI parsing failed, it likely contained RFC 3986 invalid characters")
 
@@ -300,27 +300,8 @@ class RESTTest (BitcoinTestFramework):
 
         # See if we can get 5 headers in one response
         self.generate(self.nodes[1], 5)
-        expected_filter = {
-            'basic block filter index': {'synced': True, 'best_block_height': 208},
-        }
-        self.wait_until(lambda: self.nodes[0].getindexinfo() == expected_filter)
         json_obj = self.test_rest_request(f"/headers/{bb_hash}", query_params={"count": 5})
         assert_equal(len(json_obj), 5)  # now we should have 5 header objects
-        json_obj = self.test_rest_request(f"/blockfilterheaders/basic/{bb_hash}", query_params={"count": 5})
-        first_filter_header = json_obj[0]
-        assert_equal(len(json_obj), 5)  # now we should have 5 filter header objects
-        json_obj = self.test_rest_request(f"/blockfilter/basic/{bb_hash}")
-
-        # Compare with normal RPC blockfilter response
-        rpc_blockfilter = self.nodes[0].getblockfilter(bb_hash)
-        assert_equal(first_filter_header, rpc_blockfilter['header'])
-        assert_equal(json_obj['filter'], rpc_blockfilter['filter'])
-
-        # Test blockfilterheaders with an invalid hash and filtertype
-        resp = self.test_rest_request(f"/blockfilterheaders/{INVALID_PARAM}/{bb_hash}", ret_type=RetType.OBJ, status=400)
-        assert_equal(resp.read().decode('utf-8').rstrip(), f"Unknown filtertype {INVALID_PARAM}")
-        resp = self.test_rest_request(f"/blockfilterheaders/basic/{INVALID_PARAM}", ret_type=RetType.OBJ, status=400)
-        assert_equal(resp.read().decode('utf-8').rstrip(), f"Invalid hash: {INVALID_PARAM}")
 
         # Test number parsing
         for num in ['5a', '-5', '0', '2001', '99999999999999999999999999999999999']:
@@ -428,7 +409,6 @@ class RESTTest (BitcoinTestFramework):
         # Test compatibility of deprecated and newer endpoints
         self.log.info("Test compatibility of deprecated and newer endpoints")
         assert_equal(self.test_rest_request(f"/headers/{bb_hash}", query_params={"count": 1}), self.test_rest_request(f"/headers/1/{bb_hash}"))
-        assert_equal(self.test_rest_request(f"/blockfilterheaders/basic/{bb_hash}", query_params={"count": 1}), self.test_rest_request(f"/blockfilterheaders/basic/5/{bb_hash}"))
 
         self.log.info("Test the /spenttxouts URI")
 

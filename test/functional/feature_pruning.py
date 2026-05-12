@@ -74,14 +74,14 @@ class PruneTest(BitcoinTestFramework):
         # Create node 2 to test pruning.
         self.full_node_default_args = ["-maxreceivebuffer=20000", "-checkblocks=5"]
         # Create nodes 3 and 4 to test manual pruning (they will be re-started with manual pruning later)
-        # Create node 5 in prune mode with blockfilterindex, but do not connect
+        # Create node 5 in prune mode, but do not connect
         self.extra_args = [
             self.full_node_default_args,
             self.full_node_default_args,
             ["-maxreceivebuffer=20000", "-prune=550"],
             ["-maxreceivebuffer=20000"],
             ["-maxreceivebuffer=20000"],
-            ["-prune=550", "-blockfilterindex=1"],
+            ["-prune=550"],
         ]
         self.rpc_timeout = 120
 
@@ -116,10 +116,6 @@ class PruneTest(BitcoinTestFramework):
         self.nodes[0].assert_start_raises_init_error(
             expected_msg='Error: Prune configured below the minimum of 550 MiB.  Please use a higher number.',
             extra_args=['-prune=549'],
-        )
-        self.nodes[0].assert_start_raises_init_error(
-            expected_msg='Error: Prune mode is incompatible with -txindex.',
-            extra_args=['-prune=550', '-txindex'],
         )
         self.nodes[0].assert_start_raises_init_error(
             expected_msg='Error: Prune mode is incompatible with -reindex-chainstate. Use full -reindex instead.',
@@ -448,24 +444,10 @@ class PruneTest(BitcoinTestFramework):
         self.log.info("Test invalid pruning command line options")
         self.test_invalid_command_line_options()
 
-        self.log.info("Test scanblocks can not return pruned data")
-        self.test_scanblocks_pruned()
-
         self.log.info("Test pruneheight reflects the presence of block and undo data")
         self.test_pruneheight_undo_presence()
 
         self.log.info("Done")
-
-    def test_scanblocks_pruned(self):
-        node = self.nodes[5]
-        genesis_blockhash = node.getblockhash(0)
-        false_positive_spk = bytes.fromhex("001400000000000000000000000000000000000cadcb")
-
-        assert genesis_blockhash in node.scanblocks(
-            "start", [{"desc": f"raw({false_positive_spk.hex()})"}], 0, 0)['relevant_blocks']
-
-        assert_raises_rpc_error(-1, "Block not available (pruned data)", node.scanblocks,
-            "start", [{"desc": f"raw({false_positive_spk.hex()})"}], 0, 0, "basic", {"filter_false_positives": True})
 
     def test_pruneheight_undo_presence(self):
         node = self.nodes[5]

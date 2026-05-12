@@ -5,14 +5,11 @@
 
 #include <rest.h>
 
-#include <blockfilter.h>
 #include <chain.h>
 #include <chainparams.h>
 #include <core_io.h>
 #include <flatfile.h>
 #include <httpserver.h>
-#include <index/blockfilterindex.h>
-#include <index/txindex.h>
 #include <node/blockstorage.h>
 #include <node/context.h>
 #include <primitives/block.h>
@@ -497,219 +494,6 @@ static bool rest_block_part(const std::any& context, HTTPRequest* req, const std
     }
 }
 
-static bool rest_filter_header(const std::any& context, HTTPRequest* req, const std::string& uri_part)
-{
-    if (!CheckWarmup(req)) return false;
-
-    std::string param;
-    const RESTResponseFormat rf = ParseDataFormat(param, uri_part);
-
-    std::vector<std::string> uri_parts = SplitString(param, '/');
-    std::string raw_count;
-    std::string raw_blockhash;
-    if (uri_parts.size() == 3) {
-        // deprecated path: /rest/blockfilterheaders/<filtertype>/<count>/<blockhash>
-        raw_blockhash = uri_parts[2];
-        raw_count = uri_parts[1];
-    } else if (uri_parts.size() == 2) {
-        // new path with query parameter: /rest/blockfilterheaders/<filtertype>/<blockhash>?count=<count>
-        raw_blockhash = uri_parts[1];
-        try {
-            raw_count = req->GetQueryParameter("count").value_or("5");
-        } catch (const std::runtime_error& e) {
-            return RESTERR(req, HTTP_BAD_REQUEST, e.what());
-        }
-    } else {
-        return RESTERR(req, HTTP_BAD_REQUEST, "Invalid URI format. Expected /rest/blockfilterheaders/<filtertype>/<blockhash>.<ext>?count=<count>");
-    }
-
-    const auto parsed_count{ToIntegral<size_t>(raw_count)};
-    if (!parsed_count.has_value() || *parsed_count < 1 || *parsed_count > MAX_REST_HEADERS_RESULTS) {
-        return RESTERR(req, HTTP_BAD_REQUEST, strprintf("Header count is invalid or out of acceptable range (1-%u): %s", MAX_REST_HEADERS_RESULTS, raw_count));
-    }
-
-    auto block_hash{uint256::FromHex(raw_blockhash)};
-    if (!block_hash) {
-        return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash: " + raw_blockhash);
-    }
-
-    BlockFilterType filtertype;
-    if (!BlockFilterTypeByName(uri_parts[0], filtertype)) {
-        return RESTERR(req, HTTP_BAD_REQUEST, "Unknown filtertype " + uri_parts[0]);
-    }
-
-    BlockFilterIndex* index = GetBlockFilterIndex(filtertype);
-    if (!index) {
-        return RESTERR(req, HTTP_BAD_REQUEST, "Index is not enabled for filtertype " + uri_parts[0]);
-    }
-
-    std::vector<const CBlockIndex*> headers;
-    headers.reserve(*parsed_count);
-    {
-        ChainstateManager* maybe_chainman = GetChainman(context, req);
-        if (!maybe_chainman) return false;
-        ChainstateManager& chainman = *maybe_chainman;
-        LOCK(cs_main);
-        CChain& active_chain = chainman.ActiveChain();
-        const CBlockIndex* pindex{chainman.m_blockman.LookupBlockIndex(*block_hash)};
-        while (pindex != nullptr && active_chain.Contains(*pindex)) {
-            headers.push_back(pindex);
-            if (headers.size() == *parsed_count)
-                break;
-            pindex = active_chain.Next(*pindex);
-        }
-    }
-
-    bool index_ready = index->BlockUntilSyncedToCurrentChain();
-
-    std::vector<uint256> filter_headers;
-    filter_headers.reserve(*parsed_count);
-    for (const CBlockIndex* pindex : headers) {
-        uint256 filter_header;
-        if (!index->LookupFilterHeader(pindex, filter_header)) {
-            std::string errmsg = "Filter not found.";
-
-            if (!index_ready) {
-                errmsg += " Block filters are still in the process of being indexed.";
-            } else {
-                errmsg += " This error is unexpected and indicates index corruption.";
-            }
-
-            return RESTERR(req, HTTP_NOT_FOUND, errmsg);
-        }
-        filter_headers.push_back(filter_header);
-    }
-
-    switch (rf) {
-    case RESTResponseFormat::BINARY: {
-        DataStream ssHeader{};
-        for (const uint256& header : filter_headers) {
-            ssHeader << header;
-        }
-
-        req->WriteHeader("Content-Type", "application/octet-stream");
-        req->WriteReply(HTTP_OK, ssHeader);
-        return true;
-    }
-    case RESTResponseFormat::HEX: {
-        DataStream ssHeader{};
-        for (const uint256& header : filter_headers) {
-            ssHeader << header;
-        }
-
-        std::string strHex = HexStr(ssHeader) + "\n";
-        req->WriteHeader("Content-Type", "text/plain");
-        req->WriteReply(HTTP_OK, strHex);
-        return true;
-    }
-    case RESTResponseFormat::JSON: {
-        UniValue jsonHeaders(UniValue::VARR);
-        for (const uint256& header : filter_headers) {
-            jsonHeaders.push_back(header.GetHex());
-        }
-
-        std::string strJSON = jsonHeaders.write() + "\n";
-        req->WriteHeader("Content-Type", "application/json");
-        req->WriteReply(HTTP_OK, strJSON);
-        return true;
-    }
-    default: {
-        return RESTERR(req, HTTP_NOT_FOUND, "output format not found (available: " + AvailableDataFormatsString() + ")");
-    }
-    }
-}
-
-static bool rest_block_filter(const std::any& context, HTTPRequest* req, const std::string& uri_part)
-{
-    if (!CheckWarmup(req)) return false;
-
-    std::string param;
-    const RESTResponseFormat rf = ParseDataFormat(param, uri_part);
-
-    // request is sent over URI scheme /rest/blockfilter/filtertype/blockhash
-    std::vector<std::string> uri_parts = SplitString(param, '/');
-    if (uri_parts.size() != 2) {
-        return RESTERR(req, HTTP_BAD_REQUEST, "Invalid URI format. Expected /rest/blockfilter/<filtertype>/<blockhash>");
-    }
-
-    auto block_hash{uint256::FromHex(uri_parts[1])};
-    if (!block_hash) {
-        return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash: " + uri_parts[1]);
-    }
-
-    BlockFilterType filtertype;
-    if (!BlockFilterTypeByName(uri_parts[0], filtertype)) {
-        return RESTERR(req, HTTP_BAD_REQUEST, "Unknown filtertype " + uri_parts[0]);
-    }
-
-    BlockFilterIndex* index = GetBlockFilterIndex(filtertype);
-    if (!index) {
-        return RESTERR(req, HTTP_BAD_REQUEST, "Index is not enabled for filtertype " + uri_parts[0]);
-    }
-
-    const CBlockIndex* block_index;
-    bool block_was_connected;
-    {
-        ChainstateManager* maybe_chainman = GetChainman(context, req);
-        if (!maybe_chainman) return false;
-        ChainstateManager& chainman = *maybe_chainman;
-        LOCK(cs_main);
-        block_index = chainman.m_blockman.LookupBlockIndex(*block_hash);
-        if (!block_index) {
-            return RESTERR(req, HTTP_NOT_FOUND, uri_parts[1] + " not found");
-        }
-        block_was_connected = block_index->IsValid(BLOCK_VALID_SCRIPTS);
-    }
-
-    bool index_ready = index->BlockUntilSyncedToCurrentChain();
-
-    BlockFilter filter;
-    if (!index->LookupFilter(block_index, filter)) {
-        std::string errmsg = "Filter not found.";
-
-        if (!block_was_connected) {
-            errmsg += " Block was not connected to active chain.";
-        } else if (!index_ready) {
-            errmsg += " Block filters are still in the process of being indexed.";
-        } else {
-            errmsg += " This error is unexpected and indicates index corruption.";
-        }
-
-        return RESTERR(req, HTTP_NOT_FOUND, errmsg);
-    }
-
-    switch (rf) {
-    case RESTResponseFormat::BINARY: {
-        DataStream ssResp{};
-        ssResp << filter;
-
-        req->WriteHeader("Content-Type", "application/octet-stream");
-        req->WriteReply(HTTP_OK, ssResp);
-        return true;
-    }
-    case RESTResponseFormat::HEX: {
-        DataStream ssResp{};
-        ssResp << filter;
-
-        std::string strHex = HexStr(ssResp) + "\n";
-        req->WriteHeader("Content-Type", "text/plain");
-        req->WriteReply(HTTP_OK, strHex);
-        return true;
-    }
-    case RESTResponseFormat::JSON: {
-        UniValue ret(UniValue::VOBJ);
-        ret.pushKV("filter", HexStr(filter.GetEncodedFilter()));
-        std::string strJSON = ret.write() + "\n";
-        req->WriteHeader("Content-Type", "application/json");
-        req->WriteReply(HTTP_OK, strJSON);
-        return true;
-    }
-    default: {
-        return RESTERR(req, HTTP_NOT_FOUND, "output format not found (available: " + AvailableDataFormatsString() + ")");
-    }
-    }
-}
-
 // A bit of a hack - dependency on a function defined in rpc/blockchain.cpp
 RPCMethod getblockchaininfo();
 
@@ -845,10 +629,6 @@ static bool rest_tx(const std::any& context, HTTPRequest* req, const std::string
     auto hash{Txid::FromHex(hashStr)};
     if (!hash) {
         return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash: " + hashStr);
-    }
-
-    if (g_txindex) {
-        g_txindex->BlockUntilSyncedToCurrentChain();
     }
 
     const NodeContext* const node = GetNodeContext(context, req);
@@ -1146,8 +926,6 @@ static const struct {
     {"/rest/block/notxdetails/", rest_block_notxdetails},
     {"/rest/block/", rest_block_extended},
     {"/rest/blockpart/", rest_block_part},
-    {"/rest/blockfilter/", rest_block_filter},
-    {"/rest/blockfilterheaders/", rest_filter_header},
     {"/rest/chaininfo", rest_chaininfo},
     {"/rest/mempool/", rest_mempool},
     {"/rest/headers/", rest_headers},

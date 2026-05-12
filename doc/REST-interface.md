@@ -33,8 +33,7 @@ Supported API
 Given a transaction hash: returns a transaction in binary, hex-encoded binary, or JSON formats.
 Responds with 404 if the transaction doesn't exist.
 
-By default, this endpoint will only search the mempool.
-To query for a confirmed transaction, enable the transaction index via "txindex=1" command line / configuration option.
+This endpoint only searches the mempool.
 
 #### Blocks
 - `GET /rest/block/<BLOCK-HASH>.<bin|hex|json>`
@@ -60,23 +59,6 @@ Returns empty if the block doesn't exist or it isn't in the active chain.
 
 *Deprecated (but not removed) since 24.0:*
 `GET /rest/headers/<COUNT>/<BLOCK-HASH>.<bin|hex|json>`
-
-#### Blockfilter Headers
-`GET /rest/blockfilterheaders/<FILTERTYPE>/<BLOCK-HASH>.<bin|hex|json>?count=<COUNT=5>`
-
-Given a block hash: returns <COUNT> amount of blockfilter headers in upward
-direction for the filter type <FILTERTYPE>.
-Returns empty if the block doesn't exist or it isn't in the active chain.
-
-*Deprecated (but not removed) since 24.0:*
-`GET /rest/blockfilterheaders/<FILTERTYPE>/<COUNT>/<BLOCK-HASH>.<bin|hex|json>`
-
-#### Blockfilters
-`GET /rest/blockfilter/<FILTERTYPE>/<BLOCK-HASH>.<bin|hex|json>`
-
-Given a block hash: returns the block filter of the given block of type
-<FILTERTYPE>.
-Responds with 404 if the block doesn't exist.
 
 #### Blockhash by height
 `GET /rest/blockhashbyheight/<HEIGHT>.<bin|hex|json>`

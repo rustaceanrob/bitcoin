@@ -55,7 +55,6 @@ from test_framework.blocktools import (
 START_HEIGHT = 199
 SNAPSHOT_BASE_HEIGHT = 299
 FINAL_HEIGHT = 399
-COMPLETE_IDX = {'synced': True, 'best_block_height': FINAL_HEIGHT}
 
 
 class AssumeutxoTest(BitcoinTestFramework):
@@ -66,8 +65,8 @@ class AssumeutxoTest(BitcoinTestFramework):
         self.rpc_timeout = 120
         self.extra_args = [
             [],
-            ["-fastprune", "-prune=1", "-blockfilterindex=1", "-coinstatsindex=1"],
-            ["-persistmempool=0","-txindex=1", "-blockfilterindex=1", "-coinstatsindex=1"],
+            ["-fastprune", "-prune=1"],
+            ["-persistmempool=0"],
             []
         ]
 
@@ -535,8 +534,7 @@ class AssumeutxoTest(BitcoinTestFramework):
         self.log.info("Check that UTXO-querying RPCs operate on snapshot chainstate")
         snapshot_hash = loaded['tip_hash']
         snapshot_num_coins = loaded['coins_loaded']
-        # coinstatsindex might be not caught up yet and is not relevant for this test, so don't use it
-        utxo_info = n1.gettxoutsetinfo(use_index=False)
+        utxo_info = n1.gettxoutsetinfo()
         assert_equal(utxo_info['txouts'], snapshot_num_coins)
         assert_equal(utxo_info['height'], SNAPSHOT_BASE_HEIGHT)
         assert_equal(utxo_info['bestblock'], snapshot_hash)
@@ -690,13 +688,6 @@ class AssumeutxoTest(BitcoinTestFramework):
         # completing the background sync.
         self.assert_only_network_limited_service(n1)
 
-        # Ensure indexes have synced.
-        completed_idx_state = {
-            'basic block filter index': COMPLETE_IDX,
-            'coinstatsindex': COMPLETE_IDX,
-        }
-        self.wait_until(lambda: n1.getindexinfo() == completed_idx_state)
-
         self.log.info("Re-check nTx and nChainTx values")
         check_tx_counts(final=True)
 
@@ -711,15 +702,11 @@ class AssumeutxoTest(BitcoinTestFramework):
             chainstate, = n.getchainstates()['chainstates']
             assert_equal(chainstate['blocks'], FINAL_HEIGHT)
 
-            if i != 0:
-                # Ensure indexes have synced for the assumeutxo node
-                self.wait_until(lambda: n.getindexinfo() == completed_idx_state)
 
+        # Node 2: reindex
+        # ---------------
 
-        # Node 2: all indexes + reindex
-        # -----------------------------
-
-        self.log.info("-- Testing all indexes + reindex")
+        self.log.info("-- Testing reindex")
         assert_equal(n2.getblockcount(), START_HEIGHT)
         assert 'NETWORK' in n2.getnetworkinfo()['localservicesnames']  # sanity check
 
@@ -771,13 +758,6 @@ class AssumeutxoTest(BitcoinTestFramework):
         # Once background chain sync completes, the full node must start offering historical blocks again.
         self.wait_until(lambda: {'NETWORK', 'NETWORK_LIMITED'}.issubset(n2.getnetworkinfo()['localservicesnames']))
 
-        completed_idx_state = {
-            'basic block filter index': COMPLETE_IDX,
-            'coinstatsindex': COMPLETE_IDX,
-            'txindex': COMPLETE_IDX,
-        }
-        self.wait_until(lambda: n2.getindexinfo() == completed_idx_state)
-
         for i in (0, 2):
             n = self.nodes[i]
             self.log.info(f"Restarting node {i} to ensure (Check|Load)BlockIndex passes")
@@ -788,10 +768,6 @@ class AssumeutxoTest(BitcoinTestFramework):
 
             chainstate, = n.getchainstates()['chainstates']
             assert_equal(chainstate['blocks'], FINAL_HEIGHT)
-
-            if i != 0:
-                # Ensure indexes have synced for the assumeutxo node
-                self.wait_until(lambda: n.getindexinfo() == completed_idx_state)
 
         self.log.info("Test -reindex-chainstate of an assumeutxo-synced node")
         self.restart_node(2, extra_args=[

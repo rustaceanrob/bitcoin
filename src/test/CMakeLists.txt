@@ -20,8 +20,6 @@ add_executable(test_bitcoin
   bip324_tests.cpp
   blockchain_tests.cpp
   blockencodings_tests.cpp
-  blockfilter_index_tests.cpp
-  blockfilter_tests.cpp
   blockmanager_tests.cpp
   bloom_tests.cpp
   bswap_tests.cpp
@@ -33,7 +31,6 @@ add_executable(test_bitcoin
   cluster_linearize_tests.cpp
   coins_tests.cpp
   coinscachepair_tests.cpp
-  coinstatsindex_tests.cpp
   coinsviewoverlay_tests.cpp
   common_url_tests.cpp
   compress_tests.cpp
@@ -117,8 +114,6 @@ add_executable(test_bitcoin
   translation_tests.cpp
   txdownload_tests.cpp
   txgraph_tests.cpp
-  txindex_tests.cpp
-  txospenderindex_tests.cpp
   txpackage_tests.cpp
   txreconciliation_tests.cpp
   txrequest_tests.cpp
@@ -144,7 +139,6 @@ include(TargetDataSources)
 target_json_data_sources(test_bitcoin
   data/base58_encode_decode.json
   data/bip341_wallet_vectors.json
-  data/blockfilters.json
   data/key_io_invalid.json
   data/key_io_valid.json
   data/script_tests.json

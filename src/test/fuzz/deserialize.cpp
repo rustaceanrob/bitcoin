@@ -6,7 +6,6 @@
 #include <addrman.h>
 #include <addrman_impl.h>
 #include <blockencodings.h>
-#include <blockfilter.h>
 #include <chain.h>
 #include <coins.h>
 #include <common/args.h>
@@ -136,10 +135,6 @@ void AssertEqualAfterSerializeDeserialize(const T& obj)
 
 } // namespace
 
-FUZZ_TARGET_DESERIALIZE(block_filter_deserialize, {
-    BlockFilter block_filter;
-    DeserializeFromFuzzingInput(buffer, block_filter);
-})
 FUZZ_TARGET(addr_info_deserialize, .init = initialize_deserialize)
 {
     FuzzedDataProvider fdp{buffer.data(), buffer.size()};

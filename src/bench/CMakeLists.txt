@@ -26,9 +26,7 @@ add_executable(bench_bitcoin
   duplicate_inputs.cpp
   ellswift.cpp
   examples.cpp
-  gcs_filter.cpp
   hashpadding.cpp
-  index_blockfilter.cpp
   load_external.cpp
   lockedpool.cpp
   logging.cpp

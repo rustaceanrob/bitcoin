@@ -111,7 +111,6 @@ const std::vector<std::string> RPC_COMMANDS_SAFE_FOR_FUZZING{
     "getblock",
     "getblockchaininfo",
     "getblockcount",
-    "getblockfilter",
     "getblockfrompeer", // when no peers are connected, no p2p message is sent
     "getblockhash",
     "getblockheader",
@@ -125,7 +124,6 @@ const std::vector<std::string> RPC_COMMANDS_SAFE_FOR_FUZZING{
     "getdescriptoractivity",
     "getdescriptorinfo",
     "getdifficulty",
-    "getindexinfo",
     "getmemoryinfo",
     "getmempoolancestors",
     "getmempooldescendants",
@@ -148,7 +146,6 @@ const std::vector<std::string> RPC_COMMANDS_SAFE_FOR_FUZZING{
     "getrpcinfo",
     "gettxout",
     "gettxoutsetinfo",
-    "gettxspendingprevout",
     "help",
     "invalidateblock",
     "listbanned",
@@ -159,7 +156,6 @@ const std::vector<std::string> RPC_COMMANDS_SAFE_FOR_FUZZING{
     "prioritisetransaction",
     "pruneblockchain",
     "reconsiderblock",
-    "scanblocks",
     "scantxoutset",
     "sendmsgtopeer", // when no peers are connected, no p2p message is sent
     "sendrawtransaction",

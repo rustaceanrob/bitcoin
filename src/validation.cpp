@@ -6351,11 +6351,6 @@ std::pair<int, int> Chainstate::GetPruneRange(int last_height_can_prune) const
         0, m_chain.Height() - static_cast<int>(MIN_BLOCKS_TO_KEEP));
 
     // last block to prune is the lesser of (caller-specified height, MIN_BLOCKS_TO_KEEP from the tip)
-    //
-    // While you might be tempted to prune the background chainstate more
-    // aggressively (i.e. fewer MIN_BLOCKS_TO_KEEP), this won't work with index
-    // building - specifically blockfilterindex requires undo data, and if
-    // we don't maintain this trailing window, we hit indexing failures.
     int prune_end = std::min(last_height_can_prune, max_prune);
 
     return {prune_start, prune_end};

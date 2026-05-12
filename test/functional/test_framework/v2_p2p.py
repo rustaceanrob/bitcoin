@@ -43,12 +43,6 @@ SHORTID = {
     19: b"pong",
     20: b"sendcmpct",
     21: b"tx",
-    22: b"getcfilters",
-    23: b"cfilter",
-    24: b"getcfheaders",
-    25: b"cfheaders",
-    26: b"getcfcheckpt",
-    27: b"cfcheckpt",
     28: b"addrv2",
 }
 

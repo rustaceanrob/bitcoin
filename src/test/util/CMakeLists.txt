@@ -3,7 +3,6 @@
 # file COPYING or https://opensource.org/license/mit/.
 
 add_library(test_util STATIC EXCLUDE_FROM_ALL
-  blockfilter.cpp
   coins.cpp
   coverage.cpp
   json.cpp

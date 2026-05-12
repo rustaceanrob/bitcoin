@@ -46,11 +46,6 @@ Subdirectory       | File(s)               | Description
 `blocks/`          | `revNNNNN.dat`<sup>[\[2\]](#note2)</sup> | Block undo data (custom format)
 `blocks/`          | `xor.dat`             | Rolling XOR pattern for block and undo data files
 `chainstate/`      | LevelDB database      | Blockchain state (a compact representation of all currently unspent transaction outputs (UTXOs) and metadata about the transactions they are from)
-`indexes/txindex/` | LevelDB database      | Transaction index; *optional*, used if `-txindex=1`
-`indexes/txospenderindex/` | LevelDB database      | Transaction spender index; *optional*, used if `-txospenderindex=1`
-`indexes/blockfilter/basic/db/` | LevelDB database      | Blockfilter index LevelDB database for the basic filtertype; *optional*, used if `-blockfilterindex=basic`
-`indexes/blockfilter/basic/`    | `fltrNNNNN.dat`<sup>[\[2\]](#note2)</sup> | Blockfilter index filters for the basic filtertype; *optional*, used if `-blockfilterindex=basic`
-`indexes/coinstatsindex/db/` | LevelDB database | Coinstats index; *optional*, used if `-coinstatsindex=1`
 `./`               | `anchors.dat`         | Anchor IP address database, created on shutdown and deleted at startup. Anchors are last known outgoing block-relay-only peers that are tried to re-connect to on startup
 `./`               | `banlist.json`        | Stores the addresses/subnets of banned nodes.
 `./`               | `bitcoin.conf`        | User-defined [configuration settings](bitcoin-conf.md) for `bitcoind`. File is not written to by the software and must be created manually. Path can be specified by `-conf` option

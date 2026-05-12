@@ -18,12 +18,6 @@ from test_framework.test_node import (
 )
 from test_framework.util import assert_equal
 
-ALL_INDEX_ARGS = [
-    '-txindex=1',
-    '-blockfilterindex=1',
-    '-coinstatsindex=1',
-    '-txospenderindex=1',
-]
 
 class InitTest(BitcoinTestFramework):
     """
@@ -41,7 +35,6 @@ class InitTest(BitcoinTestFramework):
         node.wait_for_rpc_connection()
         height = node.getblockcount()
         assert_equal(200, height)
-        self.wait_until(lambda: all(i["synced"] and i["best_block_height"] == height for i in node.getindexinfo().values()))
 
     def init_stress_test_interrupt(self):
         """
@@ -76,10 +69,6 @@ class InitTest(BitcoinTestFramework):
             b'net thread start',
             b'addcon thread start',
             b'initload thread start',
-            b'txindex thread start',
-            b'block filter index thread start',
-            b'coinstatsindex thread start',
-            b'txospenderindex thread start',
             b'msghand thread start',
             b'net thread start',
             b'addcon thread start',
@@ -91,15 +80,13 @@ class InitTest(BitcoinTestFramework):
                 if platform.system() == 'Windows':
                     # CREATE_NEW_PROCESS_GROUP is required in order to be able
                     # to terminate the child without terminating the test.
-                    node.start(extra_args=ALL_INDEX_ARGS, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                    node.start(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
                 else:
-                    node.start(extra_args=ALL_INDEX_ARGS)
+                    node.start()
             self.log.debug("Terminating node after terminate line was found")
             sigterm_node()
 
-        # Prior to deleting/perturbing index files, start node with all indexes enabled.
-        # 'check_clean_start' will ensure indexes are synchronized (i.e., data exists to modify)
-        self.check_clean_start(node, ALL_INDEX_ARGS)
+        self.check_clean_start(node, [])
         self.stop_node(0)
 
     def init_stress_test_removals(self):
@@ -132,19 +119,6 @@ class InitTest(BitcoinTestFramework):
                 'error_message': 'Error loading block database.',
                 'startup_args': ['-checkblocks=200', '-checklevel=4'],
             },
-            {
-                'filepath_glob': 'indexes/txindex/MANIFEST*',
-                'error_message': 'LevelDB error: Corruption: CURRENT points to a non-existent file',
-                'startup_args': ['-txindex=1'],
-            },
-            {
-                'filepath_glob': 'indexes/txospenderindex/db/MANIFEST*',
-                'error_message': 'LevelDB error: Corruption: CURRENT points to a non-existent file',
-                'startup_args': ['-txospenderindex=1'],
-            },
-            # Removing these files does not result in a startup error:
-            # 'indexes/blockfilter/basic/*.dat', 'indexes/blockfilter/basic/db/*.*', 'indexes/coinstatsindex/db/*.*',
-            # 'indexes/txindex/*.log', 'indexes/txindex/CURRENT', 'indexes/txindex/LOCK'
         ]
 
         perturbation_rounds = [
@@ -163,33 +137,6 @@ class InitTest(BitcoinTestFramework):
                 'error_message': 'Corrupted block database detected.',
                 'startup_args': ['-checkblocks=200', '-checklevel=4'],
             },
-            {
-                'filepath_glob': 'indexes/blockfilter/basic/db/*.*',
-                'error_message': 'LevelDB error: Corruption',
-                'startup_args': ['-blockfilterindex=1'],
-            },
-            {
-                'filepath_glob': 'indexes/coinstatsindex/db/*.*',
-                'error_message': 'LevelDB error: Corruption',
-                'startup_args': ['-coinstatsindex=1'],
-            },
-            {
-                'filepath_glob': 'indexes/txindex/*.log',
-                'error_message': 'LevelDB error: Corruption',
-                'startup_args': ['-txindex=1'],
-            },
-            {
-                'filepath_glob': 'indexes/txindex/CURRENT',
-                'error_message': 'LevelDB error: Corruption',
-                'startup_args': ['-txindex=1'],
-            },
-            {
-                'filepath_glob': 'indexes/txospenderindex/db/*',
-                'error_message': 'LevelDB error: Corruption',
-                'startup_args': ['-txospenderindex=1'],
-            },
-            # Perturbing these files does not result in a startup error:
-            # 'indexes/blockfilter/basic/*.dat', 'indexes/txindex/MANIFEST*', 'indexes/txindex/LOCK'
         ]
 
         for round_info in deletion_rounds:
@@ -211,11 +158,11 @@ class InitTest(BitcoinTestFramework):
                 self.log.debug(f"Restoring file from {bak_path} and restarting")
                 Path(bak_path).rename(target_file)
 
-            self.check_clean_start(node, ALL_INDEX_ARGS)
+            self.check_clean_start(node, [])
             self.stop_node(0)
 
         self.log.info("Test startup errors after perturbing certain essential files")
-        dirs = ["blocks", "chainstate", "indexes"]
+        dirs = ["blocks", "chainstate"]
         for round_info in perturbation_rounds:
             file_patt = round_info['filepath_glob']
             err_fragment = round_info['error_message']
@@ -313,12 +260,7 @@ class InitTest(BitcoinTestFramework):
 
     def init_empty_test(self):
         self.log.info("Test that stopping and restarting a node that has done nothing is not causing a failure")
-        options = [
-            [],
-            ALL_INDEX_ARGS,
-        ]
-        for option in options:
-            self.restart_node(1, option)
+        self.restart_node(1, [])
 
     def run_test(self):
         self.init_pid_test()

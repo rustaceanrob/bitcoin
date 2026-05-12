@@ -2,7 +2,6 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <blockfilter.h>
 #include <serialize.h>
 #include <streams.h>
 #include <test/fuzz/FuzzedDataProvider.h>
@@ -20,6 +19,10 @@
 #include <vector>
 
 namespace {
+
+// BIP158 Golomb-Rice parameters (formerly from blockfilter.h)
+constexpr uint8_t BASIC_FILTER_P = 19;
+constexpr uint32_t BASIC_FILTER_M = 784931;
 
 uint64_t HashToRange(const std::vector<uint8_t>& element, const uint64_t f)
 {

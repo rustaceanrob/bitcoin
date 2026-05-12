@@ -9,7 +9,6 @@
 #include <consensus/amount.h>
 #include <consensus/validation.h>
 #include <core_io.h>
-#include <index/txindex.h>
 #include <key_io.h>
 #include <node/blockstorage.h>
 #include <node/coin.h>
@@ -124,8 +123,7 @@ static RPCMethod getrawtransaction()
     return RPCMethod{
                 "getrawtransaction",
 
-                "By default, this call only returns a transaction if it is in the mempool. If -txindex is enabled\n"
-                "and no blockhash argument is passed, it will return the transaction if it is in the mempool or any block.\n"
+                "By default, this call only returns a transaction if it is in the mempool.\n"
                 "If a blockhash argument is passed, it will return the transaction if\n"
                 "the specified block is available and the transaction is in that block.\n\n"
                 "Hint: Use gettransaction for wallet transactions.\n\n"
@@ -210,11 +208,6 @@ static RPCMethod getrawtransaction()
         }
     }
 
-    bool f_txindex_ready = false;
-    if (g_txindex && !blockindex) {
-        f_txindex_ready = g_txindex->BlockUntilSyncedToCurrentChain();
-    }
-
     uint256 hash_block;
     const CTransactionRef tx = GetTransaction(blockindex, node.mempool.get(), txid, chainman.m_blockman, hash_block);
     if (!tx) {
@@ -225,12 +218,8 @@ static RPCMethod getrawtransaction()
                 throw JSONRPCError(RPC_MISC_ERROR, "Block not available");
             }
             errmsg = "No such transaction found in the provided block";
-        } else if (!g_txindex) {
-            errmsg = "No such mempool transaction. Use -txindex or provide a block hash to enable blockchain transaction queries";
-        } else if (!f_txindex_ready) {
-            errmsg = "No such mempool transaction. Blockchain transactions are still in the process of being indexed";
         } else {
-            errmsg = "No such mempool or blockchain transaction";
+            errmsg = "No such mempool transaction. Provide a block hash to look it up in a specific block";
         }
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, errmsg + ". Use gettransaction for wallet transactions.");
     }

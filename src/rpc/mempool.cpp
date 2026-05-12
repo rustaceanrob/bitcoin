@@ -11,7 +11,6 @@
 #include <common/args.h>
 #include <consensus/validation.h>
 #include <core_io.h>
-#include <index/txospenderindex.h>
 #include <kernel/mempool_entry.h>
 #include <net_processing.h>
 #include <netbase.h>
@@ -900,152 +899,6 @@ static RPCMethod getmempoolentry()
     };
 }
 
-static RPCMethod gettxspendingprevout()
-{
-    return RPCMethod{"gettxspendingprevout",
-        "Scans the mempool (and the txospenderindex, if available) to find transactions spending any of the given outputs",
-        {
-            {"outputs", RPCArg::Type::ARR, RPCArg::Optional::NO, "The transaction outputs that we want to check, and within each, the txid (string) vout (numeric).",
-                {
-                    {"", RPCArg::Type::OBJ, RPCArg::Optional::OMITTED, "",
-                        {
-                            {"txid", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "The transaction id"},
-                            {"vout", RPCArg::Type::NUM, RPCArg::Optional::NO, "The output number"},
-                        },
-                    },
-                },
-            },
-            {"options", RPCArg::Type::OBJ_NAMED_PARAMS, RPCArg::Optional::OMITTED, "",
-                {
-                    {"mempool_only", RPCArg::Type::BOOL, RPCArg::DefaultHint{"true if txospenderindex unavailable, otherwise false"}, "If false and mempool lacks a relevant spend, use txospenderindex (throws an exception if not available)."},
-                    {"return_spending_tx", RPCArg::Type::BOOL, RPCArg::DefaultHint{"false"}, "If true, return the full spending tx."},
-                },
-            },
-        },
-        RPCResult{
-            RPCResult::Type::ARR, "", "",
-            {
-                {RPCResult::Type::OBJ, "", "",
-                {
-                    {RPCResult::Type::STR_HEX, "txid", "the transaction id of the checked output"},
-                    {RPCResult::Type::NUM, "vout", "the vout value of the checked output"},
-                    {RPCResult::Type::STR_HEX, "spendingtxid", /*optional=*/true, "the transaction id of the mempool transaction spending this output (omitted if unspent)"},
-                    {RPCResult::Type::STR_HEX, "spendingtx", /*optional=*/true, "the transaction spending this output (only if return_spending_tx is set, omitted if unspent)"},
-                    {RPCResult::Type::STR_HEX, "blockhash", /*optional=*/true, "the hash of the spending block (omitted if unspent or the spending tx is not confirmed)"},
-                }},
-            }
-        },
-        RPCExamples{
-            HelpExampleCli("gettxspendingprevout", "\"[{\\\"txid\\\":\\\"a08e6907dbbd3d809776dbfc5d82e371b764ed838b5655e72f463568df1aadf0\\\",\\\"vout\\\":3}]\"")
-            + HelpExampleRpc("gettxspendingprevout", "\"[{\\\"txid\\\":\\\"a08e6907dbbd3d809776dbfc5d82e371b764ed838b5655e72f463568df1aadf0\\\",\\\"vout\\\":3}]\"")
-            + HelpExampleCliNamed("gettxspendingprevout", {{"outputs", "[{\"txid\":\"a08e6907dbbd3d809776dbfc5d82e371b764ed838b5655e72f463568df1aadf0\",\"vout\":3}]"}, {"return_spending_tx", true}})
-        },
-        [](const RPCMethod& self, const JSONRPCRequest& request) -> UniValue
-        {
-            const UniValue& output_params = request.params[0].get_array();
-            if (output_params.empty()) {
-                throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, outputs are missing");
-            }
-            const UniValue options{request.params[1].isNull() ? UniValue::VOBJ : request.params[1]};
-            RPCTypeCheckObj(options,
-                            {
-                                {"mempool_only", UniValueType(UniValue::VBOOL)},
-                                {"return_spending_tx", UniValueType(UniValue::VBOOL)},
-                            }, /*fAllowNull=*/true, /*fStrict=*/true);
-
-            const bool mempool_only{options.exists("mempool_only") ? options["mempool_only"].get_bool() : !g_txospenderindex};
-            const bool return_spending_tx{options.exists("return_spending_tx") ? options["return_spending_tx"].get_bool() : false};
-
-            // Worklist of outpoints to resolve
-            struct Entry {
-                COutPoint outpoint;
-                const UniValue* raw;
-            };
-            std::vector<Entry> prevouts_to_process;
-            prevouts_to_process.reserve(output_params.size());
-            for (unsigned int idx = 0; idx < output_params.size(); idx++) {
-                const UniValue& o = output_params[idx].get_obj();
-
-                RPCTypeCheckObj(o,
-                                {
-                                    {"txid", UniValueType(UniValue::VSTR)},
-                                    {"vout", UniValueType(UniValue::VNUM)},
-                                }, /*fAllowNull=*/false, /*fStrict=*/true);
-
-                const Txid txid = Txid::FromUint256(ParseHashO(o, "txid"));
-                const int nOutput{o.find_value("vout").getInt<int>()};
-                if (nOutput < 0) {
-                    throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, vout cannot be negative");
-                }
-                prevouts_to_process.emplace_back(COutPoint{txid, static_cast<uint32_t>(nOutput)}, &o);
-            }
-
-            auto make_output = [return_spending_tx](const Entry& prevout, const CTransaction* spending_tx = nullptr) {
-                UniValue o{*prevout.raw};
-                if (spending_tx) {
-                    o.pushKV("spendingtxid", spending_tx->GetHash().ToString());
-                    if (return_spending_tx) {
-                        o.pushKV("spendingtx", EncodeHexTx(*spending_tx));
-                    }
-                }
-                return o;
-            };
-
-            UniValue result{UniValue::VARR};
-
-            // Search the mempool first
-            {
-                const CTxMemPool& mempool = EnsureAnyMemPool(request.context);
-                LOCK(mempool.cs);
-
-                // Make the result if the spending tx appears in the mempool or this is a mempool_only request
-                for (auto it = prevouts_to_process.begin(); it != prevouts_to_process.end(); ) {
-                    const CTransaction* spending_tx{mempool.GetConflictTx(it->outpoint)};
-
-                    // If the outpoint is not spent in the mempool and this is not a mempool-only
-                    // request, we cannot answer it yet.
-                    if (!spending_tx && !mempool_only) {
-                        ++it;
-                        continue;
-                    }
-
-                    result.push_back(make_output(*it, spending_tx));
-                    it = prevouts_to_process.erase(it);
-                }
-            }
-
-            // Return early if all requests have been handled by the mempool search
-            if (prevouts_to_process.empty()) {
-                return result;
-            }
-
-            // At this point the request was not limited to the mempool and some outpoints remain
-            // unresolved. We now rely on the index to determine whether they were spent or not.
-            if (!g_txospenderindex || !g_txospenderindex->BlockUntilSyncedToCurrentChain()) {
-                throw JSONRPCError(RPC_MISC_ERROR, "Mempool lacks a relevant spend, and txospenderindex is unavailable.");
-            }
-
-            for (const auto& prevout : prevouts_to_process) {
-                const auto spender{g_txospenderindex->FindSpender(prevout.outpoint)};
-                if (!spender) {
-                    throw JSONRPCError(RPC_MISC_ERROR, spender.error());
-                }
-
-                if (const auto& spender_opt{spender.value()}) {
-                    UniValue o{make_output(prevout, spender_opt->tx.get())};
-                    o.pushKV("blockhash", spender_opt->block_hash.GetHex());
-                    result.push_back(std::move(o));
-                } else {
-                    // Only return the input outpoint itself, which indicates it is unspent.
-                    result.push_back(make_output(prevout));
-                }
-            }
-
-            return result;
-        },
-    };
-}
-
 UniValue MempoolInfoToJSON(const CTxMemPool& pool)
 {
     // Make sure this call is atomic in the pool.
@@ -1538,7 +1391,6 @@ void RegisterMempoolRPCCommands(CRPCTable& t)
         {"blockchain", &getmempooldescendants},
         {"blockchain", &getmempoolentry},
         {"blockchain", &getmempoolcluster},
-        {"blockchain", &gettxspendingprevout},
         {"blockchain", &getmempoolinfo},
         {"hidden", &getmempoolfeeratediagram},
         {"blockchain", &getrawmempool},

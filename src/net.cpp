@@ -940,12 +940,12 @@ const std::array<std::string, 33> V2_MESSAGE_IDS = {
     NetMsgType::PONG,
     NetMsgType::SENDCMPCT,
     NetMsgType::TX,
-    NetMsgType::GETCFILTERS,
-    NetMsgType::CFILTER,
-    NetMsgType::GETCFHEADERS,
-    NetMsgType::CFHEADERS,
-    NetMsgType::GETCFCHECKPT,
-    NetMsgType::CFCHECKPT,
+    "", // formerly NetMsgType::GETCFILTERS
+    "", // formerly NetMsgType::CFILTER
+    "", // formerly NetMsgType::GETCFHEADERS
+    "", // formerly NetMsgType::CFHEADERS
+    "", // formerly NetMsgType::GETCFCHECKPT
+    "", // formerly NetMsgType::CFCHECKPT
     NetMsgType::ADDRV2,
     // Unimplemented message types that are assigned in BIP324:
     "",

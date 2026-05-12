@@ -12,23 +12,18 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
     assert_raises_rpc_error,
-    sync_txindex,
 )
 from test_framework.wallet import MiniWallet
 
 
 class MerkleBlockTest(BitcoinTestFramework):
     def set_test_params(self):
-        self.num_nodes = 2
-        self.extra_args = [
-            [],
-            ["-txindex"],
-        ]
+        self.num_nodes = 1
 
     def run_test(self):
         miniwallet = MiniWallet(self.nodes[0])
 
-        chain_height = self.nodes[1].getblockcount()
+        chain_height = self.nodes[0].getblockcount()
         assert_equal(chain_height, 200)
 
         txid1 = miniwallet.send_self_transfer(from_node=self.nodes[0])['txid']
@@ -77,9 +72,6 @@ class MerkleBlockTest(BitcoinTestFramework):
         # We can get the proof if we provide a list of transactions and one of them is unspent. The ordering of the list should not matter.
         assert_equal(sorted(self.nodes[0].verifytxoutproof(self.nodes[0].gettxoutproof([txid1, txid2]))), sorted(txlist))
         assert_equal(sorted(self.nodes[0].verifytxoutproof(self.nodes[0].gettxoutproof([txid2, txid1]))), sorted(txlist))
-        # We can always get a proof if we have a -txindex
-        sync_txindex(self, self.nodes[1])
-        assert_equal(self.nodes[0].verifytxoutproof(self.nodes[1].gettxoutproof([txid_spent])), [txid_spent])
         # We can't get a proof if we specify transactions from different blocks
         assert_raises_rpc_error(-5, "Not all transactions found in specified or retrieved block", self.nodes[0].gettxoutproof, [txid1, txid3])
         # Test empty list
@@ -88,9 +80,9 @@ class MerkleBlockTest(BitcoinTestFramework):
         assert_raises_rpc_error(-8, 'Invalid parameter, duplicated txid', self.nodes[0].gettxoutproof, [txid1, txid1])
 
         # Now we'll try tweaking a proof.
-        proof = self.nodes[1].gettxoutproof([txid1, txid2])
+        proof = self.nodes[0].gettxoutproof([txid1, txid2], blockhash)
         assert txid1 in self.nodes[0].verifytxoutproof(proof)
-        assert txid2 in self.nodes[1].verifytxoutproof(proof)
+        assert txid2 in self.nodes[0].verifytxoutproof(proof)
 
         tweaked_proof = from_hex(CMerkleBlock(), proof)
 

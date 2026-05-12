@@ -217,42 +217,6 @@ inline constexpr const char* GETBLOCKTXN{"getblocktxn"};
  */
 inline constexpr const char* BLOCKTXN{"blocktxn"};
 /**
- * getcfilters requests compact filters for a range of blocks.
- * Only available with service bit NODE_COMPACT_FILTERS as described by
- * BIP 157 & 158.
- */
-inline constexpr const char* GETCFILTERS{"getcfilters"};
-/**
- * cfilter is a response to a getcfilters request containing a single compact
- * filter.
- */
-inline constexpr const char* CFILTER{"cfilter"};
-/**
- * getcfheaders requests a compact filter header and the filter hashes for a
- * range of blocks, which can then be used to reconstruct the filter headers
- * for those blocks.
- * Only available with service bit NODE_COMPACT_FILTERS as described by
- * BIP 157 & 158.
- */
-inline constexpr const char* GETCFHEADERS{"getcfheaders"};
-/**
- * cfheaders is a response to a getcfheaders request containing a filter header
- * and a vector of filter hashes for each subsequent block in the requested range.
- */
-inline constexpr const char* CFHEADERS{"cfheaders"};
-/**
- * getcfcheckpt requests evenly spaced compact filter headers, enabling
- * parallelized download and validation of the headers between them.
- * Only available with service bit NODE_COMPACT_FILTERS as described by
- * BIP 157 & 158.
- */
-inline constexpr const char* GETCFCHECKPT{"getcfcheckpt"};
-/**
- * cfcheckpt is a response to a getcfcheckpt request containing a vector of
- * evenly spaced filter headers for blocks on the requested chain.
- */
-inline constexpr const char* CFCHECKPT{"cfcheckpt"};
-/**
  * Indicates that a node prefers to relay transactions via wtxid, rather than
  * txid.
  * @since protocol version 70016 as described by BIP 339.
@@ -295,12 +259,6 @@ inline const std::array ALL_NET_MESSAGE_TYPES{std::to_array<std::string>({
     NetMsgType::CMPCTBLOCK,
     NetMsgType::GETBLOCKTXN,
     NetMsgType::BLOCKTXN,
-    NetMsgType::GETCFILTERS,
-    NetMsgType::CFILTER,
-    NetMsgType::GETCFHEADERS,
-    NetMsgType::CFHEADERS,
-    NetMsgType::GETCFCHECKPT,
-    NetMsgType::CFCHECKPT,
     NetMsgType::WTXIDRELAY,
     NetMsgType::SENDTXRCNCL,
 })};
@@ -318,9 +276,6 @@ enum ServiceFlags : uint64_t {
     // NODE_WITNESS indicates that a node can be asked for blocks and transactions including
     // witness data.
     NODE_WITNESS = (1 << 3),
-    // NODE_COMPACT_FILTERS means the node will service basic block filter requests.
-    // See BIP157 and BIP158 for details on how this is implemented.
-    NODE_COMPACT_FILTERS = (1 << 6),
     // NODE_NETWORK_LIMITED means the same as NODE_NETWORK with the limitation of only
     // serving the last 288 (2 day) blocks
     // See BIP159 for details on how this is implemented.

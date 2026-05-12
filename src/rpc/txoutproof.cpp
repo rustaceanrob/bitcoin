@@ -6,7 +6,6 @@
 #include <chain.h>
 #include <chainparams.h>
 #include <coins.h>
-#include <index/txindex.h>
 #include <merkleblock.h>
 #include <node/blockstorage.h>
 #include <primitives/transaction.h>
@@ -27,7 +26,6 @@ static RPCMethod gettxoutproof()
         "Returns a hex-encoded proof that \"txid\" was included in a block.\n"
         "\nNOTE: By default this function only works sometimes. This is when there is an\n"
         "unspent output in the utxo for this transaction. To make it always work,\n"
-        "you need to maintain a transaction index, using the -txindex command line option or\n"
         "specify the block in which the transaction is included manually (by blockhash).\n",
         {
             {"txids", RPCArg::Type::ARR, RPCArg::Optional::NO, "The txids to filter",
@@ -79,11 +77,6 @@ static RPCMethod gettxoutproof()
                 }
             }
 
-
-            // Allow txindex to catch up if we need to query it and before we acquire cs_main.
-            if (g_txindex && !pblockindex) {
-                g_txindex->BlockUntilSyncedToCurrentChain();
-            }
 
             if (pblockindex == nullptr) {
                 const CTransactionRef tx = GetTransaction(/*block_index=*/nullptr, /*mempool=*/nullptr, *setTxids.begin(), chainman.m_blockman, hashBlock);

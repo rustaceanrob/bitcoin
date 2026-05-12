@@ -5,7 +5,6 @@
 
 #include <rpc/blockchain.h>
 
-#include <blockfilter.h>
 #include <chain.h>
 #include <chainparams.h>
 #include <chainparamsbase.h>
@@ -20,8 +19,6 @@
 #include <deploymentstatus.h>
 #include <flatfile.h>
 #include <hash.h>
-#include <index/blockfilterindex.h>
-#include <index/coinstatsindex.h>
 #include <interfaces/mining.h>
 #include <kernel/coinstats.h>
 #include <logging/timer.h>
@@ -992,29 +989,13 @@ CoinStatsHashType ParseHashType(std::string_view hash_type_input)
 
 /**
  * Calculate statistics about the unspent transaction output set
- *
- * @param[in] index_requested Signals if the coinstatsindex should be used (when available).
  */
 static std::optional<kernel::CCoinsStats> GetUTXOStats(CCoinsView* view, node::BlockManager& blockman,
                                                        kernel::CoinStatsHashType hash_type,
                                                        const std::function<void()>& interruption_point = {},
-                                                       const CBlockIndex* pindex = nullptr,
-                                                       bool index_requested = true)
+                                                       const CBlockIndex* pindex = nullptr)
 {
-    // Use CoinStatsIndex if it is requested and available and a hash_type of Muhash or None was requested
-    if ((hash_type == kernel::CoinStatsHashType::MUHASH || hash_type == kernel::CoinStatsHashType::NONE) && g_coin_stats_index && index_requested) {
-        if (pindex) {
-            return g_coin_stats_index->LookUpStats(*pindex);
-        } else {
-            CBlockIndex& block_index = *CHECK_NONFATAL(WITH_LOCK(::cs_main, return blockman.LookupBlockIndex(view->GetBestBlock())));
-            return g_coin_stats_index->LookUpStats(block_index);
-        }
-    }
-
-    // If the coinstats index isn't requested or is otherwise not usable, the
-    // pindex should either be null or equal to the view's best block. This is
-    // because without the coinstats index we can only get coinstats about the
-    // best block.
+    // Without a coinstats index we can only get coinstats about the best block.
     CHECK_NONFATAL(!pindex || pindex->GetBlockHash() == view->GetBestBlock());
 
     return kernel::ComputeUTXOStats(hash_type, view, blockman, interruption_point);
@@ -1025,15 +1006,9 @@ static RPCMethod gettxoutsetinfo()
     return RPCMethod{
         "gettxoutsetinfo",
         "Returns statistics about the unspent transaction output set.\n"
-                "Note this call may take some time if you are not using coinstatsindex.\n",
+                "Note this call may take some time.\n",
                 {
                     {"hash_type", RPCArg::Type::STR, RPCArg::Default{"hash_serialized_3"}, "Which UTXO set hash should be calculated. Options: 'hash_serialized_3' (the legacy algorithm), 'muhash', 'none'."},
-                    {"hash_or_height", RPCArg::Type::NUM, RPCArg::DefaultHint{"the current best block"}, "The block hash or height of the target height (only available with coinstatsindex).",
-                     RPCArgOptions{
-                         .skip_type_check = true,
-                         .type_str = {"", "string or numeric"},
-                     }},
-                    {"use_index", RPCArg::Type::BOOL, RPCArg::Default{true}, "Use coinstatsindex, if available."},
                 },
                 RPCResult{
                     RPCResult::Type::OBJ, "", "",
@@ -1044,42 +1019,21 @@ static RPCMethod gettxoutsetinfo()
                         {RPCResult::Type::NUM, "bogosize", "Database-independent, meaningless metric indicating the UTXO set size"},
                         {RPCResult::Type::STR_HEX, "hash_serialized_3", /*optional=*/true, "The serialized hash (only present if 'hash_serialized_3' hash_type is chosen)"},
                         {RPCResult::Type::STR_HEX, "muhash", /*optional=*/true, "The serialized hash (only present if 'muhash' hash_type is chosen)"},
-                        {RPCResult::Type::NUM, "transactions", /*optional=*/true, "The number of transactions with unspent outputs (not available when coinstatsindex is used)"},
-                        {RPCResult::Type::NUM, "disk_size", /*optional=*/true, "The estimated size of the chainstate on disk (not available when coinstatsindex is used)"},
+                        {RPCResult::Type::NUM, "transactions", "The number of transactions with unspent outputs"},
+                        {RPCResult::Type::NUM, "disk_size", "The estimated size of the chainstate on disk"},
                         {RPCResult::Type::STR_AMOUNT, "total_amount", "The total amount of coins in the UTXO set"},
-                        {RPCResult::Type::STR_AMOUNT, "total_unspendable_amount", /*optional=*/true, "The total amount of coins permanently excluded from the UTXO set (only available if coinstatsindex is used)"},
-                        {RPCResult::Type::OBJ, "block_info", /*optional=*/true, "Info on amounts in the block at this block height (only available if coinstatsindex is used)",
-                        {
-                            {RPCResult::Type::STR_AMOUNT, "prevout_spent", "Total amount of all prevouts spent in this block"},
-                            {RPCResult::Type::STR_AMOUNT, "coinbase", "Coinbase subsidy amount of this block"},
-                            {RPCResult::Type::STR_AMOUNT, "new_outputs_ex_coinbase", "Total amount of new outputs created by this block"},
-                            {RPCResult::Type::STR_AMOUNT, "unspendable", "Total amount of unspendable outputs created in this block"},
-                            {RPCResult::Type::OBJ, "unspendables", "Detailed view of the unspendable categories",
-                            {
-                                {RPCResult::Type::STR_AMOUNT, "genesis_block", "The unspendable amount of the Genesis block subsidy"},
-                                {RPCResult::Type::STR_AMOUNT, "bip30", "Transactions overridden by duplicates (no longer possible with BIP30)"},
-                                {RPCResult::Type::STR_AMOUNT, "scripts", "Amounts sent to scripts that are unspendable (for example OP_RETURN outputs)"},
-                                {RPCResult::Type::STR_AMOUNT, "unclaimed_rewards", "Fee rewards that miners did not claim in their coinbase transaction"},
-                            }}
-                        }},
                     }},
                 RPCExamples{
                     HelpExampleCli("gettxoutsetinfo", "") +
                     HelpExampleCli("gettxoutsetinfo", R"("none")") +
-                    HelpExampleCli("gettxoutsetinfo", R"("none" 1000)") +
-                    HelpExampleCli("gettxoutsetinfo", R"("none" '"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09"')") +
-                    HelpExampleCli("-named gettxoutsetinfo", R"(hash_type='muhash' use_index='false')") +
                     HelpExampleRpc("gettxoutsetinfo", "") +
-                    HelpExampleRpc("gettxoutsetinfo", R"("none")") +
-                    HelpExampleRpc("gettxoutsetinfo", R"("none", 1000)") +
-                    HelpExampleRpc("gettxoutsetinfo", R"("none", "00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09")")
+                    HelpExampleRpc("gettxoutsetinfo", R"("none")")
                 },
         [](const RPCMethod& self, const JSONRPCRequest& request) -> UniValue
 {
     UniValue ret(UniValue::VOBJ);
 
     const CoinStatsHashType hash_type{ParseHashType(self.Arg<std::string_view>("hash_type"))};
-    bool index_requested = request.params[2].isNull() || request.params[2].get_bool();
 
     NodeContext& node = EnsureAnyNodeContext(request.context);
     ChainstateManager& chainman = EnsureChainman(node);
@@ -1094,35 +1048,7 @@ static RPCMethod gettxoutsetinfo()
         blockman = &active_chainstate.m_blockman;
     }
 
-    const CBlockIndex* pindex{nullptr};
-    if (!request.params[1].isNull()) {
-        if (!g_coin_stats_index) {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Querying specific block heights requires coinstatsindex");
-        }
-
-        if (hash_type == CoinStatsHashType::HASH_SERIALIZED) {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "hash_serialized_3 hash type cannot be queried for a specific block");
-        }
-
-        if (!index_requested) {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Cannot set use_index to false when querying for a specific block");
-        }
-        pindex = ParseHashOrHeight(request.params[1], chainman);
-    }
-
-    if (index_requested && g_coin_stats_index) {
-        if (!g_coin_stats_index->BlockUntilSyncedToCurrentChain()) {
-            const IndexSummary summary{g_coin_stats_index->GetSummary()};
-
-            // If a specific block was requested and the index has already synced past that height, we can return the
-            // data already even though the index is not fully synced yet.
-            if (pindex && pindex->nHeight > summary.best_block_height) {
-                throw JSONRPCError(RPC_INTERNAL_ERROR, strprintf("Unable to get data because coinstatsindex is still syncing. Current height: %d", summary.best_block_height));
-            }
-        }
-    }
-
-    const std::optional<CCoinsStats> maybe_stats = GetUTXOStats(coins_view, *blockman, hash_type, node.rpc_interruption_point, pindex, index_requested);
+    const std::optional<CCoinsStats> maybe_stats = GetUTXOStats(coins_view, *blockman, hash_type, node.rpc_interruption_point);
     if (maybe_stats.has_value()) {
         const CCoinsStats& stats = maybe_stats.value();
         ret.pushKV("height", stats.nHeight);
@@ -1137,53 +1063,8 @@ static RPCMethod gettxoutsetinfo()
         }
         CHECK_NONFATAL(stats.total_amount.has_value());
         ret.pushKV("total_amount", ValueFromAmount(stats.total_amount.value()));
-        if (!stats.index_used) {
-            ret.pushKV("transactions", stats.nTransactions);
-            ret.pushKV("disk_size", stats.nDiskSize);
-        } else {
-            CCoinsStats prev_stats{};
-            if (stats.nHeight > 0) {
-                const CBlockIndex& block_index = *CHECK_NONFATAL(WITH_LOCK(::cs_main, return blockman->LookupBlockIndex(stats.hashBlock)));
-                const std::optional<CCoinsStats> maybe_prev_stats = GetUTXOStats(coins_view, *blockman, hash_type, node.rpc_interruption_point, block_index.pprev, index_requested);
-                if (!maybe_prev_stats) {
-                    throw JSONRPCError(RPC_INTERNAL_ERROR, "Unable to read UTXO set");
-                }
-                prev_stats = maybe_prev_stats.value();
-            }
-
-            CAmount block_total_unspendable_amount = stats.total_unspendables_genesis_block +
-                                                     stats.total_unspendables_bip30 +
-                                                     stats.total_unspendables_scripts +
-                                                     stats.total_unspendables_unclaimed_rewards;
-            CAmount prev_block_total_unspendable_amount = prev_stats.total_unspendables_genesis_block +
-                                                          prev_stats.total_unspendables_bip30 +
-                                                          prev_stats.total_unspendables_scripts +
-                                                          prev_stats.total_unspendables_unclaimed_rewards;
-
-            ret.pushKV("total_unspendable_amount", ValueFromAmount(block_total_unspendable_amount));
-
-            UniValue block_info(UniValue::VOBJ);
-            // These per-block values should fit uint64 under normal circumstances
-            arith_uint256 diff_prevout = stats.total_prevout_spent_amount - prev_stats.total_prevout_spent_amount;
-            arith_uint256 diff_coinbase = stats.total_coinbase_amount - prev_stats.total_coinbase_amount;
-            arith_uint256 diff_outputs = stats.total_new_outputs_ex_coinbase_amount - prev_stats.total_new_outputs_ex_coinbase_amount;
-            CAmount prevout_amount = static_cast<CAmount>(diff_prevout.GetLow64());
-            CAmount coinbase_amount = static_cast<CAmount>(diff_coinbase.GetLow64());
-            CAmount outputs_amount = static_cast<CAmount>(diff_outputs.GetLow64());
-            block_info.pushKV("prevout_spent", ValueFromAmount(prevout_amount));
-            block_info.pushKV("coinbase", ValueFromAmount(coinbase_amount));
-            block_info.pushKV("new_outputs_ex_coinbase", ValueFromAmount(outputs_amount));
-            block_info.pushKV("unspendable", ValueFromAmount(block_total_unspendable_amount - prev_block_total_unspendable_amount));
-
-            UniValue unspendables(UniValue::VOBJ);
-            unspendables.pushKV("genesis_block", ValueFromAmount(stats.total_unspendables_genesis_block - prev_stats.total_unspendables_genesis_block));
-            unspendables.pushKV("bip30", ValueFromAmount(stats.total_unspendables_bip30 - prev_stats.total_unspendables_bip30));
-            unspendables.pushKV("scripts", ValueFromAmount(stats.total_unspendables_scripts - prev_stats.total_unspendables_scripts));
-            unspendables.pushKV("unclaimed_rewards", ValueFromAmount(stats.total_unspendables_unclaimed_rewards - prev_stats.total_unspendables_unclaimed_rewards));
-            block_info.pushKV("unspendables", std::move(unspendables));
-
-            ret.pushKV("block_info", std::move(block_info));
-        }
+        ret.pushKV("transactions", stats.nTransactions);
+        ret.pushKV("disk_size", stats.nDiskSize);
     } else {
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Unable to read UTXO set");
     }
@@ -2489,254 +2370,11 @@ static RPCMethod scantxoutset()
     };
 }
 
-/** RAII object to prevent concurrency issue when scanning blockfilters */
-static std::atomic<int> g_scanfilter_progress;
-static std::atomic<int> g_scanfilter_progress_height;
-static std::atomic<bool> g_scanfilter_in_progress;
-static std::atomic<bool> g_scanfilter_should_abort_scan;
-class BlockFiltersScanReserver
-{
-private:
-    bool m_could_reserve{false};
-public:
-    explicit BlockFiltersScanReserver() = default;
-
-    bool reserve() {
-        CHECK_NONFATAL(!m_could_reserve);
-        if (g_scanfilter_in_progress.exchange(true)) {
-            return false;
-        }
-        m_could_reserve = true;
-        return true;
-    }
-
-    ~BlockFiltersScanReserver() {
-        if (m_could_reserve) {
-            g_scanfilter_in_progress = false;
-        }
-    }
-};
-
-static bool CheckBlockFilterMatches(BlockManager& blockman, const CBlockIndex& blockindex, const GCSFilter::ElementSet& needles)
-{
-    const CBlock block{GetBlockChecked(blockman, blockindex)};
-    const CBlockUndo block_undo{GetUndoChecked(blockman, blockindex)};
-
-    // Check if any of the outputs match the scriptPubKey
-    for (const auto& tx : block.vtx) {
-        if (std::any_of(tx->vout.cbegin(), tx->vout.cend(), [&](const auto& txout) {
-                return needles.contains(std::vector<unsigned char>(txout.scriptPubKey.begin(), txout.scriptPubKey.end()));
-            })) {
-            return true;
-        }
-    }
-    // Check if any of the inputs match the scriptPubKey
-    for (const auto& txundo : block_undo.vtxundo) {
-        if (std::any_of(txundo.vprevout.cbegin(), txundo.vprevout.cend(), [&](const auto& coin) {
-                return needles.contains(std::vector<unsigned char>(coin.out.scriptPubKey.begin(), coin.out.scriptPubKey.end()));
-            })) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static RPCMethod scanblocks()
-{
-    return RPCMethod{
-        "scanblocks",
-        "Return relevant blockhashes for given descriptors (requires blockfilterindex).\n"
-        "This call may take several minutes. Make sure to use no RPC timeout (bitcoin-cli -rpcclienttimeout=0)",
-        {
-            scan_action_arg_desc,
-            scan_objects_arg_desc,
-            RPCArg{"start_height", RPCArg::Type::NUM, RPCArg::Default{0}, "Height to start to scan from"},
-            RPCArg{"stop_height", RPCArg::Type::NUM, RPCArg::DefaultHint{"chain tip"}, "Height to stop to scan"},
-            RPCArg{"filtertype", RPCArg::Type::STR, RPCArg::Default{BlockFilterTypeName(BlockFilterType::BASIC)}, "The type name of the filter"},
-            RPCArg{"options", RPCArg::Type::OBJ_NAMED_PARAMS, RPCArg::Optional::OMITTED, "",
-                {
-                    {"filter_false_positives", RPCArg::Type::BOOL, RPCArg::Default{false}, "Filter false positives (slower and may fail on pruned nodes). Otherwise they may occur at a rate of 1/M"},
-                },
-                RPCArgOptions{.oneline_description="options"}},
-        },
-        {
-            scan_result_status_none,
-            RPCResult{"When action=='start'; only returns after scan completes", RPCResult::Type::OBJ, "", "", {
-                {RPCResult::Type::NUM, "from_height", "The height we started the scan from"},
-                {RPCResult::Type::NUM, "to_height", "The height we ended the scan at"},
-                {RPCResult::Type::ARR, "relevant_blocks", "Blocks that may have matched a scanobject.", {
-                    {RPCResult::Type::STR_HEX, "blockhash", "A relevant blockhash"},
-                }},
-                {RPCResult::Type::BOOL, "completed", "true if the scan process was not aborted"}
-            }},
-            RPCResult{"when action=='status' and a scan is currently in progress", RPCResult::Type::OBJ, "", "", {
-                    {RPCResult::Type::NUM, "progress", "Approximate percent complete"},
-                    {RPCResult::Type::NUM, "current_height", "Height of the block currently being scanned"},
-                },
-            },
-            scan_result_abort,
-        },
-        RPCExamples{
-            HelpExampleCli("scanblocks", "start '[\"addr(bcrt1q4u4nsgk6ug0sqz7r3rj9tykjxrsl0yy4d0wwte)\"]' 300000") +
-            HelpExampleCli("scanblocks", "start '[\"addr(bcrt1q4u4nsgk6ug0sqz7r3rj9tykjxrsl0yy4d0wwte)\"]' 100 150 basic") +
-            HelpExampleCli("scanblocks", "status") +
-            HelpExampleRpc("scanblocks", "\"start\", [\"addr(bcrt1q4u4nsgk6ug0sqz7r3rj9tykjxrsl0yy4d0wwte)\"], 300000") +
-            HelpExampleRpc("scanblocks", "\"start\", [\"addr(bcrt1q4u4nsgk6ug0sqz7r3rj9tykjxrsl0yy4d0wwte)\"], 100, 150, \"basic\"") +
-            HelpExampleRpc("scanblocks", "\"status\"")
-        },
-        [](const RPCMethod& self, const JSONRPCRequest& request) -> UniValue
-{
-    UniValue ret(UniValue::VOBJ);
-    auto action{self.Arg<std::string_view>("action")};
-    if (action == "status") {
-        BlockFiltersScanReserver reserver;
-        if (reserver.reserve()) {
-            // no scan in progress
-            return NullUniValue;
-        }
-        ret.pushKV("progress", g_scanfilter_progress.load());
-        ret.pushKV("current_height", g_scanfilter_progress_height.load());
-        return ret;
-    } else if (action == "abort") {
-        BlockFiltersScanReserver reserver;
-        if (reserver.reserve()) {
-            // reserve was possible which means no scan was running
-            return false;
-        }
-        // set the abort flag
-        g_scanfilter_should_abort_scan = true;
-        return true;
-    } else if (action == "start") {
-        BlockFiltersScanReserver reserver;
-        if (!reserver.reserve()) {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Scan already in progress, use action \"abort\" or \"status\"");
-        }
-        auto filtertype_name{self.Arg<std::string_view>("filtertype")};
-
-        BlockFilterType filtertype;
-        if (!BlockFilterTypeByName(filtertype_name, filtertype)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unknown filtertype");
-        }
-
-        UniValue options{request.params[5].isNull() ? UniValue::VOBJ : request.params[5]};
-        bool filter_false_positives{options.exists("filter_false_positives") ? options["filter_false_positives"].get_bool() : false};
-
-        BlockFilterIndex* index = GetBlockFilterIndex(filtertype);
-        if (!index) {
-            throw JSONRPCError(RPC_MISC_ERROR, tfm::format("Index is not enabled for filtertype %s", filtertype_name));
-        }
-
-        NodeContext& node = EnsureAnyNodeContext(request.context);
-        ChainstateManager& chainman = EnsureChainman(node);
-
-        // set the start-height
-        const CBlockIndex* start_index = nullptr;
-        const CBlockIndex* stop_block = nullptr;
-        {
-            LOCK(cs_main);
-            CChain& active_chain = chainman.ActiveChain();
-            start_index = active_chain.Genesis();
-            stop_block = active_chain.Tip(); // If no stop block is provided, stop at the chain tip.
-            if (!request.params[2].isNull()) {
-                start_index = active_chain[request.params[2].getInt<int>()];
-                if (!start_index) {
-                    throw JSONRPCError(RPC_MISC_ERROR, "Invalid start_height");
-                }
-            }
-            if (!request.params[3].isNull()) {
-                stop_block = active_chain[request.params[3].getInt<int>()];
-                if (!stop_block || stop_block->nHeight < start_index->nHeight) {
-                    throw JSONRPCError(RPC_MISC_ERROR, "Invalid stop_height");
-                }
-            }
-        }
-        CHECK_NONFATAL(start_index);
-        CHECK_NONFATAL(stop_block);
-
-        // loop through the scan objects, add scripts to the needle_set
-        GCSFilter::ElementSet needle_set;
-        for (const UniValue& scanobject : request.params[1].get_array().getValues()) {
-            FlatSigningProvider provider;
-            std::vector<CScript> scripts = EvalDescriptorStringOrObject(scanobject, provider);
-            for (const CScript& script : scripts) {
-                needle_set.emplace(script.begin(), script.end());
-            }
-        }
-        UniValue blocks(UniValue::VARR);
-        const int amount_per_chunk = 10000;
-        std::vector<BlockFilter> filters;
-        int start_block_height = start_index->nHeight; // for progress reporting
-        const int total_blocks_to_process = stop_block->nHeight - start_block_height;
-
-        g_scanfilter_should_abort_scan = false;
-        g_scanfilter_progress = 0;
-        g_scanfilter_progress_height = start_block_height;
-        bool completed = true;
-
-        const CBlockIndex* end_range = nullptr;
-        do {
-            node.rpc_interruption_point(); // allow a clean shutdown
-            if (g_scanfilter_should_abort_scan) {
-                completed = false;
-                break;
-            }
-
-            // split the lookup range in chunks if we are deeper than 'amount_per_chunk' blocks from the stopping block
-            int start_block = !end_range ? start_index->nHeight : start_index->nHeight + 1; // to not include the previous round 'end_range' block
-            end_range = (start_block + amount_per_chunk < stop_block->nHeight) ?
-                    WITH_LOCK(::cs_main, return chainman.ActiveChain()[start_block + amount_per_chunk]) :
-                    stop_block;
-
-            if (index->LookupFilterRange(start_block, end_range, filters)) {
-                for (const BlockFilter& filter : filters) {
-                    // compare the elements-set with each filter
-                    if (filter.GetFilter().MatchAny(needle_set)) {
-                        if (filter_false_positives) {
-                            // Double check the filter matches by scanning the block
-                            const CBlockIndex& blockindex = *CHECK_NONFATAL(WITH_LOCK(cs_main, return chainman.m_blockman.LookupBlockIndex(filter.GetBlockHash())));
-
-                            if (!CheckBlockFilterMatches(chainman.m_blockman, blockindex, needle_set)) {
-                                continue;
-                            }
-                        }
-
-                        blocks.push_back(filter.GetBlockHash().GetHex());
-                    }
-                }
-            }
-            start_index = end_range;
-
-            // update progress
-            int blocks_processed = end_range->nHeight - start_block_height;
-            if (total_blocks_to_process > 0) { // avoid division by zero
-                g_scanfilter_progress = (int)(100.0 / total_blocks_to_process * blocks_processed);
-            } else {
-                g_scanfilter_progress = 100;
-            }
-            g_scanfilter_progress_height = end_range->nHeight;
-
-        // Finish if we reached the stop block
-        } while (start_index != stop_block);
-
-        ret.pushKV("from_height", start_block_height);
-        ret.pushKV("to_height", start_index->nHeight); // start_index is always the last scanned block here
-        ret.pushKV("relevant_blocks", std::move(blocks));
-        ret.pushKV("completed", completed);
-    } else {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, tfm::format("Invalid action '%s'", action));
-    }
-    return ret;
-},
-    };
-}
-
 static RPCMethod getdescriptoractivity()
 {
     return RPCMethod{
         "getdescriptoractivity",
         "Get spend and receive activity associated with a set of descriptors for a set of blocks. "
-        "This command pairs well with the `relevant_blocks` output of `scanblocks()`.\n"
         "This call may take several minutes. If you encounter timeouts, try specifying no RPC timeout (bitcoin-cli -rpcclienttimeout=0)",
         {
             RPCArg{"blockhashes", RPCArg::Type::ARR, RPCArg::Optional::NO, "The list of blockhashes to examine for activity. Order doesn't matter. Must be along main chain or an error is thrown.\n", {
@@ -2962,83 +2600,6 @@ static RPCMethod getdescriptoractivity()
     }
 
     ret.pushKV("activity", activity);
-    return ret;
-},
-    };
-}
-
-static RPCMethod getblockfilter()
-{
-    return RPCMethod{
-        "getblockfilter",
-        "Retrieve a BIP 157 content filter for a particular block.\n",
-                {
-                    {"blockhash", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "The hash of the block"},
-                    {"filtertype", RPCArg::Type::STR, RPCArg::Default{BlockFilterTypeName(BlockFilterType::BASIC)}, "The type name of the filter"},
-                },
-                RPCResult{
-                    RPCResult::Type::OBJ, "", "",
-                    {
-                        {RPCResult::Type::STR_HEX, "filter", "the hex-encoded filter data"},
-                        {RPCResult::Type::STR_HEX, "header", "the hex-encoded filter header"},
-                    }},
-                RPCExamples{
-                    HelpExampleCli("getblockfilter", "\"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\" \"basic\"") +
-                    HelpExampleRpc("getblockfilter", "\"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\", \"basic\"")
-                },
-        [](const RPCMethod& self, const JSONRPCRequest& request) -> UniValue
-{
-    uint256 block_hash = ParseHashV(request.params[0], "blockhash");
-    auto filtertype_name{self.Arg<std::string_view>("filtertype")};
-
-    BlockFilterType filtertype;
-    if (!BlockFilterTypeByName(filtertype_name, filtertype)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unknown filtertype");
-    }
-
-    BlockFilterIndex* index = GetBlockFilterIndex(filtertype);
-    if (!index) {
-        throw JSONRPCError(RPC_MISC_ERROR, tfm::format("Index is not enabled for filtertype %s", filtertype_name));
-    }
-
-    const CBlockIndex* block_index;
-    bool block_was_connected;
-    {
-        ChainstateManager& chainman = EnsureAnyChainman(request.context);
-        LOCK(cs_main);
-        block_index = chainman.m_blockman.LookupBlockIndex(block_hash);
-        if (!block_index) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
-        }
-        block_was_connected = block_index->IsValid(BLOCK_VALID_SCRIPTS);
-    }
-
-    bool index_ready = index->BlockUntilSyncedToCurrentChain();
-
-    BlockFilter filter;
-    uint256 filter_header;
-    if (!index->LookupFilter(block_index, filter) ||
-        !index->LookupFilterHeader(block_index, filter_header)) {
-        int err_code;
-        std::string errmsg = "Filter not found.";
-
-        if (!block_was_connected) {
-            err_code = RPC_INVALID_ADDRESS_OR_KEY;
-            errmsg += " Block was not connected to active chain.";
-        } else if (!index_ready) {
-            err_code = RPC_MISC_ERROR;
-            errmsg += " Block filters are still in the process of being indexed.";
-        } else {
-            err_code = RPC_INTERNAL_ERROR;
-            errmsg += " This error is unexpected and indicates index corruption.";
-        }
-
-        throw JSONRPCError(err_code, errmsg);
-    }
-
-    UniValue ret(UniValue::VOBJ);
-    ret.pushKV("filter", HexStr(filter.GetEncodedFilter()));
-    ret.pushKV("header", filter_header.GetHex());
     return ret;
 },
     };
@@ -3661,9 +3222,7 @@ void RegisterBlockchainRPCCommands(CRPCTable& t)
         {"blockchain", &verifychain},
         {"blockchain", &preciousblock},
         {"blockchain", &scantxoutset},
-        {"blockchain", &scanblocks},
         {"blockchain", &getdescriptoractivity},
-        {"blockchain", &getblockfilter},
         {"blockchain", &dumptxoutset},
         {"blockchain", &loadtxoutset},
         {"blockchain", &getchainstates},

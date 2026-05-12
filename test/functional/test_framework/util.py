@@ -726,12 +726,6 @@ def dumb_sync_blocks(*, src, dst, height=None):
     assert_equal(dst.getblockcount(), height)
 
 
-def sync_txindex(test_framework, node):
-    test_framework.log.debug("Waiting for node txindex to sync")
-    sync_start = int(time.time())
-    test_framework.wait_until(lambda: node.getindexinfo("txindex")["txindex"]["synced"])
-    test_framework.log.debug(f"Synced in {time.time() - sync_start} seconds")
-
 def is_dir_writable(dir_path: pathlib.Path) -> bool:
     """Return True if we can create a file in the directory, False otherwise"""
     try:

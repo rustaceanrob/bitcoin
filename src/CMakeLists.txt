@@ -158,7 +158,6 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   banman.cpp
   bip324.cpp
   blockencodings.cpp
-  blockfilter.cpp
   consensus/tx_verify.cpp
   dbwrapper.cpp
   deploymentstatus.cpp
@@ -167,11 +166,6 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   httprpc.cpp
   httpserver.cpp
   i2p.cpp
-  index/base.cpp
-  index/blockfilterindex.cpp
-  index/coinstatsindex.cpp
-  index/txindex.cpp
-  index/txospenderindex.cpp
   init.cpp
   kernel/chain.cpp
   kernel/checks.cpp
