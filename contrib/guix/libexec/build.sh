@@ -205,7 +205,7 @@ mkdir -p "$OUTDIR"
 ###########################
 
 # CONFIGFLAGS
-CONFIGFLAGS="-DREDUCE_EXPORTS=ON -DBUILD_BENCH=OFF -DBUILD_GUI_TESTS=OFF -DBUILD_FUZZ_BINARY=OFF -DCMAKE_SKIP_RPATH=TRUE"
+CONFIGFLAGS="-DREDUCE_EXPORTS=ON -DBUILD_BENCH=OFF -DBUILD_FUZZ_BINARY=OFF -DCMAKE_SKIP_RPATH=TRUE"
 
 # CFLAGS
 HOST_CFLAGS="-O2 -g"
@@ -370,23 +370,6 @@ mkdir -p "$DISTSRC"
                     | tar --create --no-recursion --mode='u+rw,go+r-w,a+X' --null --files-from=- \
                     | gzip -9n > "${OUTDIR}/${DISTNAME}-win64-codesigning.tar.gz" \
                     || ( rm -f "${OUTDIR}/${DISTNAME}-win64-codesigning.tar.gz" && exit 1 )
-            )
-            ;;
-        *darwin*)
-            cmake --build build --target deploy ${V:+--verbose}
-            mv build/dist/bitcoin-macos-app.zip "${OUTDIR}/${DISTNAME}-${HOST}-unsigned.zip"
-            mkdir -p "unsigned-app-${HOST}"
-            cp  --target-directory="unsigned-app-${HOST}" \
-                contrib/macdeploy/detached-sig-create.sh
-            mv --target-directory="unsigned-app-${HOST}" build/dist
-            cp -r --target-directory="unsigned-app-${HOST}" "${INSTALLPATH}"
-            (
-                cd "unsigned-app-${HOST}"
-                find . -print0 \
-                    | sort --zero-terminated \
-                    | tar --create --no-recursion --mode='u+rw,go+r-w,a+X' --null --files-from=- \
-                    | gzip -9n > "${OUTDIR}/${DISTNAME}-${HOST}-codesigning.tar.gz" \
-                    || ( rm -f "${OUTDIR}/${DISTNAME}-${HOST}-codesigning.tar.gz" && exit 1 )
             )
             ;;
     esac

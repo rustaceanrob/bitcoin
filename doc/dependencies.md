@@ -38,15 +38,7 @@ Bitcoin Core requires one of the following compilers.
 | [Cap'n Proto](../depends/packages/native_capnp.mk) ([IPC](multiprocess.md)) | [link](https://capnproto.org/) | [0.7.1](https://github.com/bitcoin/bitcoin/pull/33241) |
 | [libmultiprocess](../depends/packages/native_libmultiprocess.mk) ([IPC](multiprocess.md)) | [link](https://github.com/bitcoin-core/libmultiprocess/tags) | [v7.0-pre1](https://github.com/bitcoin/bitcoin/pull/33517) |
 | Python (scripts, tests) | [link](https://www.python.org) | [3.10](https://github.com/bitcoin/bitcoin/pull/30527) |
-| [Qt](../depends/packages/qt.mk) (gui) | [link](https://download.qt.io/archive/qt/) | [6.2](https://github.com/bitcoin/bitcoin/pull/30997) |
-| [qrencode](../depends/packages/qrencode.mk) (gui) | [link](https://fukuchi.org/works/qrencode/) | N/A |
 | [SQLite](../depends/packages/sqlite.mk) (wallet) | [link](https://sqlite.org) | [3.7.17](https://github.com/bitcoin/bitcoin/pull/19077) |
 | [systemtap](../depends/packages/systemtap.mk) ([tracing](tracing.md)) | [link](https://sourceware.org/systemtap/) | N/A |
 | [ZeroMQ](../depends/packages/zeromq.mk) (notifications) | [link](https://github.com/zeromq/libzmq/releases) | 4.0.0 |
 
-### Runtime
-
-| Dependency | Releases | Minimum required |
-| --- | --- | --- |
-| [Fontconfig](../depends/packages/fontconfig.mk) (gui) | [link](https://www.freedesktop.org/wiki/Software/fontconfig/) | 2.6 |
-| [FreeType](../depends/packages/freetype.mk) (gui) | [link](https://freetype.org) | 2.3.0 |

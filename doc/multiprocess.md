@@ -20,7 +20,7 @@ Alternatively the [depends system](../depends) can be used to avoid needing to i
 
 ```
 cd <BITCOIN_SOURCE_DIRECTORY>
-make -C depends NO_QT=1
+make -C depends
 # Set host platform to output of gcc -dumpmachine or clang -dumpmachine or check the depends/ directory for the generated subdirectory name
 HOST_PLATFORM="x86_64-pc-linux-gnu"
 cmake -B build --toolchain=depends/$HOST_PLATFORM/toolchain.cmake

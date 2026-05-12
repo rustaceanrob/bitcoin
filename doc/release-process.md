@@ -29,7 +29,6 @@ Release Process
 
 #### Before branch-off
 
-* Update translations see [translation_process.md](/doc/translation_process.md#synchronising-translations).
 * Update hardcoded [seeds](/contrib/seeds/README.md), see [this pull request](https://github.com/bitcoin/bitcoin/pull/27488) for an example.
 * Update embedded asmap data at `/src/node/data/ip_asn.dat`, see [asmap data documentation](./asmap-data.md).
 * Update the following variables in [`src/kernel/chainparams.cpp`](/src/kernel/chainparams.cpp) for mainnet, testnet, and signet:
@@ -153,15 +152,6 @@ Then open a Pull Request to the [guix.sigs repository](https://github.com/bitcoi
 
 ## Codesigning
 
-### macOS codesigner only: Create detached macOS signatures (assuming [signapple](https://github.com/achow101/signapple/) is installed and up to date with master branch)
-
-In the `guix-build-${VERSION}/output/x86_64-apple-darwin` and `guix-build-${VERSION}/output/arm64-apple-darwin` directories:
-
-    tar xf bitcoin-${VERSION}-${ARCH}-apple-darwin-codesigning.tar.gz
-    ./detached-sig-create.sh /path/to/codesign.p12 /path/to/AuthKey_foo.p8 uuid
-    Enter the keychain password and authorize the signature
-    signature-osx.tar.gz will be created
-
 ### Windows codesigner only: Create detached Windows signatures
 
 In the `guix-build-${VERSION}/output/x86_64-w64-mingw32` directory:
@@ -171,33 +161,29 @@ In the `guix-build-${VERSION}/output/x86_64-w64-mingw32` directory:
     Enter the passphrase for the key when prompted
     signature-win.tar.gz will be created
 
-### Windows and macOS codesigners only: test code signatures
+### Windows codesigners only: test code signatures
 It is advised to test that the code signature attaches properly prior to tagging by performing the `guix-codesign` step.
 However if this is done, once the release has been tagged in the bitcoin-detached-sigs repo, the `guix-codesign` step must be performed again in order for the guix attestation to be valid when compared against the attestations of non-codesigner builds. The directories created by `guix-codesign` will need to be cleared prior to running `guix-codesign` again.
 
-### Windows and macOS codesigners only: Commit the detached codesign payloads
+### Windows codesigners only: Commit the detached codesign payloads
 
 ```sh
 pushd ./bitcoin-detached-sigs
 # checkout or create the appropriate branch for this release series
 git checkout --orphan <branch>
-# if you are the macOS codesigner
-rm -rf osx
-tar xf signature-osx.tar.gz
-# if you are the windows codesigner
 rm -rf win
 tar xf signature-win.tar.gz
 git add -A
-git commit -m "<version>: {osx,win} signature for {rc,final}"
+git commit -m "<version>: win signature for {rc,final}"
 git tag -s "v${VERSION}" HEAD
 git push the current branch and new tag
 popd
 ```
 
-### Non-codesigners: wait for Windows and macOS detached signatures
+### Non-codesigners: wait for Windows detached signatures
 
-- Once the Windows and macOS builds each have 3 matching signatures, they will be signed with their respective release keys.
-- Detached signatures will then be committed to the [bitcoin-detached-sigs](https://github.com/bitcoin-core/bitcoin-detached-sigs) repository, which can be combined with the unsigned apps to create signed binaries.
+- Once the Windows builds have 3 matching signatures, they will be signed with their respective release keys.
+- Detached signatures will then be committed to the [bitcoin-detached-sigs](https://github.com/bitcoin-core/bitcoin-detached-sigs) repository, which can be combined with the unsigned binaries to create signed executables.
 
 ### Create the codesigned build outputs
 
