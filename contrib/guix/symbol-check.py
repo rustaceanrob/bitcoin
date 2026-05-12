@@ -26,13 +26,6 @@ import lief
 #
 # - libc version 2.34 (https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/)
 #
-# bitcoin-qt
-#
-# Ubuntu 22.04 is currently the baseline for ELF_ALLOWED_LIBRARIES:
-#
-# libfontconfig version 2.13.1 (https://packages.ubuntu.com/jammy/libfontconfig1)
-#
-# libfreetype version 2.11.1 (https://packages.ubuntu.com/jammy/libfreetype6)
 
 MAX_VERSIONS = {
 'GLIBC': {
@@ -91,7 +84,6 @@ ELF_ABIS: dict[lief.ELF.ARCH, dict[lief.Header.ENDIANNESS, list[int]]] = {
 
 # Allowed NEEDED libraries
 ELF_ALLOWED_LIBRARIES = {
-# bitcoind and bitcoin-qt
 'libc.so.6', # C library
 'libpthread.so.0', # threading
 'libm.so.6', # math library
@@ -102,35 +94,12 @@ ELF_ALLOWED_LIBRARIES = {
 'ld64.so.1', # POWER64 ABIv1 dynamic linker
 'ld64.so.2', # POWER64 ABIv2 dynamic linker
 'ld-linux-riscv64-lp64d.so.1', # 64-bit RISC-V dynamic linker
-# bitcoin-qt only
-'libfontconfig.so.1', # font support
-'libfreetype.so.6', # font parsing
 'libdl.so.2', # programming interface to dynamic linker
 }
 
 MACHO_ALLOWED_LIBRARIES = {
-# bitcoind and bitcoin-qt
 'libc++.1.dylib', # C++ Standard Library
 'libSystem.B.dylib', # libc, libm, libpthread, libinfo
-# bitcoin-qt only
-'AppKit', # user interface
-'ApplicationServices', # common application tasks.
-'Carbon', # deprecated c back-compat API
-'ColorSync',
-'CoreFoundation', # low level func, data types
-'CoreGraphics', # 2D rendering
-'CoreServices', # operating system services
-'CoreText', # interface for laying out text and handling fonts.
-'CoreVideo', # video processing
-'Foundation', # base layer functionality for apps/frameworks
-'ImageIO', # read and write image file formats.
-'IOKit', # user-space access to hardware devices and drivers.
-'IOSurface', # cross process image/drawing buffers
-'libobjc.A.dylib', # Objective-C runtime library
-'Metal', # 3D graphics
-'QuartzCore', # animation
-'Security', # access control and authentication
-'UniformTypeIdentifiers', # collection of types that map to MIME and file types
 }
 
 PE_ALLOWED_LIBRARIES = {
@@ -141,32 +110,7 @@ PE_ALLOWED_LIBRARIES = {
 'msvcrt.dll', # C standard library for MSVC
 'SHELL32.dll', # shell API
 'WS2_32.dll', # sockets
-# bitcoin-qt only
-'api-ms-win-core-synch-l1-2-0.dll', # Synchronization Primitives API
-'api-ms-win-core-winrt-l1-1-0.dll', # Windows Runtime API
-'api-ms-win-core-winrt-string-l1-1-0.dll', # WinRT String API
-'AUTHZ.dll', # Windows Authorization Framework
-'comdlg32.dll', # Common Dialog Box Library
-'d3d11.dll', # Direct3D 11 API
-'d3d12.dll', # Direct3D 12 API
-'d3d9.dll', # Direct3D 9 API
-'dwmapi.dll', # desktop window manager
-'DWrite.dll', # DirectX Typography Services
-'dxgi.dll', # DirectX Graphics Infrastructure
-'GDI32.dll', # graphics device interface
-'IMM32.dll', # input method editor
 'NETAPI32.dll', # network management
-'ole32.dll', # component object model
-'OLEAUT32.dll', # OLE Automation API
-'SHLWAPI.dll', # light weight shell API
-'USER32.dll', # user interface
-'USERENV.dll', # user management
-'UxTheme.dll', # visual style
-'VERSION.dll', # version checking
-'WINMM.dll', # WinMM audio API
-'WTSAPI32.dll', # Remote Desktop
-'SETUPAPI.dll', # Windows Setup API
-'SHCORE.dll', # Stream Handler Core
 }
 
 def check_version(max_versions, version, arch) -> bool:

@@ -23,13 +23,12 @@ const TranslateFn G_TRANSLATION_FUN{nullptr};
 static constexpr auto HELP_USAGE = R"(Usage: %s [OPTIONS] COMMAND...
 
 Options:
-  -m, --multiprocess     Run multiprocess binaries bitcoin-node, bitcoin-gui.
-  -M, --monolithic       Run monolithic binaries bitcoind, bitcoin-qt. (Default behavior)
+  -m, --multiprocess     Run multiprocess binary bitcoin-node.
+  -M, --monolithic       Run monolithic binary bitcoind. (Default behavior)
   -v, --version          Show version information
   -h, --help             Show full help message
 
 Commands:
-  gui [ARGS]     Start GUI, equivalent to running 'bitcoin-qt [ARGS]' or 'bitcoin-gui [ARGS]'.
   node [ARGS]    Start node, equivalent to running 'bitcoind [ARGS]' or 'bitcoin-node [ARGS]'.
   rpc [ARGS]     Call RPC method, equivalent to running 'bitcoin-cli -named [ARGS]'.
   wallet [ARGS]  Call wallet command, equivalent to running 'bitcoin-wallet [ARGS]'.
@@ -42,7 +41,6 @@ Additional less commonly used commands:
   bench [ARGS]      Run bench command, equivalent to running 'bench_bitcoin [ARGS]'.
   chainstate [ARGS] Run bitcoin kernel chainstate util, equivalent to running 'bitcoin-chainstate [ARGS]'.
   test [ARGS]       Run unit tests, equivalent to running 'test_bitcoin [ARGS]'.
-  test-gui [ARGS]   Run GUI unit tests, equivalent to running 'test_bitcoin-qt [ARGS]'.
 )";
 
 static constexpr auto HELP_SHORT = R"(
@@ -83,8 +81,6 @@ int main(int argc, char* argv[])
                 tfm::format(std::cout, HELP_SHORT, exe_name);
                 return EXIT_FAILURE;
             }
-        } else if (cmd.command == "gui") {
-            args.emplace_back(UseMultiprocess(cmd) ? "bitcoin-gui" : "bitcoin-qt");
         } else if (cmd.command == "node") {
             args.emplace_back(UseMultiprocess(cmd) ? "bitcoin-node" : "bitcoind");
         } else if (cmd.command == "rpc") {
@@ -105,8 +101,6 @@ int main(int argc, char* argv[])
             args.emplace_back("bitcoin-chainstate");
         } else if (cmd.command == "test") {
             args.emplace_back("test_bitcoin");
-        } else if (cmd.command == "test-gui") {
-            args.emplace_back("test_bitcoin-qt");
         } else if (cmd.command == "util") {
             args.emplace_back("bitcoin-util");
         } else {
@@ -172,12 +166,12 @@ bool UseMultiprocess(const CommandLine& cmd)
     return args.IsArgSet("-ipcbind") || args.IsArgSet("-ipcconnect") || args.IsArgSet("-ipcfd");
 }
 
-//! Execute the specified bitcoind, bitcoin-qt or other command line in `args`
+//! Execute the specified bitcoind or other command line in `args`
 //! using src, bin and libexec directory paths relative to this executable, where
 //! the path to this executable is specified in `wrapper_argv0`.
 //!
 //! @param args Command line arguments to execute, where first argument should
-//!             be a relative path to a bitcoind, bitcoin-qt or other executable
+//!             be a relative path to a bitcoind or other executable
 //!             that will be located on the PATH or relative to wrapper_argv0.
 //!
 //! @param wrapper_argv0 String containing first command line argument passed to

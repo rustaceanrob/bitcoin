@@ -25,7 +25,7 @@ class Ipc;
 //! and get access to other interfaces (Node, Chain, Wallet, etc).
 //!
 //! There is a different Init interface implementation for each process
-//! (bitcoin-gui, bitcoin-node, bitcoin-wallet, bitcoind, bitcoin-qt) and each
+//! (bitcoin-node, bitcoin-wallet, bitcoind) and each
 //! implementation can implement the make methods for interfaces it supports.
 //! The default make methods all return null.
 class Init
@@ -54,9 +54,6 @@ std::unique_ptr<Init> MakeNodeInit(node::NodeContext& node, int argc, char* argv
 
 //! Return implementation of Init interface for the wallet process.
 std::unique_ptr<Init> MakeWalletInit(int argc, char* argv[], int& exit_status);
-
-//! Return implementation of Init interface for the gui process.
-std::unique_ptr<Init> MakeGuiInit(int argc, char* argv[]);
 
 //! Return implementation of Init interface for a basic IPC client that doesn't
 //! provide any IPC services itself.
