@@ -2,6 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://opensource.org/license/mit/.
 
+use std::collections::HashSet;
 use std::process::{Command, ExitCode, Stdio};
 
 fn git_output(args: &[&str]) -> Result<String, String> {
@@ -77,9 +78,10 @@ fn main() -> ExitCode {
     };
     println!("Common ancestor: {merge_base}");
 
-    // Collect merge commits (merged PRs) from merge base to upstream HEAD, oldest first.
+    // Collect merge commits (merged PRs) from merge base to upstream HEAD, newest first.
+    // Use full hashes (%H) so they match the hashes recorded by -x in our branch's log.
     let range = format!("{merge_base}..{upstream_ref}");
-    let log = match git_output(&["log", "--merges", "--oneline", "--reverse", &range]) {
+    let log = match git_output(&["log", "--merges", "--format=%H %s", &range]) {
         Ok(out) => out,
         Err(e) => {
             eprintln!("Failed to list upstream commits: {e}");
@@ -92,25 +94,59 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    let commits: Vec<&str> = log.lines().collect();
-    println!("Found {} merge commits to cherry-pick.\n", commits.len());
+    // Scan our branch's commit messages for "(cherry picked from commit <hash>)" lines
+    // written by the -x flag. Any upstream hash found there was already applied.
+    let our_messages = git_output(&["log", "--format=%B", &format!("{merge_base}..HEAD")])
+        .unwrap_or_default();
+    let already_applied: HashSet<String> = our_messages
+        .lines()
+        .filter_map(|line| {
+            line.trim()
+                .trim_start_matches('(')
+                .trim_end_matches(')')
+                .strip_prefix("cherry picked from commit ")
+                .map(|h| h.trim().to_string())
+        })
+        .collect();
 
-    let mut succeeded = 0usize;
-    let mut conflicts: Vec<String> = Vec::new();
-
-    for line in &commits {
+    // Walk newest-to-oldest, collecting commits until we reach one already applied.
+    // Everything at and below that commit was processed in a prior run.
+    let mut to_apply: Vec<&str> = Vec::new();
+    for line in log.lines() {
         let hash = match line.split_whitespace().next() {
             Some(h) => h,
             None => continue,
         };
-        let subject: String = line
-            .trim_start_matches(hash)
+        if already_applied.contains(hash) {
+            break;
+        }
+        to_apply.push(line);
+    }
+    // Reverse so we apply oldest-to-newest.
+    to_apply.reverse();
+
+    if to_apply.is_empty() {
+        println!("Already up to date with {upstream_ref}.");
+        return ExitCode::SUCCESS;
+    }
+
+    println!("Found {} new merge commits to cherry-pick.\n", to_apply.len());
+
+    let mut succeeded = 0usize;
+    let mut conflicts: Vec<String> = Vec::new();
+
+    for line in &to_apply {
+        let hash = match line.split_whitespace().next() {
+            Some(h) => h,
+            None => continue,
+        };
+        let subject: String = line[hash.len()..]
             .trim()
             .chars()
             .take(72)
             .collect();
 
-        print!("{hash}  {subject} ... ");
+        print!("{:.12}  {subject} ... ", hash);
 
         // -m 1: treat parent 1 (mainline) as the base when cherry-picking a merge commit.
         // -x:   append "cherry picked from commit <hash>" to the message.
