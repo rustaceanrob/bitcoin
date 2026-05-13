@@ -28,16 +28,5 @@ void StopHTTPRPC();
  */
 UniValue ExecuteHTTPRPC(const UniValue& valRequest, JSONRPCRequest& jreq, HTTPStatusCode& status);
 
-/** Start HTTP REST subsystem.
- * Precondition; HTTP and RPC has been started.
- */
-void StartREST(const std::any& context);
-/** Interrupt RPC REST subsystem.
- */
-void InterruptREST();
-/** Stop HTTP REST subsystem.
- * Precondition; HTTP and RPC has been stopped.
- */
-void StopREST();
 
 #endif // BITCOIN_HTTPRPC_H

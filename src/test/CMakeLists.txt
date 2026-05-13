@@ -81,7 +81,6 @@ add_executable(test_bitcoin
   raii_event_tests.cpp
   random_tests.cpp
   rbf_tests.cpp
-  rest_tests.cpp
   result_tests.cpp
   reverselock_tests.cpp
   rpc_tests.cpp
