@@ -28,9 +28,6 @@
 
 #include <boost/test/unit_test.hpp>
 
-using node::BlockManager;
-using node::KernelNotifications;
-
 BOOST_FIXTURE_TEST_SUITE(validation_chainstatemanager_tests, TestingSetup)
 
 BOOST_FIXTURE_TEST_CASE(chainstatemanager_ibd_exit_after_loading_blocks, ChainTestingSetup)

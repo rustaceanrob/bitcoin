@@ -26,8 +26,6 @@
 #include <util/hasher.h>
 #include <util/obfuscation.h>
 
-#include <algorithm>
-#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
