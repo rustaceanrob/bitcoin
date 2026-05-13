@@ -193,7 +193,7 @@ git diff | ( cd ./src/ && clang-tidy-diff -p2 -path ../build -j $(nproc) )
 
 ## Coding Style (Python)
 
-Refer to [/test/functional/README.md#style-guidelines](/test/functional/README.md#style-guidelines).
+Follow [PEP 8](https://peps.python.org/pep-0008/) style guidelines for Python code.
 
 ## Coding Style (Doxygen-compatible comments)
 
@@ -328,8 +328,7 @@ you can run with either the `-signet` or the `-testnet4` config option to test
 with "play bitcoins" on a test network.
 
 If you are testing something that can run on one machine, run with the
-`-regtest` option.  In regression test mode, blocks can be created on demand;
-see [test/functional/](/test/functional) for tests that run in `-regtest` mode.
+`-regtest` option.  In regression test mode, blocks can be created on demand.
 
 ### DEBUG_LOCKORDER
 
@@ -396,7 +395,6 @@ $ valgrind --suppressions=test/sanitizer_suppressions/valgrind.supp build/bin/te
 $ valgrind --suppressions=test/sanitizer_suppressions/valgrind.supp --leak-check=full \
       --show-leak-kinds=all build/bin/test_bitcoin --log_level=test_suite
 $ valgrind -v --leak-check=full build/bin/bitcoind -printtoconsole
-$ ./build/test/functional/test_runner.py --valgrind
 ```
 
 ### Compiling for test coverage
@@ -458,7 +456,6 @@ mkdir -p build/raw_profile_data
 
 # Run tests to generate profiles
 LLVM_PROFILE_FILE="$(pwd)/build/raw_profile_data/%m_%p.profraw" ctest --test-dir build # Append "-j N" here for N parallel jobs.
-LLVM_PROFILE_FILE="$(pwd)/build/raw_profile_data/%m_%p.profraw" build/test/functional/test_runner.py # Append "-j N" here for N parallel jobs
 
 # Merge all the raw profile data into a single file
 find build/raw_profile_data -name "*.profraw" > build/raw_profile_data_files.txt

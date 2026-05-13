@@ -23,14 +23,12 @@ using util::SplitString;
 // src/test/script_tests.cpp. While it written as a fuzz test, and can be used as such,
 // fuzzing the inputs is unlikely to construct useful test cases.
 //
-// Instead, it is primarily intended to be run on a test set that was generated
-// externally, for example using test/functional/feature_taproot.py's --dumptests mode.
+// Instead, it is primarily intended to be run on a test set generated externally.
 // The minimized set can then be concatenated together, surrounded by '[' and ']',
 // and used as the script_assets_test.json input to the script_assets_test unit test:
 //
 // (normal build)
 // $ mkdir dump
-// $ for N in $(seq 1 10); do TEST_DUMP_DIR=dump test/functional/feature_taproot.py --dumptests; done
 // $ ...
 //
 // (libFuzzer build)

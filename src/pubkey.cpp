@@ -189,8 +189,6 @@ int ecdsa_signature_parse_der_lax(secp256k1_ecdsa_signature* sig, const unsigned
  *  NUMS_H is a point with an unknown discrete logarithm, constructed by taking the sha256 of 'g'
  *  (uncompressed encoding), which happens to be a point on the curve.
  *
- *  For an example script for calculating H, refer to the unit tests in
- *  ./test/functional/test_framework/crypto/secp256k1.py
  */
 constexpr XOnlyPubKey XOnlyPubKey::NUMS_H{
     // Use immediate lambda to work around GCC-14 bug https://gcc.gnu.org/bugzilla/show_bug.cgi?id=117966
