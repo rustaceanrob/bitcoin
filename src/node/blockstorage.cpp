@@ -40,6 +40,8 @@
 #include <util/translation.h>
 #include <validation.h>
 
+#include <algorithm>
+#include <array>
 #include <cerrno>
 #include <compare>
 #include <cstddef>
