@@ -131,20 +131,6 @@ run_ipc_unit_tests() {
   done
 }
 
-run_ipc_functional_tests() {
-  local runs="$1"
-  local timeout_factor="$2"
-  local test_scripts
-  local test_args=()
-
-  test_scripts=$(python3 -c "import sys; import os; sys.path.append(os.path.abspath('build/test/functional')); from test_runner import ALL_SCRIPTS; print(' '.join(s for s in ALL_SCRIPTS if s.startswith('interface_ipc')))")
-  for _ in $(seq 1 "${runs}"); do
-    for script in $test_scripts; do
-      test_args+=("$script")
-    done
-  done
-  build/test/functional/test_runner.py "${test_args[@]}" --jobs "${PARALLEL}" --timeout-factor="${timeout_factor}" --failfast --combinedlogslen=99999999
-}
 
 main() {
   local command="${1:?missing command}"

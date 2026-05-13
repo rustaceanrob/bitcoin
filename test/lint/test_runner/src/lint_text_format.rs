@@ -19,8 +19,6 @@ fn get_pathspecs_exclude_whitespace() -> Vec<String> {
             "doc/README_windows.txt",
             // Temporary excludes, or existing violations
             "src/qt/res/src/*.svg",
-            "test/functional/test_framework/crypto/ellswift_decode_test_vectors.csv",
-            "test/functional/test_framework/crypto/xswiftec_inv_test_vectors.csv",
         ]
         .iter()
         .map(|s| format!(":(exclude){s}")),
