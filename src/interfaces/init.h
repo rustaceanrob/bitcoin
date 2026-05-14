@@ -36,6 +36,7 @@ public:
     virtual std::unique_ptr<Mining> makeMining() { return nullptr; }
     virtual std::unique_ptr<Echo> makeEcho() { return nullptr; }
     virtual std::unique_ptr<Rpc> makeRpc() { return nullptr; }
+    virtual void stop() {}
     virtual Ipc* ipc() { return nullptr; }
     virtual bool canListenIpc() { return false; }
     virtual const char* exeName() { return nullptr; }

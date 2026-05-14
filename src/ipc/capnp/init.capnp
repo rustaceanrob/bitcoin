@@ -22,6 +22,7 @@ interface Init $Proxy.wrap("interfaces::Init") {
     makeEcho @1 (context :Proxy.Context) -> (result :Echo.Echo);
     makeMining @3 (context :Proxy.Context) -> (result :Mining.Mining);
     makeRpc @4 (context :Proxy.Context) -> (result :Rpc.Rpc);
+    stop @5 (context :Proxy.Context) -> ();
 
     # DEPRECATED: no longer supported; server returns an error.
     makeMiningOld2 @2 () -> ();

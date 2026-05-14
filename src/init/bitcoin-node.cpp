@@ -33,6 +33,7 @@ public:
     std::unique_ptr<interfaces::Mining> makeMining() override { return interfaces::MakeMining(m_node); }
     std::unique_ptr<interfaces::Echo> makeEcho() override { return interfaces::MakeEcho(); }
     std::unique_ptr<interfaces::Rpc> makeRpc() override { return interfaces::MakeRpc(m_node); }
+    void stop() override { makeNode()->startShutdown(); }
     interfaces::Ipc* ipc() override { return m_ipc.get(); }
     bool canListenIpc() override { return true; }
     const char* exeName() override { return EXE_NAME; }
