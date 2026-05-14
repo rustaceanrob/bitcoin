@@ -15,11 +15,6 @@ class SignalInterrupt;
 } // namespace util
 
 /**
- * The default value for `-rpcthreads`. This number of threads will be created at startup.
- */
-static const int DEFAULT_HTTP_THREADS=16;
-
-/**
  * The default value for `-rpcworkqueue`. This is the maximum depth of the work queue,
  * we don't allocate this number of work queue items upfront.
  */
