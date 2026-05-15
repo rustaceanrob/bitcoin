@@ -24,7 +24,6 @@ class ArgsManager;
 class CBlock;
 class CBlockUndo;
 class CFeeRate;
-class CRPCCommand;
 class CScheduler;
 class Coin;
 class uint256;
@@ -97,10 +96,6 @@ using SettingsUpdate = std::function<std::optional<interfaces::SettingsAction>(c
 //!   notifications to the GUI should go away when GUI and wallet can directly
 //!   communicate with each other without going through the node
 //!   (https://github.com/bitcoin/bitcoin/pull/15288#discussion_r253321096).
-//!
-//! * The handleRpc, registerRpcs, rpcEnableDeprecated methods and other RPC
-//!   methods can go away if wallets listen for HTTP requests on their own
-//!   ports instead of registering to handle requests on the node HTTP port.
 //!
 //! * Move fee estimation queries to an asynchronous interface and let the
 //!   wallet cache it, fee estimation being driven by node mempool, wallet
@@ -325,13 +320,6 @@ public:
 
     //! Wait for all pending notifications up to this point to be processed
     virtual void waitForNotifications() = 0;
-
-    //! Register handler for RPC. Command is not copied, so reference
-    //! needs to remain valid until Handler is disconnected.
-    virtual std::unique_ptr<Handler> handleRpc(const CRPCCommand& command) = 0;
-
-    //! Check if deprecated RPC is enabled.
-    virtual bool rpcEnableDeprecated(const std::string& method) = 0;
 
     //! Get settings value.
     virtual common::SettingsValue getSetting(const std::string& arg) = 0;

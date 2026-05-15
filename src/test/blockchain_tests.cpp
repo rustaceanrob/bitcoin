@@ -3,17 +3,39 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <chain.h>
+#include <consensus/validation.h>
 #include <node/blockstorage.h>
-#include <rpc/blockchain.h>
 #include <sync.h>
 #include <test/util/setup_common.h>
 #include <util/string.h>
+#include <validation.h>
 
 #include <boost/test/unit_test.hpp>
 
 #include <cstdlib>
 
 using util::ToString;
+
+static double GetDifficulty(const CBlockIndex& blockindex)
+{
+    int nShift = (blockindex.nBits >> 24) & 0xff;
+    double dDiff = (double)0x0000ffff / (double)(blockindex.nBits & 0x00ffffff);
+    while (nShift < 29) { dDiff *= 256.0; nShift++; }
+    while (nShift > 29) { dDiff /= 256.0; nShift--; }
+    return dDiff;
+}
+
+static std::optional<int> GetPruneHeight(const node::BlockManager& blockman, const CChain& chain) EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
+{
+    AssertLockHeld(::cs_main);
+    const CBlockIndex* first_block{chain[1]};
+    const CBlockIndex* chain_tip{chain.Tip()};
+    if (!first_block || !chain_tip) return std::nullopt;
+    if ((chain_tip->nStatus & BLOCK_HAVE_MASK) != BLOCK_HAVE_MASK) return chain_tip->nHeight;
+    const auto& first_unpruned{blockman.GetFirstBlock(*chain_tip, BLOCK_HAVE_MASK, first_block)};
+    if (&first_unpruned == first_block) return std::nullopt;
+    return CHECK_NONFATAL(first_unpruned.pprev)->nHeight;
+}
 
 /* Equality between doubles is imprecise. Comparison should be done
  * with a small threshold of tolerance, rather than exact equality.

@@ -2,8 +2,6 @@ packages:=
 
 boost_packages = boost
 
-libevent_packages = libevent
-
 zmq_packages=zeromq
 
 ipc_packages = capnp

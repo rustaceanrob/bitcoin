@@ -53,7 +53,6 @@ add_executable(fuzz
   golomb_rice.cpp
   headerssync.cpp
   hex.cpp
-  http_request.cpp
   i2p.cpp
   integer.cpp
   key.cpp
@@ -84,7 +83,6 @@ add_executable(fuzz
   parse_iso8601.cpp
   parse_numbers.cpp
   parse_script.cpp
-  parse_univalue.cpp
   partially_downloaded_block.cpp
   policy_estimator.cpp
   policy_estimator_io.cpp
@@ -98,7 +96,6 @@ add_executable(fuzz
   random.cpp
   rbf.cpp
   rolling_bloom_filter.cpp
-  rpc.cpp
   script.cpp
   script_assets_test_minimizer.cpp
   script_descriptor_cache.cpp
@@ -150,6 +147,5 @@ target_link_libraries(fuzz
   univalue
   secp256k1
   Boost::headers
-  libevent::extra
 )
 

@@ -9,7 +9,6 @@
 #include <consensus/params.h>
 #include <kernel/messagestartchars.h>
 #include <primitives/block.h>
-#include <uint256.h>
 #include <util/chaintype.h>
 
 #include <cstddef>

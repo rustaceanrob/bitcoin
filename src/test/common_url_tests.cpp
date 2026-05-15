@@ -10,9 +10,6 @@
 
 BOOST_AUTO_TEST_SUITE(common_url_tests)
 
-// These test vectors were ported from test/regress.c in the libevent library
-// which used to be a dependency of the UrlDecode function.
-
 BOOST_AUTO_TEST_CASE(encode_decode_test) {
     BOOST_CHECK_EQUAL(UrlDecode("Hello"), "Hello");
     BOOST_CHECK_EQUAL(UrlDecode("99"), "99");

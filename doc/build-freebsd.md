@@ -10,16 +10,8 @@ This guide describes how to build bitcoind, command-line utilities, and GUI on F
 Run the following as root to install the base dependencies for building.
 
 ```bash
-pkg install boost-libs cmake git libevent pkgconf
+pkg install boost-libs capnproto cmake git pkgconf
 ```
-
-Cap'n Proto is needed for IPC functionality (see [multiprocess.md](multiprocess.md)):
-
-```bash
-pkg install capnproto
-```
-
-Compile with `-DENABLE_IPC=OFF` if you do not need IPC functionality.
 
 See [dependencies.md](dependencies.md) for a complete overview.
 

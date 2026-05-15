@@ -77,11 +77,9 @@ The following can be set when running make: `make FOO=bar`
 - `FALLBACK_DOWNLOAD_PATH`: If a source file can't be fetched, try here before giving up
 - `C_STANDARD`: Set the C standard version used. Defaults to `c11`.
 - `CXX_STANDARD`: Set the C++ standard version used. Defaults to `c++20`.
-- `NO_BOOST`: Don't download/build/cache Boost
-- `NO_LIBEVENT`: Don't download/build/cache Libevent
-- `NO_ZMQ`: Don't download/build/cache packages needed for enabling ZeroMQ
-- `NO_USDT`: Don't download/build/cache packages needed for enabling USDT tracepoints
-- `NO_IPC`: Don't build Cap’n Proto and libmultiprocess packages. Default on Windows.
+- `NO_BOOST`: Don’t download/build/cache Boost
+- `NO_ZMQ`: Don’t download/build/cache packages needed for enabling ZeroMQ
+- `NO_USDT`: Don’t download/build/cache packages needed for enabling USDT tracepoints
 - `DEBUG`: Disable some optimizations and enable more runtime checking
 - `HOST_ID_SALT`: Optional salt to use when generating host package ids
 - `BUILD_ID_SALT`: Optional salt to use when generating build package ids

@@ -687,7 +687,7 @@ done by the components.
   : Parallel script validation threads for transactions in blocks.
 
 - [ThreadHTTP (`b-http`)](https://doxygen.bitcoincore.org/httpserver_8cpp.html#abb9f6ea8819672bd9a62d3695070709c)
-  : Libevent thread to listen for RPC and REST connections.
+  : Thread to listen for RPC and REST connections.
 
 - [HTTP worker threads (`b-http_pool_x`)](https://doxygen.bitcoincore.org/httpserver_8cpp.html#a2ad0a49dc9b5e8117c0dee98c24187d8)
   : Threads to service RPC and REST requests.
@@ -697,7 +697,7 @@ done by the components.
   asynchronous validationinterface callbacks.
 
 - [TorControlThread (`b-torcontrol`)](https://doxygen.bitcoincore.org/torcontrol_8cpp.html#a52a3efff23634500bb42c6474f306091)
-  : Libevent thread for tor connections.
+  : Thread for tor connections.
 
 - Net threads:
 
@@ -1305,7 +1305,6 @@ A few guidelines for introducing and reviewing new RPC interfaces:
     true to 1 in this case.
 
 - For new RPC methods, if implementing a `verbosity` argument, use integer verbosity rather than boolean.
-  Disallow usage of boolean verbosity (see `ParseVerbosity()` in [util.h](/src/rpc/util.h)).
 
   - *Rationale*: Integer verbosity allows for multiple values. Undocumented boolean verbosity is deprecated
     and new RPC methods should prevent its use.

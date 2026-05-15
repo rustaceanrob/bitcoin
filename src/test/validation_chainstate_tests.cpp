@@ -7,7 +7,7 @@
 #include <consensus/validation.h>
 #include <node/kernel_notifications.h>
 #include <random.h>
-#include <rpc/blockchain.h>
+
 #include <script/script.h>
 #include <sync.h>
 #include <test/util/common.h>

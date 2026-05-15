@@ -11,10 +11,6 @@
 #include <common/url.h>
 #include <netbase.h>
 #include <outputtype.h>
-#include <rpc/client.h>
-#include <rpc/request.h>
-#include <rpc/server.h>
-#include <rpc/util.h>
 #include <script/descriptor.h>
 #include <script/script.h>
 #include <serialize.h>
@@ -61,27 +57,15 @@ FUZZ_TARGET(string)
     const auto width{fuzzed_data_provider.ConsumeIntegralInRange<size_t>(1, 1000)};
     (void)FormatParagraph(random_string_1, width, fuzzed_data_provider.ConsumeIntegralInRange<size_t>(0, width));
     (void)FormatSubVersion(random_string_1, fuzzed_data_provider.ConsumeIntegral<int>(), random_string_vector);
-    (void)HelpExampleCli(random_string_1, random_string_2);
-    (void)HelpExampleRpc(random_string_1, random_string_2);
     (void)HelpMessageGroup(random_string_1);
     (void)HelpMessageOpt(random_string_1, random_string_2);
-    (void)IsDeprecatedRPCEnabled(random_string_1);
     (void)Join(random_string_vector, random_string_1);
-    (void)JSONRPCError(fuzzed_data_provider.ConsumeIntegral<int>(), random_string_1);
     const common::Settings settings;
     (void)OnlyHasDefaultSectionSetting(settings, random_string_1, random_string_2);
     (void)ParseNetwork(random_string_1);
     (void)ParseOutputType(random_string_1);
     (void)RemovePrefix(random_string_1, random_string_2);
     (void)ResolveErrMsg(random_string_1, random_string_2);
-    try {
-        (void)RPCConvertNamedValues(random_string_1, random_string_vector);
-    } catch (const std::runtime_error&) {
-    }
-    try {
-        (void)RPCConvertValues(random_string_1, random_string_vector);
-    } catch (const std::runtime_error&) {
-    }
     (void)SanitizeString(random_string_1);
     (void)SanitizeString(random_string_1, fuzzed_data_provider.ConsumeIntegralInRange<int>(0, 3));
 #ifndef WIN32

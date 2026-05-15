@@ -8,7 +8,7 @@
 #include <common/system.h>
 #include <core_io.h>
 #include <key.h>
-#include <rpc/util.h>
+
 #include <script/interpreter.h>
 #include <script/script.h>
 #include <script/script_error.h>
@@ -949,7 +949,7 @@ BOOST_AUTO_TEST_CASE(script_json_test)
                     witness.stack.push_back(witness_value.value());
                 }
             }
-            nValue = AmountFromValue(test[pos][i]);
+            BOOST_REQUIRE_MESSAGE(ParseFixedPoint(test[pos][i].getValStr(), 8, &nValue), "Bad amount in test: " << strTest);
             pos++;
         }
         if (test.size() < 4 + pos) // Allow size > 3; extra stuff ignored (useful for comments)
