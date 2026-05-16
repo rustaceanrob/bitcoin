@@ -316,18 +316,6 @@ if(BUILD_TX)
 endif()
 
 
-if(BUILD_UTIL)
-  add_executable(bitcoin-util bitcoin-util.cpp)
-  add_windows_resources(bitcoin-util bitcoin-util-res.rc)
-  add_windows_application_manifest(bitcoin-util)
-  target_link_libraries(bitcoin-util
-    core_interface
-    bitcoin_common
-    bitcoin_util
-  )
-  install_binary_component(bitcoin-util HAS_MANPAGE)
-endif()
-
 
 if(BUILD_KERNEL_LIB)
   add_subdirectory(kernel)
