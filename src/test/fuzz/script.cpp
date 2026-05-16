@@ -9,7 +9,6 @@
 #include <key_io.h>
 #include <policy/policy.h>
 #include <pubkey.h>
-#include <rpc/util.h>
 #include <script/descriptor.h>
 #include <script/interpreter.h>
 #include <script/script.h>
@@ -21,7 +20,6 @@
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
 #include <test/fuzz/util.h>
-#include <univalue.h>
 #include <util/chaintype.h>
 
 #include <algorithm>
@@ -142,7 +140,6 @@ FUZZ_TARGET(script, .init = initialize_script)
                 ConsumeTxDestination(fuzzed_data_provider)};
         const CTxDestination tx_destination_2{ConsumeTxDestination(fuzzed_data_provider)};
         const std::string encoded_dest{EncodeDestination(tx_destination_1)};
-        const UniValue json_dest{DescribeAddress(tx_destination_1)};
         (void)GetKeyForDestination(/*store=*/{}, tx_destination_1);
         const CScript dest{GetScriptForDestination(tx_destination_1)};
         const bool valid{IsValidDestination(tx_destination_1)};
@@ -157,7 +154,6 @@ FUZZ_TARGET(script, .init = initialize_script)
         (void)(tx_destination_1 < tx_destination_2);
         if (tx_destination_1 == tx_destination_2) {
             Assert(encoded_dest == EncodeDestination(tx_destination_2));
-            Assert(json_dest.write() == DescribeAddress(tx_destination_2).write());
             Assert(dest == GetScriptForDestination(tx_destination_2));
         }
     }

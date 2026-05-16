@@ -6,7 +6,6 @@
 #include <primitives/block.h>
 #include <primitives/transaction_identifier.h>
 #include <pubkey.h>
-#include <rpc/util.h>
 #include <test/fuzz/fuzz.h>
 #include <uint256.h>
 #include <univalue.h>
@@ -43,9 +42,9 @@ FUZZ_TARGET(hex)
         assert(Wtxid::FromHex(result_string));
         assert(uint256::FromHex(result_string));
     }
-    try {
-        (void)HexToPubKey(random_hex_string);
-    } catch (const UniValue&) {
+    if (IsHex(random_hex_string) && (random_hex_string.size() == 66 || random_hex_string.size() == 130)) {
+        CPubKey pubkey(ParseHex(random_hex_string));
+        (void)pubkey.IsFullyValid();
     }
     CBlockHeader block_header;
     (void)DecodeHexBlockHeader(block_header, random_hex_string);

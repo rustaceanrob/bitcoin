@@ -25,7 +25,7 @@ function(create_test_config)
   set_configure_variable(WITH_ZMQ ENABLE_ZMQ)
   set_configure_variable(WITH_EMBEDDED_ASMAP ENABLE_EMBEDDED_ASMAP)
   set_configure_variable(WITH_USDT ENABLE_USDT_TRACEPOINTS)
-  set_configure_variable(ENABLE_IPC ENABLE_IPC)
+  set(ENABLE_IPC_TRUE "")
 
   configure_file(config.ini.in config.ini USE_SOURCE_PERMISSIONS @ONLY)
 endfunction()

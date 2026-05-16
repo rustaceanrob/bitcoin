@@ -8,7 +8,7 @@
 #include <node/chainstatemanager_args.h>
 #include <node/kernel_notifications.h>
 #include <random.h>
-#include <rpc/blockchain.h>
+
 #include <sync.h>
 #include <test/util/common.h>
 #include <test/util/logging.h>

@@ -5,8 +5,8 @@
 #include <common/messages.h>
 #include <merkleblock.h>
 #include <node/types.h>
+#include <outputtype.h>
 #include <policy/fees/block_policy_estimator.h>
-#include <rpc/util.h>
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
 #include <test/fuzz/util.h>
@@ -38,8 +38,6 @@ FUZZ_TARGET(kitchen_sink)
     FuzzedDataProvider fuzzed_data_provider(buffer.data(), buffer.size());
 
     const TransactionError transaction_error = fuzzed_data_provider.PickValueInArray(ALL_TRANSACTION_ERROR);
-    (void)JSONRPCTransactionError(transaction_error);
-    (void)RPCErrorFromTransactionError(transaction_error);
     (void)TransactionErrorString(transaction_error);
 
     (void)StringForFeeEstimateHorizon(fuzzed_data_provider.PickValueInArray(ALL_FEE_ESTIMATE_HORIZONS));

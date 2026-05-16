@@ -12,7 +12,7 @@ Install the required dependencies the usual way you [install software on NetBSD]
 The example commands below use `pkgin`.
 
 ```bash
-pkgin install git cmake pkg-config boost libevent
+pkgin install git cmake pkg-config boost capnproto
 ```
 
 NetBSD currently ships with an older version of `gcc` than is needed to build. You should upgrade your `gcc` and then pass this new version to the CMake configuration.
@@ -29,15 +29,6 @@ cmake -B build
     -DCMAKE_C_COMPILER="/usr/pkg/gcc12/bin/gcc" \
     -DCMAKE_CXX_COMPILER="/usr/pkg/gcc12/bin/g++" \
     ...
-```
-
-Cap'n Proto is needed for IPC functionality (see [multiprocess.md](multiprocess.md)):
-
-```bash
-pkgin install capnproto
-```
-
-Compile with `-DENABLE_IPC=OFF` if you do not need IPC functionality.
 
 See [dependencies.md](dependencies.md) for a complete overview.
 

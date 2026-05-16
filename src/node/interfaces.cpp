@@ -11,13 +11,11 @@
 #include <consensus/merkle.h>
 #include <consensus/validation.h>
 #include <deploymentstatus.h>
-#include <httprpc.h>
 #include <init.h>
 #include <interfaces/chain.h>
 #include <interfaces/handler.h>
 #include <interfaces/mining.h>
 #include <interfaces/node.h>
-#include <interfaces/rpc.h>
 #include <interfaces/types.h>
 #include <kernel/chain.h>
 #include <kernel/context.h>
@@ -45,9 +43,6 @@
 #include <policy/settings.h>
 #include <primitives/block.h>
 #include <primitives/transaction.h>
-#include <rpc/blockchain.h>
-#include <rpc/protocol.h>
-#include <rpc/server.h>
 #include <support/allocators/secure.h>
 #include <sync.h>
 #include <txmempool.h>
@@ -76,7 +71,6 @@ using interfaces::Handler;
 using interfaces::MakeSignalHandler;
 using interfaces::Mining;
 using interfaces::Node;
-using interfaces::Rpc;
 using node::BlockAssembler;
 using node::BlockWaitOptions;
 using node::CoinbaseTx;
@@ -304,16 +298,6 @@ public:
         if (!m_context->mempool) return CFeeRate{DUST_RELAY_TX_FEE};
         return m_context->mempool->m_opts.dust_relay_feerate;
     }
-    UniValue executeRpc(const std::string& command, const UniValue& params, const std::string& uri) override
-    {
-        JSONRPCRequest req;
-        req.context = m_context;
-        req.params = params;
-        req.strMethod = command;
-        req.URI = uri;
-        return ::tableRPC.execute(req);
-    }
-    std::vector<std::string> listRpcCommands() override { return ::tableRPC.listCommands(); }
     std::optional<Coin> getUnspentOutput(const COutPoint& output) override
     {
         LOCK(::cs_main);
@@ -454,32 +438,6 @@ public:
     }
     ValidationSignals& m_signals;
     std::shared_ptr<NotificationsProxy> m_proxy;
-};
-
-class RpcHandlerImpl : public Handler
-{
-public:
-    explicit RpcHandlerImpl(const CRPCCommand& command) : m_command(command), m_wrapped_command(&command)
-    {
-        m_command.actor = [this](const JSONRPCRequest& request, UniValue& result, bool last_handler) {
-            if (!m_wrapped_command) return false;
-            return m_wrapped_command->actor(request, result, last_handler);
-        };
-        ::tableRPC.appendCommand(m_command.name, &m_command);
-    }
-
-    void disconnect() final
-    {
-        if (m_wrapped_command) {
-            m_wrapped_command = nullptr;
-            ::tableRPC.removeCommand(m_command.name, &m_command);
-        }
-    }
-
-    ~RpcHandlerImpl() override { disconnect(); }
-
-    CRPCCommand m_command;
-    const CRPCCommand* m_wrapped_command;
 };
 
 class ChainImpl : public Chain
@@ -687,7 +645,14 @@ public:
     std::optional<int> getPruneHeight() override
     {
         LOCK(chainman().GetMutex());
-        return GetPruneHeight(chainman().m_blockman, chainman().ActiveChain());
+        const CChain& chain{chainman().ActiveChain()};
+        const CBlockIndex* first_block{chain[1]};
+        const CBlockIndex* chain_tip{chain.Tip()};
+        if (!first_block || !chain_tip) return std::nullopt;
+        if ((chain_tip->nStatus & BLOCK_HAVE_MASK) != BLOCK_HAVE_MASK) return chain_tip->nHeight;
+        const auto& first_unpruned{chainman().m_blockman.GetFirstBlock(*chain_tip, BLOCK_HAVE_MASK, first_block)};
+        if (&first_unpruned == first_block) return std::nullopt;
+        return CHECK_NONFATAL(first_unpruned.pprev)->nHeight;
     }
     bool isReadyToBroadcast() override { return !chainman().m_blockman.LoadingBlocks() && !isInitialBlockDownload(); }
     bool isInitialBlockDownload() override
@@ -715,11 +680,6 @@ public:
     {
         validation_signals().SyncWithValidationInterfaceQueue();
     }
-    std::unique_ptr<Handler> handleRpc(const CRPCCommand& command) override
-    {
-        return std::make_unique<RpcHandlerImpl>(command);
-    }
-    bool rpcEnableDeprecated(const std::string& method) override { return IsDeprecatedRPCEnabled(method); }
     common::SettingsValue getSetting(const std::string& name) override
     {
         return args().GetSetting(name);
@@ -936,23 +896,6 @@ public:
     NodeContext& m_node;
 };
 
-class RpcImpl : public Rpc
-{
-public:
-    explicit RpcImpl(NodeContext& node) : m_node(node) {}
-
-    UniValue executeRpc(UniValue request, std::string uri, std::string user) override
-    {
-        JSONRPCRequest req;
-        req.context = &m_node;
-        req.URI = std::move(uri);
-        req.authUser = std::move(user);
-        HTTPStatusCode status;
-        return ExecuteHTTPRPC(request, req, status);
-    }
-
-    NodeContext& m_node;
-};
 } // namespace
 } // namespace node
 
@@ -972,5 +915,4 @@ std::unique_ptr<Mining> MakeMining(node::NodeContext& context, bool wait_loaded)
     }
     return std::make_unique<node::MinerImpl>(context);
 }
-std::unique_ptr<Rpc> MakeRpc(node::NodeContext& context) { return std::make_unique<node::RpcImpl>(context); }
 } // namespace interfaces

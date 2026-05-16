@@ -47,7 +47,6 @@ add_executable(test_bitcoin
   getarg_tests.cpp
   hash_tests.cpp
   headers_sync_chainwork_tests.cpp
-  httpserver_tests.cpp
   i2p_tests.cpp
   interfaces_tests.cpp
   key_io_tests.cpp
@@ -78,12 +77,10 @@ add_executable(test_bitcoin
   pow_tests.cpp
   prevector_tests.cpp
   private_broadcast_tests.cpp
-  raii_event_tests.cpp
   random_tests.cpp
   rbf_tests.cpp
   result_tests.cpp
   reverselock_tests.cpp
-  rpc_tests.cpp
   sanity_tests.cpp
   scheduler_tests.cpp
   script_assets_tests.cpp
@@ -160,13 +157,10 @@ target_link_libraries(test_bitcoin
   minisketch
   secp256k1
   Boost::headers
-  libevent::extra
   $<TARGET_NAME_IF_EXISTS:USDT::headers>
 )
 
-if(ENABLE_IPC)
-  add_subdirectory(${PROJECT_SOURCE_DIR}/src/ipc/test ipc)
-endif()
+add_subdirectory(${PROJECT_SOURCE_DIR}/src/ipc/test ipc)
 
 function(add_boost_test source_file)
   if(NOT EXISTS ${source_file})

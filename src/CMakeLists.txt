@@ -19,7 +19,7 @@ include(../cmake/crc32c.cmake)
 include(../cmake/leveldb.cmake)
 include(../cmake/minisketch.cmake)
 add_subdirectory(univalue)
-if (ENABLE_IPC AND NOT WITH_EXTERNAL_LIBMULTIPROCESS)
+if (NOT WITH_EXTERNAL_LIBMULTIPROCESS)
   include(../cmake/libmultiprocess.cmake)
   add_libmultiprocess(ipc/libmultiprocess)
 endif()
@@ -54,11 +54,7 @@ add_dependencies(bitcoin_clientversion generate_build_info)
 
 add_subdirectory(crypto)
 add_subdirectory(util)
-if(ENABLE_IPC)
-  add_subdirectory(ipc)
-else()
-  add_library(bitcoin_ipc STATIC EXCLUDE_FROM_ALL ipc/stub.cpp)
-endif()
+add_subdirectory(ipc)
 
 add_library(bitcoin_consensus STATIC EXCLUDE_FROM_ALL
   arith_uint256.cpp
@@ -126,9 +122,6 @@ add_library(bitcoin_common STATIC EXCLUDE_FROM_ALL
   policy/policy.cpp
   pow.cpp
   protocol.cpp
-  rpc/rawtransaction_util.cpp
-  rpc/request.cpp
-  rpc/util.cpp
   scheduler.cpp
   script/descriptor.cpp
   script/miniscript.cpp
@@ -138,11 +131,12 @@ add_library(bitcoin_common STATIC EXCLUDE_FROM_ALL
   script/solver.cpp
 )
 target_link_libraries(bitcoin_common
+  PUBLIC
+    univalue
   PRIVATE
     core_interface
     bitcoin_consensus
     bitcoin_util
-    univalue
     secp256k1
     $<TARGET_NAME_IF_EXISTS:USDT::headers>
     $<$<PLATFORM_ID:Windows>:ws2_32>
@@ -163,8 +157,6 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   deploymentstatus.cpp
   flatfile.cpp
   headerssync.cpp
-  httprpc.cpp
-  httpserver.cpp
   i2p.cpp
   init.cpp
   kernel/chain.cpp
@@ -215,18 +207,6 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   policy/settings.cpp
   policy/truc_policy.cpp
   private_broadcast.cpp
-  rpc/blockchain.cpp
-  rpc/fees.cpp
-  rpc/mempool.cpp
-  rpc/mining.cpp
-  rpc/net.cpp
-  rpc/node.cpp
-  rpc/output_script.cpp
-  rpc/rawtransaction.cpp
-  rpc/server.cpp
-  rpc/server_util.cpp
-  rpc/signmessage.cpp
-  rpc/txoutproof.cpp
   script/sigcache.cpp
   signet.cpp
   torcontrol.cpp
@@ -239,6 +219,8 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   versionbits.cpp
 )
 target_link_libraries(bitcoin_node
+  PUBLIC
+    univalue
   PRIVATE
     core_interface
     bitcoin_common
@@ -246,11 +228,7 @@ target_link_libraries(bitcoin_node
     $<TARGET_NAME_IF_EXISTS:bitcoin_zmq>
     leveldb
     minisketch
-    univalue
     Boost::headers
-    $<TARGET_NAME_IF_EXISTS:libevent::core>
-    $<TARGET_NAME_IF_EXISTS:libevent::extra>
-    $<TARGET_NAME_IF_EXISTS:libevent::pthreads>
     $<TARGET_NAME_IF_EXISTS:USDT::headers>
 )
 if(WITH_EMBEDDED_ASMAP)
@@ -281,10 +259,11 @@ if(BUILD_DAEMON)
   target_link_libraries(bitcoind
     core_interface
     bitcoin_node
+    bitcoin_ipc
   )
   install_binary_component(bitcoind HAS_MANPAGE)
 endif()
-if(ENABLE_IPC AND BUILD_DAEMON)
+if(BUILD_DAEMON)
   add_executable(bitcoin-node
     bitcoind.cpp
     init/bitcoin-node.cpp
@@ -300,12 +279,10 @@ endif()
 
 add_library(bitcoin_cli STATIC EXCLUDE_FROM_ALL
   compat/stdin.cpp
-  rpc/client.cpp
 )
 target_link_libraries(bitcoin_cli
   PUBLIC
     core_interface
-    univalue
 )
 
 
@@ -320,8 +297,6 @@ if(BUILD_CLI)
     bitcoin_common
     bitcoin_ipc
     bitcoin_util
-    libevent::core
-    libevent::extra
   )
   install_binary_component(bitcoin-cli HAS_MANPAGE)
 endif()

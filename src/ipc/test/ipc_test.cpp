@@ -15,6 +15,7 @@
 #include <tinyformat.h>
 #include <validation.h>
 
+#include <atomic>
 #include <future>
 #include <thread>
 #include <kj/common.h>
@@ -33,7 +34,9 @@ static_assert(ipc::capnp::messages::DEFAULT_COINBASE_OUTPUT_MAX_ADDITIONAL_SIGOP
 class TestInit : public interfaces::Init
 {
 public:
+    std::atomic<bool> stop_called{false};
     std::unique_ptr<interfaces::Echo> makeEcho() override { return interfaces::MakeEcho(); }
+    void stop() override { stop_called.store(true); }
 };
 
 //! Generate a temporary path with temp_directory_path and mkstemp
@@ -132,6 +135,8 @@ void IpcSocketPairTest()
     std::unique_ptr<interfaces::Echo> remote_echo{remote_init->makeEcho()};
     BOOST_CHECK_EQUAL(remote_echo->echo("echo test"), "echo test");
     remote_echo.reset();
+    remote_init->stop();
+    BOOST_CHECK(static_cast<TestInit*>(init.get())->stop_called.load());
     remote_init.reset();
     thread.join();
 }

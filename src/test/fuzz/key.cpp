@@ -8,7 +8,6 @@
 #include <outputtype.h>
 #include <policy/policy.h>
 #include <pubkey.h>
-#include <rpc/util.h>
 #include <script/keyorigin.h>
 #include <script/script.h>
 #include <script/sign.h>
@@ -103,7 +102,7 @@ FUZZ_TARGET(key, .init = initialize_key)
         assert(pubkey.IsCompressed());
         assert(pubkey.IsValid());
         assert(pubkey.IsFullyValid());
-        assert(HexToPubKey(HexStr(pubkey)) == pubkey);
+        assert(CPubKey(ParseHex(HexStr(pubkey))) == pubkey);
     }
 
     {

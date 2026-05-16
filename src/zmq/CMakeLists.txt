@@ -6,7 +6,6 @@ add_library(bitcoin_zmq STATIC EXCLUDE_FROM_ALL
   zmqabstractnotifier.cpp
   zmqnotificationinterface.cpp
   zmqpublishnotifier.cpp
-  zmqrpc.cpp
   zmqutil.cpp
 )
 target_compile_definitions(bitcoin_zmq

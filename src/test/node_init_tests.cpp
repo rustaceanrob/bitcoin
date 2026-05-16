@@ -4,7 +4,6 @@
 
 #include <init.h>
 #include <interfaces/init.h>
-#include <rpc/server.h>
 
 #include <boost/test/unit_test.hpp>
 #include <test/util/common.h>
