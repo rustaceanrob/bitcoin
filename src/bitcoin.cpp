@@ -98,8 +98,6 @@ int main(int argc, char* argv[])
             args.emplace_back("bitcoin-chainstate");
         } else if (cmd.command == "test") {
             args.emplace_back("test_bitcoin");
-        } else if (cmd.command == "util") {
-            args.emplace_back("bitcoin-util");
         } else {
             throw std::runtime_error(strprintf("Unrecognized command: '%s'", cmd.command));
         }
