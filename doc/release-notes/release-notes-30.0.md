@@ -128,9 +128,7 @@ IPC Mining Interface
   (`bitcoin-node` instead of `bitcoind`) and is currently required but will become optional
   in the future (with [#33229](https://github.com/bitcoin/bitcoin/pull/33229)).
 
-- IPC connectivity introduces new dependencies (see [multiprocess.md](https://github.com/bitcoin/bitcoin/blob/master/doc/multiprocess.md)),
-  which can be turned off with the `-DENABLE_IPC=OFF` build option if you do not intend
-  to use IPC. (#31802)
+- IPC connectivity introduces new dependencies (see [multiprocess.md](https://github.com/bitcoin/bitcoin/blob/master/doc/multiprocess.md)). (#31802)
 
 Install changes
 ---------------

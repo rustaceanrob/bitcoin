@@ -485,11 +485,11 @@ jobs:
             timeout-minutes: 120
             file-env: './ci/test/00_setup_env_freebsd_cross.sh'
 
-          - name: 'i686, no IPC'
+          - name: 'i686'
             cirrus-runner: 'ghcr.io/cirruslabs/ubuntu-runner-amd64:24.04-md'
             fallback-runner: 'ubuntu-24.04'
             timeout-minutes: 120
-            file-env: './ci/test/00_setup_env_i686_no_ipc.sh'
+            file-env: './ci/test/00_setup_env_i686.sh'
 
           - name: 'fuzzer,address,undefined,integer'
             cirrus-runner: 'ghcr.io/cirruslabs/ubuntu-runner-amd64:24.04-lg'
