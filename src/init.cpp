@@ -44,7 +44,7 @@
 #include <node/blockmanager_args.h>
 #include <node/blockstorage.h>
 #include <node/caches.h>
-#include <node/chainstate.h>
+#include <node/chainstate_load.h>
 #include <node/chainstatemanager_args.h>
 #include <node/context.h>
 #include <node/interface_ui.h>

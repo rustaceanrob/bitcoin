@@ -2,7 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <node/chainstate.h>
+#include <node/chainstate_load.h>
 
 #include <block_validation.h>
 #include <arith_uint256.h>

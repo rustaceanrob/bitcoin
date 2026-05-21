@@ -33,7 +33,7 @@ add_library(bitcoinkernel
   ../logging.cpp
   ../node/blockimport.cpp
   ../node/blockstorage.cpp
-  ../node/chainstate.cpp
+  ../node/chainstate_load.cpp
   ../policy/ephemeral_policy.cpp
   ../policy/feerate.cpp
   ../policy/packages.cpp

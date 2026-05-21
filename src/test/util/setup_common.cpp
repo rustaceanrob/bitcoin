@@ -22,7 +22,7 @@
 #include <net.h>
 #include <net_processing.h>
 #include <node/blockstorage.h>
-#include <node/chainstate.h>
+#include <node/chainstate_load.h>
 #include <node/context.h>
 #include <node/kernel_notifications.h>
 #include <node/mempool_args.h>

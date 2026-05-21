@@ -21,7 +21,7 @@
 #include <logging.h>
 #include <node/blockimport.h>
 #include <node/blockstorage.h>
-#include <node/chainstate.h>
+#include <node/chainstate_load.h>
 #include <primitives/block.h>
 #include <primitives/transaction.h>
 #include <script/interpreter.h>
