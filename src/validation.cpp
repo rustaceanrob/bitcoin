@@ -338,12 +338,12 @@ void Chainstate::MaybeUpdateMempoolForReorg(
         EXCLUSIVE_LOCKS_REQUIRED(m_mempool->cs, ::cs_main) {
         AssertLockHeld(m_mempool->cs);
         AssertLockHeld(::cs_main);
-        const CTransaction& tx = it->GetTx();
+        const CTransaction& tx = it->second.GetTx();
 
         // The transaction must be final.
         if (!CheckFinalTxAtTip(*Assert(m_chain.Tip()), tx)) return true;
 
-        const LockPoints& lp = it->GetLockPoints();
+        const LockPoints& lp = it->second.GetLockPoints();
         // CheckSequenceLocksAtTip checks if the transaction will be final in the next block to be
         // created on top of the new chain.
         if (TestLockPointValidity(m_chain, lp)) {
@@ -355,14 +355,14 @@ void Chainstate::MaybeUpdateMempoolForReorg(
             const std::optional<LockPoints> new_lock_points{CalculateLockPointsAtTip(m_chain.Tip(), view_mempool, tx)};
             if (new_lock_points.has_value() && CheckSequenceLocksAtTip(m_chain.Tip(), *new_lock_points)) {
                 // Now update the mempool entry lockpoints as well.
-                it->UpdateLockPoints(*new_lock_points);
+                it->second.UpdateLockPoints(*new_lock_points);
             } else {
                 return true;
             }
         }
 
         // If the transaction spends any coinbase outputs, it must be mature.
-        if (it->GetSpendsCoinbase()) {
+        if (it->second.GetSpendsCoinbase()) {
             for (const CTxIn& txin : tx.vin) {
                 if (m_mempool->exists(txin.prevout.hash)) continue;
                 const Coin& coin{CoinsTip().AccessCoin(txin.prevout)};
@@ -919,9 +919,9 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
     ws.m_tx_handle = m_subpackage.m_changeset->StageAddition(ptx, ws.m_base_fees, nAcceptTime, m_active_chainstate.m_chain.Height(), entry_sequence, fSpendsCoinbase, nSigOpsCost, lock_points.value());
 
     // ws.m_modified_fees includes any fee deltas from PrioritiseTransaction
-    ws.m_modified_fees = ws.m_tx_handle->GetModifiedFee();
+    ws.m_modified_fees = ws.m_tx_handle->second.GetModifiedFee();
 
-    ws.m_vsize = ws.m_tx_handle->GetTxSize();
+    ws.m_vsize = ws.m_tx_handle->second.GetTxSize();
 
     // Enforces 0-fee for dust transactions, no incentive to be mined alone
     if (m_pool.m_opts.require_standard) {
@@ -941,7 +941,7 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
 
     ws.m_iters_conflicting = m_pool.GetIterSet(ws.m_conflicts);
 
-    ws.m_parents = m_pool.GetParents(*ws.m_tx_handle);
+    ws.m_parents = m_pool.GetParents(ws.m_tx_handle->second);
 
     if (!args.m_bypass_limits) {
         // Perform the TRUC checks, using the in-mempool parents.
@@ -995,8 +995,8 @@ bool MemPoolAccept::ReplacementChecks(Workspace& ws)
     // Check if it's economically rational to mine this transaction rather than the ones it
     // replaces and pays for its own relay fees. Enforce Rules #3 and #4.
     for (CTxMemPool::txiter it : all_conflicts) {
-        m_subpackage.m_conflicting_fees += it->GetModifiedFee();
-        m_subpackage.m_conflicting_size += it->GetTxSize();
+        m_subpackage.m_conflicting_fees += it->second.GetModifiedFee();
+        m_subpackage.m_conflicting_size += it->second.GetTxSize();
     }
 
     if (const auto err_string{PaysForRBF(m_subpackage.m_conflicting_fees, ws.m_modified_fees, ws.m_vsize,
@@ -1079,8 +1079,8 @@ bool MemPoolAccept::PackageRBFChecks(const std::vector<CTransactionRef>& txns,
 
     for (CTxMemPool::txiter it : all_conflicts) {
         m_subpackage.m_changeset->StageRemoval(it);
-        m_subpackage.m_conflicting_fees += it->GetModifiedFee();
-        m_subpackage.m_conflicting_size += it->GetTxSize();
+        m_subpackage.m_conflicting_fees += it->second.GetModifiedFee();
+        m_subpackage.m_conflicting_size += it->second.GetTxSize();
     }
 
     // Use the child as the transaction for attributing errors to.
@@ -1190,10 +1190,10 @@ void MemPoolAccept::FinalizeSubpackage(const ATMPArgs& args)
     for (CTxMemPool::txiter it : m_subpackage.m_changeset->GetRemovals())
     {
         std::string log_string = strprintf("replacing mempool tx %s (wtxid=%s, fees=%s, vsize=%s). ",
-                                      it->GetTx().GetHash().ToString(),
-                                      it->GetTx().GetWitnessHash().ToString(),
-                                      it->GetFee(),
-                                      it->GetTxSize());
+                                      it->second.GetTx().GetHash().ToString(),
+                                      it->second.GetTx().GetWitnessHash().ToString(),
+                                      it->second.GetFee(),
+                                      it->second.GetTxSize());
         FeeFrac feerate{m_subpackage.m_total_modified_fees, int32_t(m_subpackage.m_total_vsize)};
         uint256 tx_or_package_hash{};
         const bool replaced_with_tx{m_subpackage.m_changeset->GetTxCount() == 1};
@@ -1216,16 +1216,16 @@ void MemPoolAccept::FinalizeSubpackage(const ATMPArgs& args)
         }
         LogDebug(BCLog::MEMPOOL, "%s\n", log_string);
         TRACEPOINT(mempool, replaced,
-                it->GetTx().GetHash().data(),
-                it->GetTxSize(),
-                it->GetFee(),
-                std::chrono::duration_cast<std::chrono::duration<std::uint64_t>>(it->GetTime()).count(),
+                it->second.GetTx().GetHash().data(),
+                it->second.GetTxSize(),
+                it->second.GetFee(),
+                std::chrono::duration_cast<std::chrono::duration<std::uint64_t>>(it->second.GetTime()).count(),
                 tx_or_package_hash.data(),
                 feerate.size,
                 feerate.fee,
                 replaced_with_tx
         );
-        m_subpackage.m_replaced_transactions.push_back(it->GetSharedTx());
+        m_subpackage.m_replaced_transactions.push_back(it->second.GetSharedTx());
     }
     m_subpackage.m_changeset->Apply();
     m_subpackage.m_changeset.reset();
@@ -1297,7 +1297,7 @@ bool MemPoolAccept::SubmitPackage(const ATMPArgs& args, std::vector<Workspace>& 
         if (!m_pool.m_opts.signals) continue;
         const CTransaction& tx = *ws.m_ptx;
         const auto tx_info = NewMempoolTransactionInfo(ws.m_ptx, ws.m_base_fees,
-                                                       ws.m_vsize, (*iter)->GetHeight(),
+                                                       ws.m_vsize, (*iter)->second.GetHeight(),
                                                        args.m_bypass_limits, args.m_package_submission,
                                                        IsCurrentForFeeEstimation(m_active_chainstate),
                                                        m_pool.HasNoInputsOf(tx));
@@ -1403,7 +1403,7 @@ MempoolAcceptResult MemPoolAccept::AcceptSingleTransactionInternal(const CTransa
         auto iter = m_pool.GetIter(tx.GetHash());
         Assume(iter.has_value());
         const auto tx_info = NewMempoolTransactionInfo(ws.m_ptx, ws.m_base_fees,
-                                                       ws.m_vsize, (*iter)->GetHeight(),
+                                                       ws.m_vsize, (*iter)->second.GetHeight(),
                                                        args.m_bypass_limits, args.m_package_submission,
                                                        IsCurrentForFeeEstimation(m_active_chainstate),
                                                        m_pool.HasNoInputsOf(tx));

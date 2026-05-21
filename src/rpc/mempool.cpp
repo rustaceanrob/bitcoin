@@ -750,13 +750,13 @@ static RPCMethod getmempoolancestors()
     if (!fVerbose) {
         UniValue o(UniValue::VARR);
         for (CTxMemPool::txiter ancestorIt : ancestors) {
-            o.push_back(ancestorIt->GetTx().GetHash().ToString());
+            o.push_back(ancestorIt->second.GetTx().GetHash().ToString());
         }
         return o;
     } else {
         UniValue o(UniValue::VOBJ);
         for (CTxMemPool::txiter ancestorIt : ancestors) {
-            const CTxMemPoolEntry &e = *ancestorIt;
+            const CTxMemPoolEntry &e = ancestorIt->second;
             UniValue info(UniValue::VOBJ);
             entryToJSON(mempool, info, e);
             o.pushKV(e.GetTx().GetHash().ToString(), std::move(info));
@@ -814,14 +814,14 @@ static RPCMethod getmempooldescendants()
     if (!fVerbose) {
         UniValue o(UniValue::VARR);
         for (CTxMemPool::txiter descendantIt : setDescendants) {
-            o.push_back(descendantIt->GetTx().GetHash().ToString());
+            o.push_back(descendantIt->second.GetTx().GetHash().ToString());
         }
 
         return o;
     } else {
         UniValue o(UniValue::VOBJ);
         for (CTxMemPool::txiter descendantIt : setDescendants) {
-            const CTxMemPoolEntry &e = *descendantIt;
+            const CTxMemPoolEntry &e = descendantIt->second;
             UniValue info(UniValue::VOBJ);
             entryToJSON(mempool, info, e);
             o.pushKV(e.GetTx().GetHash().ToString(), std::move(info));

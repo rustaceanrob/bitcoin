@@ -221,8 +221,8 @@ FUZZ_TARGET(package_rbf, .init = initialize_package_rbf)
 
         FeeFrac replaced;
         for (auto txiter : all_conflicts) {
-            replaced.fee += txiter->GetModifiedFee();
-            replaced.size += txiter->GetAdjustedWeight();
+            replaced.fee += txiter->second.GetModifiedFee();
+            replaced.size += txiter->second.GetAdjustedWeight();
         }
         // The total fee & size of the new diagram minus replaced fee & size should be the total
         // fee & size of the old diagram minus replacement fee & size.

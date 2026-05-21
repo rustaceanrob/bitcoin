@@ -24,16 +24,9 @@
 #include <util/hasher.h>
 #include <util/result.h>
 
-#include <boost/multi_index/hashed_index.hpp>
-#include <boost/multi_index/identity.hpp>
-#include <boost/multi_index/indexed_by.hpp>
-#include <boost/multi_index/ordered_index.hpp>
-#include <boost/multi_index/sequenced_index.hpp>
-#include <boost/multi_index/tag.hpp>
-#include <boost/multi_index_container.hpp>
-
 #include <atomic>
 #include <map>
+#include <unordered_map>
 #include <optional>
 #include <set>
 #include <string>
@@ -62,38 +55,6 @@ static constexpr uint64_t POST_CHANGE_COST = 5 * ACCEPTABLE_COST;
  */
 bool TestLockPointValidity(CChain& active_chain, const LockPoints& lp) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
-// extracts a transaction hash from CTxMemPoolEntry or CTransactionRef
-struct mempoolentry_txid
-{
-    typedef Txid result_type;
-    result_type operator() (const CTxMemPoolEntry &entry) const
-    {
-        return entry.GetTx().GetHash();
-    }
-
-    result_type operator() (const CTransactionRef& tx) const
-    {
-        return tx->GetHash();
-    }
-};
-
-// extracts a transaction witness-hash from CTxMemPoolEntry or CTransactionRef
-struct mempoolentry_wtxid
-{
-    typedef Wtxid result_type;
-    result_type operator() (const CTxMemPoolEntry &entry) const
-    {
-        return entry.GetTx().GetWitnessHash();
-    }
-
-    result_type operator() (const CTransactionRef& tx) const
-    {
-        return tx->GetWitnessHash();
-    }
-};
-
-// Multi_index tag names
-struct index_by_wtxid {};
 
 /**
  * Information about a mempool transaction.
@@ -160,11 +121,8 @@ struct TxMempoolInfo
  * (Many of these interfaces are just wrappers around corresponding TxGraph
  * functions.)
  *
- * Within CTxMemPool, the mempool entries are stored in a boost::multi_index
- * mapTx, which sorts the mempool on 3 criteria:
- * - transaction hash (txid)
- * - witness-transaction hash (wtxid)
- * - time in mempool
+ * Within CTxMemPool, mempool entries are stored in mapTx, an unordered_map
+ * keyed by txid, with a separate m_wtxid index for O(1) wtxid lookups.
  *
  * We also maintain a map from COutPoint to the (in-mempool) transaction that
  * spends it (mapNextTx). This allows us to recover from a reorg and find
@@ -200,19 +158,7 @@ public:
 
     static const int ROLLING_FEE_HALFLIFE = 60 * 60 * 12; // public only for testing
 
-    using indexed_transaction_set = boost::multi_index_container<
-        CTxMemPoolEntry,
-        boost::multi_index::indexed_by<
-            // sorted by txid
-            boost::multi_index::hashed_unique<mempoolentry_txid, SaltedTxidHasher>,
-            // sorted by wtxid
-            boost::multi_index::hashed_unique<
-                boost::multi_index::tag<index_by_wtxid>,
-                mempoolentry_wtxid,
-                SaltedWtxidHasher
-            >
-        >
-    >;
+    using indexed_transaction_set = std::unordered_map<Txid, CTxMemPoolEntry, SaltedTxidHasher>;
 
     /**
      * This mutex needs to be locked when accessing `mapTx` or other members
@@ -242,8 +188,9 @@ public:
     std::unique_ptr<TxGraph> m_txgraph GUARDED_BY(cs);
     mutable std::unique_ptr<TxGraph::BlockBuilder> m_builder GUARDED_BY(cs);
     indexed_transaction_set mapTx GUARDED_BY(cs);
+    std::unordered_map<Wtxid, const CTxMemPoolEntry*, SaltedWtxidHasher> m_wtxid GUARDED_BY(cs);
 
-    using txiter = indexed_transaction_set::nth_index<0>::type::const_iterator;
+    using txiter = indexed_transaction_set::const_iterator;
     std::vector<std::pair<Wtxid, txiter>> txns_randomized GUARDED_BY(cs); //!< All transactions in mapTx with their wtxids, in arbitrary order
 
     typedef std::set<txiter, CompareIteratorByHash> setEntries;
@@ -252,23 +199,23 @@ public:
 
     std::tuple<size_t, size_t, CAmount> CalculateAncestorData(const CTxMemPoolEntry& entry) const EXCLUSIVE_LOCKS_REQUIRED(cs);
     std::tuple<size_t, size_t, CAmount> CalculateDescendantData(const CTxMemPoolEntry& entry) const EXCLUSIVE_LOCKS_REQUIRED(cs);
-    int64_t GetDescendantCount(txiter it) const { LOCK(cs); return m_txgraph->GetDescendants(*it, TxGraph::Level::MAIN).size(); }
+    int64_t GetDescendantCount(txiter it) const { LOCK(cs); return m_txgraph->GetDescendants(it->second, TxGraph::Level::MAIN).size(); }
     int64_t GetDescendantCount(const CTxMemPoolEntry &e) const { LOCK(cs); return m_txgraph->GetDescendants(e, TxGraph::Level::MAIN).size(); }
     int64_t GetAncestorCount(const CTxMemPoolEntry &e) const { LOCK(cs); return m_txgraph->GetAncestors(e, TxGraph::Level::MAIN).size(); }
     std::vector<CTxMemPoolEntry::CTxMemPoolEntryRef> GetChildren(const CTxMemPoolEntry &entry) const;
     std::vector<CTxMemPoolEntry::CTxMemPoolEntryRef> GetParents(const CTxMemPoolEntry &entry) const;
 
 private:
-    std::vector<indexed_transaction_set::const_iterator> GetSortedScoreWithTopology() const EXCLUSIVE_LOCKS_REQUIRED(cs);
+    std::vector<txiter> GetSortedScoreWithTopology() const EXCLUSIVE_LOCKS_REQUIRED(cs);
 
     /**
      * Track locally submitted transactions to periodically retry initial broadcast.
      */
     std::set<Txid> m_unbroadcast_txids GUARDED_BY(cs);
 
-    static TxMempoolInfo GetInfo(CTxMemPool::indexed_transaction_set::const_iterator it)
+    static TxMempoolInfo GetInfo(txiter it)
     {
-        return TxMempoolInfo{it->GetSharedTx(), it->GetTime(), it->GetFee(), it->GetTxSize(), it->GetModifiedFee() - it->GetFee()};
+        return TxMempoolInfo{it->second.GetSharedTx(), it->second.GetTime(), it->second.GetFee(), it->second.GetTxSize(), it->second.GetModifiedFee() - it->second.GetFee()};
     }
 
     // Helper to remove all transactions that conflict with a given
@@ -381,7 +328,7 @@ public:
     std::vector<const CTxMemPoolEntry*> GetCluster(Txid txid) const EXCLUSIVE_LOCKS_REQUIRED(cs) {
         auto tx = GetIter(txid);
         if (!tx) return {};
-        auto cluster = m_txgraph->GetCluster(**tx, TxGraph::Level::MAIN);
+        auto cluster = m_txgraph->GetCluster((*tx)->second, TxGraph::Level::MAIN);
         std::vector<const CTxMemPoolEntry*> ret;
         ret.reserve(cluster.size());
         for (const auto& tx : cluster) {
@@ -395,7 +342,7 @@ public:
         std::vector<const TxGraph::Ref *> entries;
         entries.reserve(iters_conflicting.size());
         for (auto it : iters_conflicting) {
-            entries.emplace_back(&*it);
+            entries.emplace_back(&it->second);
         }
         Assume(!m_txgraph->IsOversized(TxGraph::Level::MAIN));
         return m_txgraph->CountDistinctClusters(entries, TxGraph::Level::MAIN);
@@ -487,7 +434,7 @@ public:
     bool exists(const Wtxid& wtxid) const
     {
         LOCK(cs);
-        return (mapTx.get<index_by_wtxid>().count(wtxid) != 0);
+        return m_wtxid.count(wtxid) != 0;
     }
 
     const CTxMemPoolEntry* GetEntry(const Txid& txid) const LIFETIMEBOUND EXCLUSIVE_LOCKS_REQUIRED(cs);
@@ -508,7 +455,7 @@ public:
     {
         LOCK(cs);
         auto i{GetIter(id)};
-        return (i.has_value() && i.value()->GetSequence() < last_sequence) ? GetInfo(*i) : TxMempoolInfo{};
+        return (i.has_value() && i.value()->second.GetSequence() < last_sequence) ? GetInfo(*i) : TxMempoolInfo{};
     }
 
     std::vector<CTxMemPoolEntryRef> entryAll() const EXCLUSIVE_LOCKS_REQUIRED(cs);
@@ -629,7 +576,7 @@ public:
             // If not found, try to have the mempool calculate it, and cache
             // for later.
             LOCK(m_pool->cs);
-            auto ret = m_pool->CalculateMemPoolAncestors(*tx);
+            auto ret = m_pool->CalculateMemPoolAncestors(tx->second);
             m_ancestors.try_emplace(tx, ret);
             return ret;
         }
@@ -638,7 +585,7 @@ public:
             std::vector<CTransactionRef> ret;
             ret.reserve(m_entry_vec.size());
             for (const auto& entry : m_entry_vec) {
-                ret.emplace_back(entry->GetSharedTx());
+                ret.emplace_back(entry->second.GetSharedTx());
             }
             return ret;
         }
@@ -652,7 +599,7 @@ public:
         util::Result<std::pair<std::vector<FeeFrac>, std::vector<FeeFrac>>> CalculateChunksForRBF();
 
         size_t GetTxCount() const { return m_entry_vec.size(); }
-        const CTransaction& GetAddedTxn(size_t index) const { return m_entry_vec.at(index)->GetTx(); }
+        const CTransaction& GetAddedTxn(size_t index) const { return m_entry_vec.at(index)->second.GetTx(); }
 
         void Apply() EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 

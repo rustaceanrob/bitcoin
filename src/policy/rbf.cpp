@@ -42,7 +42,7 @@ RBFTransactionState IsRBFOptIn(const CTransaction& tx, const CTxMemPool& pool)
     auto ancestors{pool.CalculateMemPoolAncestors(entry)};
 
     for (CTxMemPool::txiter it : ancestors) {
-        if (SignalsOptInRBF(it->GetTx())) {
+        if (SignalsOptInRBF(it->second.GetTx())) {
             return RBFTransactionState::REPLACEABLE_BIP125;
         }
     }
@@ -87,7 +87,7 @@ std::optional<std::string> EntriesAndTxidsDisjoint(const CTxMemPool::setEntries&
                                                    const Txid& txid)
 {
     for (CTxMemPool::txiter ancestorIt : ancestors) {
-        const Txid& hashAncestor = ancestorIt->GetTx().GetHash();
+        const Txid& hashAncestor = ancestorIt->second.GetTx().GetHash();
         if (direct_conflicts.contains(hashAncestor)) {
             return strprintf("%s spends conflicting transaction %s",
                              txid.ToString(),

@@ -239,7 +239,7 @@ std::optional<std::pair<std::string, CTransactionRef>> SingleTRUCChecks(const CT
         // TRUC transaction can only have 1 descendant.
         const bool child_will_be_replaced = !descendants.empty() &&
             std::any_of(descendants.cbegin(), descendants.cend(),
-                [&direct_conflicts](const CTxMemPool::txiter& child){return direct_conflicts.contains(child->GetTx().GetHash());});
+                [&direct_conflicts](const CTxMemPool::txiter& child){return direct_conflicts.contains(child->second.GetTx().GetHash());});
         if (pool.GetDescendantCount(parent_entry) + 1 > TRUC_DESCENDANT_LIMIT && !child_will_be_replaced) {
             // Allow sibling eviction for TRUC transaction: if another child already exists, even if
             // we don't conflict inputs with it, consider evicting it under RBF rules. We rely on TRUC rules
@@ -247,14 +247,14 @@ std::optional<std::pair<std::string, CTransactionRef>> SingleTRUCChecks(const CT
             // which descendant to evict. Skip if this isn't true, e.g. if the transaction has
             // multiple children or the sibling also has descendants due to a reorg.
             const bool consider_sibling_eviction{pool.GetDescendantCount(parent_entry) == 2 &&
-                pool.GetAncestorCount(**descendants.begin()) == 2};
+                pool.GetAncestorCount((*descendants.begin())->second) == 2};
 
             // Return the sibling if its eviction can be considered. Provide the "descendant count
             // limit" string either way, as the caller may decide not to do sibling eviction.
             return std::make_pair(strprintf("tx %u (wtxid=%s) would exceed descendant count limit",
                                             parent_entry.GetSharedTx()->GetHash().ToString(),
                                             parent_entry.GetSharedTx()->GetWitnessHash().ToString()),
-                                  consider_sibling_eviction ? (*descendants.begin())->GetSharedTx() : nullptr);
+                                  consider_sibling_eviction ? (*descendants.begin())->second.GetSharedTx() : nullptr);
         }
     }
     return std::nullopt;

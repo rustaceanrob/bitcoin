@@ -188,7 +188,7 @@ static void MemPoolAncestorsDescendants(benchmark::Bench& bench)
         CTxMemPool::setEntries dummy;
         ankerl::nanobench::doNotOptimizeAway(dummy);
         pool.CalculateDescendants({first_tx}, dummy);
-        ankerl::nanobench::doNotOptimizeAway(pool.CalculateMemPoolAncestors(*last_tx));
+        ankerl::nanobench::doNotOptimizeAway(pool.CalculateMemPoolAncestors(last_tx->second));
     });
 }
 
