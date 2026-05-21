@@ -9,6 +9,7 @@
 #include <consensus/merkle.h>
 #include <consensus/tx_verify.h>
 #include <interfaces/mining.h>
+#include <mempool_validation.h>
 #include <node/miner.h>
 #include <policy/policy.h>
 #include <test/util/random.h>

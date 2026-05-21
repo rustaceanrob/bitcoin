@@ -4,6 +4,7 @@
 
 #include <test/util/txmempool.h>
 
+#include <mempool_validation.h>
 #include <chainparams.h>
 #include <node/context.h>
 #include <node/mempool_args.h>

@@ -4,6 +4,7 @@
 
 #include <node/mempool_persist.h>
 
+#include <mempool_validation.h>
 #include <clientversion.h>
 #include <consensus/amount.h>
 #include <logging.h>
