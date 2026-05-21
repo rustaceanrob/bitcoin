@@ -318,6 +318,7 @@ public:
 
     std::unique_ptr<BlockTreeDB> m_block_tree_db GUARDED_BY(::cs_main);
 
+    std::set<CBlockIndex*>& DirtyBlockIndex() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return m_dirty_blockindex; }
     void WriteBlockIndexDB() EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
     bool LoadBlockIndexDB()
         EXCLUSIVE_LOCKS_REQUIRED(::cs_main);

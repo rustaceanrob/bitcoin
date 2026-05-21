@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <addrman.h>
+#include <block_validation.h>
 #include <blockencodings.h>
 #include <chain.h>
 #include <chainparams.h>
@@ -309,7 +310,7 @@ FUZZ_TARGET(cmpctblock, .init = initialize_cmpctblock)
         }
 
         CBlockIndex* pindexPrev{WITH_LOCK(::cs_main, return chainman.m_blockman.LookupBlockIndex(prev))};
-        chainman.GenerateCoinbaseCommitment(*block, pindexPrev);
+        GenerateCoinbaseCommitment(chainman, *block, pindexPrev);
 
         bool mutated;
         block->hashMerkleRoot = BlockMerkleRoot(*block, &mutated);

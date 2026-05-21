@@ -4,6 +4,7 @@
 
 #include <addrdb.h>
 #include <banman.h>
+#include <block_validation.h>
 #include <btcsignals.h>
 #include <chain.h>
 #include <chainparams.h>
@@ -787,7 +788,7 @@ public:
     bool submitSolution(uint32_t version, uint32_t timestamp, uint32_t nonce, CTransactionRef coinbase) override
     {
         AddMerkleRootAndCoinbase(m_block_template->block, std::move(coinbase), version, timestamp, nonce);
-        return chainman().ProcessNewBlock(std::make_shared<const CBlock>(m_block_template->block), /*force_processing=*/true, /*min_pow_checked=*/true, /*new_block=*/nullptr);
+        return ProcessNewBlock(chainman(), std::make_shared<const CBlock>(m_block_template->block), /*force_processing=*/true, /*min_pow_checked=*/true, /*new_block=*/nullptr);
     }
 
     std::unique_ptr<BlockTemplate> waitNext(BlockWaitOptions options) override

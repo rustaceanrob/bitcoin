@@ -6,6 +6,7 @@
 
 #include <addrman.h>
 #include <banman.h>
+#include <block_validation.h>
 #include <chainparams.h>
 #include <common/system.h>
 #include <consensus/consensus.h>
@@ -427,7 +428,7 @@ CBlock TestChain100Setup::CreateAndProcessBlock(
 
     CBlock block = this->CreateBlock(txns, scriptPubKey, *chainstate);
     std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(block);
-    Assert(m_node.chainman)->ProcessNewBlock(shared_pblock, true, true, nullptr);
+    ProcessNewBlock(*Assert(m_node.chainman), shared_pblock, true, true, nullptr);
 
     return block;
 }

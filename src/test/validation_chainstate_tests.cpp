@@ -2,6 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 //
+#include <block_validation.h>
 #include <chainparams.h>
 #include <consensus/amount.h>
 #include <consensus/validation.h>
@@ -83,7 +84,7 @@ BOOST_FIXTURE_TEST_CASE(connect_tip_does_not_cache_inputs_on_failed_connect, Tes
 
     const auto tip{WITH_LOCK(cs_main, return chainstate.m_chain.Tip()->GetBlockHash())};
     const CBlock block{CreateBlock({tx}, CScript{} << OP_TRUE, chainstate)};
-    BOOST_CHECK(Assert(m_node.chainman)->ProcessNewBlock(std::make_shared<CBlock>(block), true, true, nullptr));
+    BOOST_CHECK(ProcessNewBlock(*Assert(m_node.chainman), std::make_shared<CBlock>(block), true, true, nullptr));
 
     LOCK(cs_main);
     BOOST_CHECK_EQUAL(tip, chainstate.m_chain.Tip()->GetBlockHash()); // block rejected

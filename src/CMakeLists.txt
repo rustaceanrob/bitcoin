@@ -214,6 +214,7 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   policy/settings.cpp
   policy/truc_policy.cpp
   private_broadcast.cpp
+  script/script_check.cpp
   script/sigcache.cpp
   signet.cpp
   torcontrol.cpp
@@ -221,6 +222,7 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   txgraph.cpp
   txmempool.cpp
   txrequest.cpp
+  block_validation.cpp
   mempool_validation.cpp
   validation.cpp
   validationinterface.cpp

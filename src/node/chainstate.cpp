@@ -4,6 +4,7 @@
 
 #include <node/chainstate.h>
 
+#include <block_validation.h>
 #include <arith_uint256.h>
 #include <chain.h>
 #include <coins.h>
@@ -102,7 +103,7 @@ static ChainstateLoadResult CompleteChainstateInitialization(
     }
 
     // ReplayBlocks is a no-op if we cleared the coinsviewdb with -reindex or -reindex-chainstate
-    if (!chainstate.ReplayBlocks()) {
+    if (!ReplayBlocks(chainstate)) {
         return {ChainstateLoadStatus::FAILURE, _("Unable to replay blocks. You will need to rebuild the database using -reindex-chainstate.")};
     }
 

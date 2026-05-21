@@ -7,13 +7,11 @@
 #define BITCOIN_VALIDATION_H
 
 #include <arith_uint256.h>
-#include <attributes.h>
+#include <block_validation.h>
 #include <chain.h>
 #include <checkqueue.h>
 #include <coins.h>
 #include <consensus/amount.h>
-#include <consensus/tx_verify.h>
-#include <mempool_validation.h>
 #include <cuckoocache.h>
 #include <deploymentstatus.h>
 #include <kernel/chain.h>
@@ -21,12 +19,8 @@
 #include <kernel/chainstatemanager_opts.h>
 #include <kernel/cs_main.h> // IWYU pragma: export
 #include <node/blockstorage.h>
-#include <policy/feerate.h>
-#include <policy/packages.h>
-#include <policy/policy.h>
-#include <script/script_error.h>
+#include <script/script_check.h>
 #include <script/sigcache.h>
-#include <script/verify_flags.h>
 #include <sync.h>
 #include <txdb.h>
 #include <txmempool.h>
@@ -58,7 +52,6 @@ class CTxMemPool;
 class ChainstateManager;
 struct ChainTxData;
 class DisconnectedBlockTransactions;
-struct PrecomputedTransactionData;
 struct LockPoints;
 namespace Consensus {
 struct Params;
@@ -94,45 +87,10 @@ enum class SynchronizationState {
 /** Documentation for argument 'checklevel'. */
 extern const std::vector<std::string> CHECKLEVEL_DOC;
 
-CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
-
 bool FatalError(kernel::Notifications& notifications, BlockValidationState& state, const bilingual_str& message);
 
 /** Prune block files up to a given height */
 void PruneBlockFilesManual(Chainstate& active_chainstate, int nManualPruneHeight);
-
-
-/**
- * Closure representing one script verification
- * Note that this stores references to the spending transaction
- */
-class CScriptCheck
-{
-private:
-    CTxOut m_tx_out;
-    const CTransaction *ptxTo;
-    unsigned int nIn;
-    script_verify_flags m_flags;
-    bool cacheStore;
-    PrecomputedTransactionData *txdata;
-    SignatureCache* m_signature_cache;
-
-public:
-    CScriptCheck(const CTxOut& outIn, const CTransaction& txToIn, SignatureCache& signature_cache, unsigned int nInIn, script_verify_flags flags, bool cacheIn, PrecomputedTransactionData* txdataIn) :
-        m_tx_out(outIn), ptxTo(&txToIn), nIn(nInIn), m_flags(flags), cacheStore(cacheIn), txdata(txdataIn), m_signature_cache(&signature_cache) { }
-
-    CScriptCheck(const CScriptCheck&) = delete;
-    CScriptCheck& operator=(const CScriptCheck&) = delete;
-    CScriptCheck(CScriptCheck&&) = default;
-    CScriptCheck& operator=(CScriptCheck&&) = default;
-
-    std::optional<std::pair<ScriptError, std::string>> operator()();
-};
-
-// CScriptCheck is used a lot in std::vector, make sure that's efficient
-static_assert(std::is_nothrow_move_assignable_v<CScriptCheck>);
-static_assert(std::is_nothrow_move_constructible_v<CScriptCheck>);
-static_assert(std::is_nothrow_destructible_v<CScriptCheck>);
 
 /**
  * Convenience class for initializing and passing the script execution cache
@@ -158,41 +116,6 @@ public:
 };
 
 /** Functions for validating blocks and updating the block tree */
-
-/** Context-independent validity checks */
-bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
-
-/**
- * Verify a block, including transactions.
- *
- * @param[in]   block       The block we want to process. Must connect to the
- *                          current tip.
- * @param[in]   chainstate  The chainstate to connect to.
- * @param[in]   check_pow   perform proof-of-work check, nBits in the header
- *                          is always checked
- * @param[in]   check_merkle_root check the merkle root
- *
- * @return Valid or Invalid state. This doesn't currently return an Error state,
- *         and shouldn't unless there is something wrong with the existing
- *         chainstate. (This is different from functions like AcceptBlock which
- *         can fail trying to save new data.)
- *
- * For signets the challenge verification is skipped when check_pow is false.
- */
-BlockValidationState TestBlockValidity(
-    Chainstate& chainstate,
-    const CBlock& block,
-    bool check_pow,
-    bool check_merkle_root) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
-
-/** Check that the proof of work on each blockheader matches the value in nBits */
-bool HasValidProofOfWork(std::span<const CBlockHeader> headers, const Consensus::Params& consensusParams);
-
-/** Check if a block has been mutated (with respect to its merkle root and witness commitments). */
-bool IsBlockMutated(const CBlock& block, bool check_witness_root);
-
-/** Return the sum of the claimed work on a given set of headers. No verification of PoW is done. */
-arith_uint256 CalculateClaimedHeadersWork(std::span<const CBlockHeader> headers);
 
 enum class VerifyDBResult {
     SUCCESS,
@@ -321,6 +244,10 @@ protected:
     std::optional<const char*> m_last_script_check_reason_logged GUARDED_BY(::cs_main){};
 
 public:
+    std::optional<const char*>& LastScriptCheckReasonLogged() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return m_last_script_check_reason_logged; }
+    const std::optional<const char*>& LastScriptCheckReasonLogged() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return m_last_script_check_reason_logged; }
+    void InvalidBlockFound(CBlockIndex* pindex, const BlockValidationState& state) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+
     //! Reference to a BlockManager instance which itself is shared across all
     //! Chainstate instances.
     node::BlockManager& m_blockman;
@@ -461,12 +388,6 @@ public:
         EXCLUSIVE_LOCKS_REQUIRED(!m_chainstate_mutex)
         LOCKS_EXCLUDED(::cs_main);
 
-    // Block (dis)connection on a given view:
-    DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view)
-        EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
-    bool ConnectBlock(const CBlock& block, BlockValidationState& state, CBlockIndex* pindex,
-                      CCoinsViewCache& view, bool fJustCheck = false) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
-
     // Apply the effects of a block disconnection on the UTXO set.
     bool DisconnectTip(BlockValidationState& state, DisconnectedBlockTransactions* disconnectpool) EXCLUSIVE_LOCKS_REQUIRED(cs_main, m_mempool->cs);
 
@@ -545,10 +466,7 @@ protected:
         std::vector<ConnectedBlock>& connected_blocks,
         DisconnectedBlockTransactions& disconnectpool) EXCLUSIVE_LOCKS_REQUIRED(cs_main, m_mempool->cs);
 
-    void InvalidBlockFound(CBlockIndex* pindex, const BlockValidationState& state) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
     CBlockIndex* FindMostWorkChain() EXCLUSIVE_LOCKS_REQUIRED(cs_main);
-
-    bool RollforwardBlock(const CBlockIndex* pindex, CCoinsViewCache& inputs) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
     void CheckForkWarningConditions() EXCLUSIVE_LOCKS_REQUIRED(cs_main);
     void InvalidChainFound(CBlockIndex* pindexNew) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
@@ -589,20 +507,6 @@ private:
     /** The last header for which a headerTip notification was issued. */
     CBlockIndex* m_last_notified_header GUARDED_BY(GetMutex()){nullptr};
 
-    bool NotifyHeaderTip() LOCKS_EXCLUDED(GetMutex());
-
-    /**
-     * If a block header hasn't already been seen, call CheckBlockHeader on it, ensure
-     * that it doesn't descend from an invalid block, and then add it to m_block_index.
-     * Caller must set min_pow_checked=true in order to add a new header to the
-     * block index (permanent memory storage), indicating that the header is
-     * known to be part of a sufficiently high-work chain (anti-dos check).
-     */
-    bool AcceptBlockHeader(
-        const CBlockHeader& block,
-        BlockValidationState& state,
-        CBlockIndex** ppindex,
-        bool min_pow_checked) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
     friend Chainstate;
 
     /** Most recent headers presync progress update, for rate-limiting. */
@@ -626,6 +530,23 @@ private:
     SteadyClock::duration GUARDED_BY(::cs_main) time_chainstate{};
     SteadyClock::duration GUARDED_BY(::cs_main) time_post_connect{};
 
+public:
+    // Accessors for timing counters (used by block_validation.cpp)
+    SteadyClock::duration& TimeCheck() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_check; }
+    const SteadyClock::duration& TimeCheck() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_check; }
+    SteadyClock::duration& TimeForks() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_forks; }
+    const SteadyClock::duration& TimeForks() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_forks; }
+    SteadyClock::duration& TimeConnect() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_connect; }
+    const SteadyClock::duration& TimeConnect() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_connect; }
+    SteadyClock::duration& TimeVerify() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_verify; }
+    const SteadyClock::duration& TimeVerify() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_verify; }
+    SteadyClock::duration& TimeUndo() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_undo; }
+    const SteadyClock::duration& TimeUndo() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_undo; }
+    SteadyClock::duration& TimeIndex() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_index; }
+    const SteadyClock::duration& TimeIndex() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return time_index; }
+    int64_t& NumBlocksTotal() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return num_blocks_total; }
+    int64_t NumBlocksTotal() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return num_blocks_total; }
+
 protected:
     CBlockIndex* m_best_invalid GUARDED_BY(::cs_main){nullptr};
 
@@ -637,6 +558,7 @@ public:
     const CChainParams& GetParams() const { return m_options.chainparams; }
     const Consensus::Params& GetConsensus() const { return m_options.chainparams.GetConsensus(); }
     bool ShouldCheckBlockIndex() const;
+    bool NotifyHeaderTip() LOCKS_EXCLUDED(GetMutex());
     const arith_uint256& MinimumChainWork() const { return *Assert(m_options.minimum_chain_work); }
     const uint256& AssumedValidBlock() const { return *Assert(m_options.assumed_valid_block); }
     kernel::Notifications& GetNotifications() const { return m_options.notifications; };
@@ -789,75 +711,7 @@ public:
         FlatFilePos* dbp = nullptr,
         std::multimap<uint256, FlatFilePos>* blocks_with_unknown_parent = nullptr);
 
-    /**
-     * Process an incoming block. This only returns after the best known valid
-     * block is made active. Note that it does not, however, guarantee that the
-     * specific block passed to it has been checked for validity!
-     *
-     * If you want to *possibly* get feedback on whether block is valid, you must
-     * install a CValidationInterface (see validationinterface.h) - this will have
-     * its BlockChecked method called whenever *any* block completes validation.
-     *
-     * Note that we guarantee that either the proof-of-work is valid on block, or
-     * (and possibly also) BlockChecked will have been called.
-     *
-     * May not be called in a validationinterface callback.
-     *
-     * @param[in]   block The block we want to process.
-     * @param[in]   force_processing Process this block even if unrequested; used for non-network block sources.
-     * @param[in]   min_pow_checked  True if proof-of-work anti-DoS checks have
-     *                               been done by caller for headers chain
-     *                               (note: only affects headers acceptance; if
-     *                               block header is already present in block
-     *                               index then this parameter has no effect)
-     * @param[out]  new_block A boolean which is set to indicate if the block was first received via this call
-     * @returns     If the block was processed, independently of block validity
-     */
-    bool ProcessNewBlock(const std::shared_ptr<const CBlock>& block, bool force_processing, bool min_pow_checked, bool* new_block) LOCKS_EXCLUDED(cs_main);
-
-    /**
-     * Process incoming block headers.
-     *
-     * May not be called in a
-     * validationinterface callback.
-     *
-     * @param[in]  headers The block headers themselves
-     * @param[in]  min_pow_checked  True if proof-of-work anti-DoS checks have been done by caller for headers chain
-     * @param[out] state This may be set to an Error state if any error occurred processing them
-     * @param[out] ppindex If set, the pointer will be set to point to the last new block index object for the given headers
-     * @returns false if AcceptBlockHeader fails on any of the headers, true otherwise (including if headers were already known)
-     */
-    bool ProcessNewBlockHeaders(std::span<const CBlockHeader> headers, bool min_pow_checked, BlockValidationState& state, const CBlockIndex** ppindex = nullptr) LOCKS_EXCLUDED(cs_main);
-
-    /**
-     * Sufficiently validate a block for disk storage (and store on disk).
-     *
-     * @param[in]   pblock          The block we want to process.
-     * @param[in]   fRequested      Whether we requested this block from a
-     *                              peer.
-     * @param[in]   dbp             The location on disk, if we are importing
-     *                              this block from prior storage.
-     * @param[in]   min_pow_checked True if proof-of-work anti-DoS checks have
-     *                              been done by caller for headers chain
-     *
-     * @param[out]  state       The state of the block validation.
-     * @param[out]  ppindex     Optional return parameter to get the
-     *                          CBlockIndex pointer for this block.
-     * @param[out]  fNewBlock   Optional return parameter to indicate if the
-     *                          block is new to our storage.
-     *
-     * @returns   False if the block or header is invalid, or if saving to disk fails (likely a fatal error); true otherwise.
-     */
-    bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, BlockValidationState& state, CBlockIndex** ppindex, bool fRequested, const FlatFilePos* dbp, bool* fNewBlock, bool min_pow_checked) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
-
     void ReceivedBlockTransactions(const CBlock& block, CBlockIndex* pindexNew, const FlatFilePos& pos) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
-
-    /**
-     * Try to add a transaction to the memory pool.
-     *
-     * @param[in]  tx              The transaction to submit for mempool acceptance.
-     * @param[in]  test_accept     When true, run validation checks but don't submit to mempool.
-     */
 
     //! Load the block tree and coins database from disk, initializing state if we're running with -reindex
     bool LoadBlockIndex() EXCLUSIVE_LOCKS_REQUIRED(cs_main);
@@ -865,16 +719,6 @@ public:
     //! Check to see if caches are out of balance and if so, call
     //! ResizeCoinsCaches() as needed.
     void MaybeRebalanceCaches() EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
-
-    /**
-     * Update uncommitted block structures (currently: only the witness reserved
-     * value). This is safe for submitted blocks as long as they honor
-     * default_witness_commitment from the template.
-     */
-    void UpdateUncommittedBlockStructures(CBlock& block, const CBlockIndex* pindexPrev) const;
-
-    /** Produce the necessary coinbase commitment for a block (modifies the hash, don't call for mined blocks). */
-    void GenerateCoinbaseCommitment(CBlock& block, const CBlockIndex* pindexPrev) const;
 
     /** This is used by net_processing to report pre-synchronization progress of headers, as
      *  headers are not yet fed to validation during that time, but validation is (for now)
@@ -924,21 +768,5 @@ bool DeploymentEnabled(const ChainstateManager& chainman, DEP dep)
 {
     return DeploymentEnabled(chainman.GetConsensus(), dep);
 }
-
-/** Identifies blocks that overwrote an existing coinbase output in the UTXO set (see BIP30) */
-bool IsBIP30Repeat(const CBlockIndex& block_index);
-
-/** Identifies blocks which coinbase output was subsequently overwritten in the UTXO set (see BIP30) */
-bool IsBIP30Unspendable(const uint256& block_hash, int block_height);
-
-// Returns the script flags which should be checked for a given block
-script_verify_flags GetBlockScriptFlags(const CBlockIndex& block_index, const ChainstateManager& chainman);
-
-bool CheckInputScripts(const CTransaction& tx, TxValidationState& state,
-                       const CCoinsViewCache& inputs, script_verify_flags flags, bool cacheSigStore,
-                       bool cacheFullScriptStore, PrecomputedTransactionData& txdata,
-                       ValidationCache& validation_cache,
-                       std::vector<CScriptCheck>* pvChecks = nullptr)
-    EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 #endif // BITCOIN_VALIDATION_H
