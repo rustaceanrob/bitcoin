@@ -26,7 +26,7 @@
 #include <util/moneystr.h>
 #include <util/signalinterrupt.h>
 #include <util/time.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <algorithm>
 #include <utility>

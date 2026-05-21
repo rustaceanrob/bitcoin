@@ -21,7 +21,7 @@
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
 #include <uint256.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <algorithm>
 #include <array>

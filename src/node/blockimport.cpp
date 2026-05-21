@@ -15,7 +15,7 @@
 #include <util/fs_helpers.h>
 #include <util/result.h>
 #include <util/signalinterrupt.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <atomic>
 #include <cassert>

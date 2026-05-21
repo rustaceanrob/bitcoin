@@ -76,7 +76,7 @@ add_library(bitcoinkernel
   ../block_validation.cpp
   ../mempool_validation.cpp
   ../script/script_check.cpp
-  ../validation.cpp
+  ../chainstate.cpp
   ../validationinterface.cpp
   ../versionbits.cpp
   $<TARGET_OBJECTS:bitcoin_clientversion>

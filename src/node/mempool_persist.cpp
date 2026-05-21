@@ -21,7 +21,7 @@
 #include <util/signalinterrupt.h>
 #include <util/syserror.h>
 #include <util/time.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <cstdint>
 #include <cstdio>

@@ -17,7 +17,7 @@
 #include <test/util/setup_common.h>
 #include <test/util/time.h>
 #include <uint256.h>
-#include <validation.h>
+#include <chainstate.h>
 
 namespace {
 constexpr uint32_t FUZZ_MAX_HEADERS_RESULTS{16};

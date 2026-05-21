@@ -15,7 +15,7 @@
 #include <test/util/common.h>
 #include <test/util/setup_common.h>
 #include <test/util/txmempool.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 

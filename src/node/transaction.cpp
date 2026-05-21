@@ -13,7 +13,7 @@
 #include <node/context.h>
 #include <node/types.h>
 #include <txmempool.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 namespace node {

@@ -7,7 +7,7 @@
 #include <node/blockstorage.h>
 #include <util/check.h>
 #include <util/time.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 void TestBlockManager::CleanupForFuzzing()

@@ -14,7 +14,7 @@
 #include <test/util/setup_common.h>
 #include <test/util/time.h>
 #include <test/util/validation.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <ranges>
 #include <vector>

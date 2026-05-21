@@ -6,7 +6,7 @@
 #include <mempool_validation.h>
 
 #include <chain.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <consensus/consensus.h>
 #include <consensus/tx_check.h>
 #include <consensus/tx_verify.h>

@@ -15,7 +15,7 @@
 #include <util/check.h>
 #include <util/time.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 
 using node::NodeContext;
 

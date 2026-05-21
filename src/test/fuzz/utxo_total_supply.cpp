@@ -17,7 +17,7 @@
 #include <test/util/time.h>
 #include <util/chaintype.h>
 #include <util/time.h>
-#include <validation.h>
+#include <chainstate.h>
 
 using node::BlockAssembler;
 

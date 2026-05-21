@@ -14,7 +14,7 @@
 #include <uint256.h>
 #include <util/chaintype.h>
 #include <util/time.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <iterator>
 #include <vector>

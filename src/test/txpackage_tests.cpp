@@ -18,7 +18,7 @@
 #include <test/util/setup_common.h>
 #include <util/strencodings.h>
 #include <test/util/txmempool.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 

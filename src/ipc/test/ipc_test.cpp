@@ -13,7 +13,7 @@
 #include <ipc/test/ipc_test.capnp.proxy.h>
 #include <ipc/test/ipc_test.h>
 #include <tinyformat.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <atomic>
 #include <future>

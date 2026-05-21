@@ -8,7 +8,7 @@
 #include <net_processing.h>
 #include <pow.h>
 #include <test/util/setup_common.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 

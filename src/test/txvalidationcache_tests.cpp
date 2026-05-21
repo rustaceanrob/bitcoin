@@ -12,7 +12,7 @@
 #include <test/util/setup_common.h>
 #include <txmempool.h>
 #include <util/chaintype.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 

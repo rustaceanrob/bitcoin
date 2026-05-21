@@ -83,7 +83,7 @@
 #include <util/threadnames.h>
 #include <util/time.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 #include <algorithm>

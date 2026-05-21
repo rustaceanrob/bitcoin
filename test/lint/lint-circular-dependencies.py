@@ -13,10 +13,10 @@ import sys
 
 EXPECTED_CIRCULAR_DEPENDENCIES = (
     "chainparamsbase -> common/args -> chainparamsbase",
-    "node/blockstorage -> validation -> node/blockstorage",
-    "kernel/coinstats -> validation -> kernel/coinstats",
-    "mempool_validation -> validation -> mempool_validation",
-    "block_validation -> validation -> block_validation",
+    "chainstate -> node/blockstorage -> chainstate",
+    "chainstate -> kernel/coinstats -> chainstate",
+    "chainstate -> mempool_validation -> chainstate",
+    "block_validation -> chainstate -> block_validation",
     "coins -> undo -> coins",
     "versionbits -> versionbits_impl -> versionbits",
 )

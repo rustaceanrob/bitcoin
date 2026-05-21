@@ -4,7 +4,7 @@
 
 #include <bench/bench.h>
 #include <test/util/setup_common.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <memory>
 

@@ -16,7 +16,7 @@
 #include <sync.h>
 #include <test/util/setup_common.h>
 #include <uint256.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <cassert>
 #include <cstdint>

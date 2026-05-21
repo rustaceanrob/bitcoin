@@ -6,7 +6,7 @@
 #define BITCOIN_NODE_CHAINSTATEMANAGER_ARGS_H
 
 #include <util/result.h>
-#include <validation.h>
+#include <chainstate.h>
 
 class ArgsManager;
 

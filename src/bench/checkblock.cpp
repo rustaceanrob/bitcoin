@@ -8,7 +8,7 @@
 #include <primitives/block.h>
 #include <primitives/transaction.h>
 #include <streams.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <cassert>
 #include <cstddef>

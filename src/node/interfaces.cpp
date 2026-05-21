@@ -54,7 +54,7 @@
 #include <util/signalinterrupt.h>
 #include <util/string.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 #include <any>

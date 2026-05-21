@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_VALIDATION_H
-#define BITCOIN_VALIDATION_H
+#ifndef BITCOIN_CHAINSTATE_H
+#define BITCOIN_CHAINSTATE_H
 
 #include <arith_uint256.h>
 #include <block_validation.h>
@@ -88,9 +88,6 @@ enum class SynchronizationState {
 extern const std::vector<std::string> CHECKLEVEL_DOC;
 
 bool FatalError(kernel::Notifications& notifications, BlockValidationState& state, const bilingual_str& message);
-
-/** Prune block files up to a given height */
-void PruneBlockFilesManual(Chainstate& active_chainstate, int nManualPruneHeight);
 
 /**
  * Convenience class for initializing and passing the script execution cache
@@ -769,4 +766,4 @@ bool DeploymentEnabled(const ChainstateManager& chainman, DEP dep)
     return DeploymentEnabled(chainman.GetConsensus(), dep);
 }
 
-#endif // BITCOIN_VALIDATION_H
+#endif // BITCOIN_CHAINSTATE_H

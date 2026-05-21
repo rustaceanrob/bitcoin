@@ -8,7 +8,7 @@
 #include <sync.h>
 #include <test/util/setup_common.h>
 #include <util/string.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 

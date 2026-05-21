@@ -5,7 +5,7 @@
 
 #include <bitcoin-build-config.h> // IWYU pragma: keep
 
-#include <validation.h>
+#include <chainstate.h>
 
 #include <arith_uint256.h>
 #include <block_validation.h>

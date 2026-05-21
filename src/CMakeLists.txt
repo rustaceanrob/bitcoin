@@ -224,7 +224,7 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   txrequest.cpp
   block_validation.cpp
   mempool_validation.cpp
-  validation.cpp
+  chainstate.cpp
   validationinterface.cpp
   versionbits.cpp
 )

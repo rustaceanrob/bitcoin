@@ -15,7 +15,7 @@
 #include <random.h>
 #include <streams.h>
 #include <txmempool.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <unordered_map>
 

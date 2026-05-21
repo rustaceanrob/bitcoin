@@ -33,7 +33,7 @@
 #include <test/util/transaction_utils.h>
 #include <util/strencodings.h>
 #include <util/string.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <functional>
 #include <map>

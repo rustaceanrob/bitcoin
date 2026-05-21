@@ -14,7 +14,7 @@
 #include <primitives/transaction.h>
 #include <test/util/script.h>
 #include <util/check.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 #include <versionbits.h>
 

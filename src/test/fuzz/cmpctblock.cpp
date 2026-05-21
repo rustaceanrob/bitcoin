@@ -40,7 +40,7 @@
 #include <util/task_runner.h>
 #include <util/time.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 #include <boost/multi_index/detail/hash_index_iterator.hpp>

@@ -59,7 +59,7 @@
 #include <util/strencodings.h>
 #include <util/time.h>
 #include <util/trace.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <algorithm>
 #include <array>

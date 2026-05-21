@@ -12,7 +12,7 @@
 #include <signet.h>
 #include <uint256.h>
 #include <util/chaintype.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <string>
 

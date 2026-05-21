@@ -6,7 +6,7 @@
 #define BITCOIN_TEST_FUZZ_UTIL_MEMPOOL_H
 
 #include <kernel/mempool_entry.h>
-#include <validation.h>
+#include <chainstate.h>
 
 class CTransaction;
 class CTxMemPool;

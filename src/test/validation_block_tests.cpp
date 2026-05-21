@@ -17,7 +17,7 @@
 #include <test/util/script.h>
 #include <test/util/setup_common.h>
 #include <util/time.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 #include <thread>

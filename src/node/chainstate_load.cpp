@@ -21,7 +21,7 @@
 #include <util/signalinterrupt.h>
 #include <util/time.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <algorithm>
 #include <cassert>

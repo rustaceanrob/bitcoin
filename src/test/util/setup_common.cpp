@@ -55,7 +55,7 @@
 #include <util/time.h>
 #include <util/translation.h>
 #include <util/vector.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 #include <algorithm>

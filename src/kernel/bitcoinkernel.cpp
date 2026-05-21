@@ -37,7 +37,7 @@
 #include <util/signalinterrupt.h>
 #include <util/task_runner.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 #include <cstddef>

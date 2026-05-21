@@ -8,7 +8,7 @@
 #include <test/util/common.h>
 #include <test/util/setup_common.h>
 #include <script/solver.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 

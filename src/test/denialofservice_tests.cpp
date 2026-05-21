@@ -19,7 +19,7 @@
 #include <test/util/time.h>
 #include <util/string.h>
 #include <util/time.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <array>
 #include <cstdint>

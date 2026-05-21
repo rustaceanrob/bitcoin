@@ -7,7 +7,7 @@
 
 #include <arith_uint256.h>
 #include <chain.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <checkqueue.h>
 #include <consensus/amount.h>
 #include <consensus/consensus.h>

@@ -13,7 +13,7 @@
 #include <test/util/mining.h>
 #include <test/util/script.h>
 #include <test/util/setup_common.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <array>
 #include <cassert>
