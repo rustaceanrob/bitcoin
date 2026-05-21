@@ -15,6 +15,7 @@ EXPECTED_CIRCULAR_DEPENDENCIES = (
     "chainparamsbase -> common/args -> chainparamsbase",
     "node/blockstorage -> validation -> node/blockstorage",
     "kernel/coinstats -> validation -> kernel/coinstats",
+    "coins -> undo -> coins",
     "versionbits -> versionbits_impl -> versionbits",
 )
 

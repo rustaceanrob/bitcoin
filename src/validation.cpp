@@ -138,28 +138,6 @@ bool CheckInputScripts(const CTransaction& tx, TxValidationState& state,
                        std::vector<CScriptCheck>* pvChecks = nullptr)
                        EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
-bool CheckFinalTxAtTip(const CBlockIndex& active_chain_tip, const CTransaction& tx)
-{
-    AssertLockHeld(cs_main);
-
-    // CheckFinalTxAtTip() uses active_chain_tip.Height()+1 to evaluate
-    // nLockTime because when IsFinalTx() is called within
-    // AcceptBlock(), the height of the block *being*
-    // evaluated is what is used. Thus if we want to know if a
-    // transaction can be part of the *next* block, we need to call
-    // IsFinalTx() with one more than active_chain_tip.Height().
-    const int nBlockHeight = active_chain_tip.nHeight + 1;
-
-    // BIP113 requires that time-locked transactions have nLockTime set to
-    // less than the median time of the previous block they're contained in.
-    // When the next block is created its previous block will be the current
-    // chain tip, so we use that to calculate the median time passed to
-    // IsFinalTx().
-    const int64_t nBlockTime{active_chain_tip.GetMedianTimePast()};
-
-    return IsFinalTx(tx, nBlockHeight, nBlockTime);
-}
-
 namespace {
 /**
  * A helper which calculates heights of inputs of a given transaction.
@@ -1942,21 +1920,6 @@ void Chainstate::InvalidBlockFound(CBlockIndex* pindex, const BlockValidationSta
     }
 }
 
-void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txundo, int nHeight)
-{
-    // mark inputs spent
-    if (!tx.IsCoinBase()) {
-        txundo.vprevout.reserve(tx.vin.size());
-        for (const CTxIn &txin : tx.vin) {
-            txundo.vprevout.emplace_back();
-            bool is_spent = inputs.SpendCoin(txin.prevout, &txundo.vprevout.back());
-            assert(is_spent);
-        }
-    }
-    // add outputs
-    AddCoins(inputs, tx, nHeight);
-}
-
 std::optional<std::pair<ScriptError, std::string>> CScriptCheck::operator()() {
     const CScript &scriptSig = ptxTo->vin[nIn].scriptSig;
     const CScriptWitness *witness = &ptxTo->vin[nIn].scriptWitness;
@@ -2085,41 +2048,6 @@ bool FatalError(Notifications& notifications, BlockValidationState& state, const
     return state.Error(message.original);
 }
 
-/**
- * Restore the UTXO in a Coin at a given COutPoint
- * @param undo The Coin to be restored.
- * @param view The coins view to which to apply the changes.
- * @param out The out point that corresponds to the tx input.
- * @return A DisconnectResult as an int
- */
-int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
-{
-    bool fClean = true;
-
-    if (view.HaveCoin(out)) fClean = false; // overwriting transaction output
-
-    if (undo.nHeight == 0) {
-        // Missing undo metadata (height and coinbase). Older versions included this
-        // information only in undo records for the last spend of a transactions'
-        // outputs. This implies that it must be present for some other output of the same tx.
-        const Coin& alternate = AccessByTxid(view, out.hash);
-        if (!alternate.IsSpent()) {
-            undo.nHeight = alternate.nHeight;
-            undo.fCoinBase = alternate.fCoinBase;
-        } else {
-            return DISCONNECT_FAILED; // adding output for transaction without known metadata
-        }
-    }
-    // If the coin already exists as an unspent coin in the cache, then the
-    // possible_overwrite parameter to AddCoin must be set to true. We have
-    // already checked whether an unspent coin exists above using HaveCoin, so
-    // we don't need to guess. When fClean is false, an unspent coin already
-    // existed and it is an overwrite.
-    view.AddCoin(out, std::move(undo), !fClean);
-
-    return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
-}
-
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
 DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view)
@@ -2179,7 +2107,7 @@ DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIn
             for (unsigned int j = tx.vin.size(); j > 0;) {
                 --j;
                 const COutPoint& out = tx.vin[j].prevout;
-                int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), view, out);
+                DisconnectResult res = ApplyTxInUndo(std::move(txundo.vprevout[j]), view, out);
                 if (res == DISCONNECT_FAILED) return DISCONNECT_FAILED;
                 fClean = fClean && res != DISCONNECT_UNCLEAN;
             }
