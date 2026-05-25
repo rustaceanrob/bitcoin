@@ -8,8 +8,6 @@
 
 #include <policy/feerate.h>
 #include <policy/policy.h>
-#include <util/time.h>
-
 #include <cstdint>
 #include <optional>
 
@@ -19,8 +17,6 @@ class ValidationSignals;
 static constexpr unsigned int DEFAULT_MAX_MEMPOOL_SIZE_MB{300};
 /** Default for -maxmempool when blocksonly is set */
 static constexpr unsigned int DEFAULT_BLOCKSONLY_MAX_MEMPOOL_SIZE_MB{5};
-/** Default for -mempoolexpiry, expiration time for mempool transactions in hours */
-static constexpr unsigned int DEFAULT_MEMPOOL_EXPIRY_HOURS{336};
 /** Whether to fall back to legacy V1 serialization when writing mempool.dat */
 static constexpr bool DEFAULT_PERSIST_V1_DAT{false};
 /** Default for -acceptnonstdtxn */
@@ -38,7 +34,6 @@ struct MemPoolOptions {
     /* The ratio used to determine how often sanity checks will run.  */
     int check_ratio{0};
     int64_t max_size_bytes{DEFAULT_MAX_MEMPOOL_SIZE_MB * 1'000'000};
-    std::chrono::seconds expiry{std::chrono::hours{DEFAULT_MEMPOOL_EXPIRY_HOURS}};
     CFeeRate incremental_relay_feerate{DEFAULT_INCREMENTAL_RELAY_FEE};
     /** A fee rate smaller than this is considered zero fee (for relaying, mining and transaction creation) */
     CFeeRate min_relay_feerate{DEFAULT_MIN_RELAY_TX_FEE};
