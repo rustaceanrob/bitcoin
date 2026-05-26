@@ -5,6 +5,8 @@
 #ifndef BITCOIN_NODE_CONTEXT_H
 #define BITCOIN_NODE_CONTEXT_H
 
+#include <node/types.h>
+
 #include <atomic>
 #include <cstdlib>
 #include <functional>
@@ -73,6 +75,8 @@ struct NodeContext {
     ArgsManager* args{nullptr}; // Currently a raw pointer because the memory is not managed by this struct
     std::unique_ptr<interfaces::Chain> chain;
     std::unique_ptr<interfaces::Mining> mining;
+    //! Mining options used to create block templates.
+    BlockCreateOptions mining_args;
     std::unique_ptr<CScheduler> scheduler;
     std::function<void()> rpc_interruption_point = [] {};
     //! Issues blocking calls about sync status, errors and warnings

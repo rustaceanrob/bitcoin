@@ -7,6 +7,7 @@
 
 #include <block_validation.h>
 #include <chain.h>
+#include <interfaces/types.h>
 #include <chainparams.h>
 #include <coins.h>
 #include <common/args.h>
