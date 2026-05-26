@@ -5,7 +5,7 @@
 #ifndef BITCOIN_NODE_CONTEXT_H
 #define BITCOIN_NODE_CONTEXT_H
 
-#include <node/types.h>
+#include <node/mining_types.h>
 
 #include <atomic>
 #include <cstdlib>
