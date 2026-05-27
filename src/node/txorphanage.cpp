@@ -12,13 +12,10 @@
 #include <util/log.h>
 #include <util/time.h>
 
-#include <boost/multi_index/indexed_by.hpp>
-#include <boost/multi_index/ordered_index.hpp>
-#include <boost/multi_index/tag.hpp>
-#include <boost/multi_index_container.hpp>
-
 #include <cassert>
 #include <cmath>
+#include <map>
+#include <set>
 #include <unordered_map>
 
 namespace node {
@@ -26,8 +23,8 @@ namespace node {
 static constexpr NodeId MIN_PEER{std::numeric_limits<NodeId>::min()};
 /** Maximum NodeId for upper_bound lookups. */
 static constexpr NodeId MAX_PEER{std::numeric_limits<NodeId>::max()};
+
 class TxOrphanageImpl final : public TxOrphanage {
-    // Type alias for sequence numbers
     using SequenceNumber = uint64_t;
     /** Global sequence number, increment each time an announcement is added. */
     SequenceNumber m_current_sequence{0};
@@ -42,24 +39,24 @@ class TxOrphanageImpl final : public TxOrphanage {
         /** What order this transaction entered the orphanage. */
         const SequenceNumber m_entry_sequence;
         /** Whether this tx should be reconsidered. Always starts out false. A peer's workset is the collection of all
-         * announcements with m_reconsider=true. */
-        bool m_reconsider{false};
+         * announcements with m_reconsider=true. mutable because it does not affect the ByWtxid ordering. */
+        mutable bool m_reconsider{false};
 
         Announcement(const CTransactionRef& tx, NodeId peer, SequenceNumber seq) :
             m_tx{tx}, m_announcer{peer}, m_entry_sequence{seq}
         { }
 
         /** Get an approximation for "memory usage". The total memory is a function of the memory used to store the
-         * transaction itself, each entry in m_orphans, and each entry in m_outpoint_to_orphan_wtxids. We use weight because
+         * transaction itself, each entry in m_by_wtxid, and each entry in m_outpoint_to_orphan_wtxids. We use weight because
          * it is often higher than the actual memory usage of the transaction. This metric conveniently encompasses
          * m_outpoint_to_orphan_wtxids usage since input data does not get the witness discount, and makes it easier to
          * reason about each peer's limits using well-understood transaction attributes. */
-        TxOrphanage::Usage GetMemUsage()  const {
+        TxOrphanage::Usage GetMemUsage() const {
             return GetTransactionWeight(*m_tx);
         }
 
         /** Get an approximation of how much this transaction contributes to latency in EraseForBlock and EraseForPeer.
-         * The computation time is a function of the number of entries in m_orphans (thus 1 per announcement) and the
+         * The computation time is a function of the number of entries in m_by_wtxid (thus 1 per announcement) and the
          * number of entries in m_outpoint_to_orphan_wtxids (thus an additional 1 for every 10 inputs). Transactions with a
          * small number of inputs (9 or fewer) are counted as 1 to make it easier to reason about each peer's limits in
          * terms of "normal" transactions. */
@@ -68,44 +65,41 @@ class TxOrphanageImpl final : public TxOrphanage {
         }
     };
 
-    // Index by wtxid, then peer
-    struct ByWtxid {};
-    using ByWtxidView = std::tuple<Wtxid, NodeId>;
-    struct WtxidExtractor
-    {
-        using result_type = ByWtxidView;
-        result_type operator()(const Announcement& ann) const
-        {
-            return ByWtxidView{ann.m_tx->GetWitnessHash(), ann.m_announcer};
-        }
+    // Primary index: sorted by (wtxid, announcer). Owns the Announcement objects.
+    // is_transparent enables lower_bound/upper_bound/find with ByWtxidView keys directly.
+    using ByWtxidView = std::pair<Wtxid, NodeId>;
+    struct WtxidPeerCmp {
+        using is_transparent = void;
+        static ByWtxidView KeyOf(const Announcement& a) { return {a.m_tx->GetWitnessHash(), a.m_announcer}; }
+        bool operator()(const Announcement& a, const Announcement& b) const { return KeyOf(a) < KeyOf(b); }
+        bool operator()(const ByWtxidView& k, const Announcement& b) const { return k < KeyOf(b); }
+        bool operator()(const Announcement& a, const ByWtxidView& k) const { return KeyOf(a) < k; }
     };
 
-    // Sort by peer, then by whether it is ready to reconsider, then by recency.
-    struct ByPeer {};
+    // Secondary index key: (peer, reconsider, sequence). Sorts non-reconsiderable oldest-first per peer.
     using ByPeerView = std::tuple<NodeId, bool, SequenceNumber>;
-    struct ByPeerViewExtractor {
-        using result_type = ByPeerView;
-        result_type operator()(const Announcement& ann) const
-        {
-            return ByPeerView{ann.m_announcer, ann.m_reconsider, ann.m_entry_sequence};
-        }
-    };
 
-    using AnnouncementMap = boost::multi_index::multi_index_container<
-        Announcement,
-        boost::multi_index::indexed_by<
-            boost::multi_index::ordered_unique<boost::multi_index::tag<ByWtxid>, WtxidExtractor>,
-            boost::multi_index::ordered_unique<boost::multi_index::tag<ByPeer>, ByPeerViewExtractor>
-        >
-    >;
-    template<typename Tag>
-    using Iter = typename AnnouncementMap::index<Tag>::type::iterator;
-    AnnouncementMap m_orphans;
+    using WtxidSet = std::set<Announcement, WtxidPeerCmp>;
+    using WtxidIter = WtxidSet::iterator;
+    // PeerMap value: iterator into m_by_wtxid plus stats cached to avoid dereferencing
+    // the WtxidSet node in the hot Erase path. These values are const for a given Announcement.
+    struct PeerEntry {
+        WtxidIter wtxid_it;
+        TxOrphanage::Usage mem_usage;
+        TxOrphanage::Count latency_score;
+    };
+    using PeerMap = std::map<ByPeerView, PeerEntry>;
+    using PeerIter = PeerMap::iterator;
+
+    /** Primary container: one entry per announcement, sorted by (wtxid, announcer). */
+    WtxidSet m_by_wtxid;
+    /** Secondary index: maps (peer, reconsider, seq) -> iterator into m_by_wtxid. */
+    PeerMap m_by_peer;
 
     const TxOrphanage::Count m_max_global_latency_score{DEFAULT_MAX_ORPHANAGE_LATENCY_SCORE};
     const TxOrphanage::Usage m_reserved_usage_per_peer{DEFAULT_RESERVED_ORPHAN_WEIGHT_PER_PEER};
 
-    /** Number of unique orphans by wtxid. Less than or equal to the number of entries in m_orphans. */
+    /** Number of unique orphans by wtxid. Less than or equal to the number of entries in m_by_wtxid. */
     TxOrphanage::Count m_unique_orphans{0};
 
     /** Memory used by orphans (see Announcement::GetMemUsage()), deduplicated by wtxid. */
@@ -113,10 +107,10 @@ class TxOrphanageImpl final : public TxOrphanage {
 
     /** The sum of each unique transaction's latency scores including the inputs only (see Announcement::GetLatencyScore
      * but subtract 1 for the announcements themselves). The total orphanage's latency score is given by this value +
-     * the number of entries in m_orphans. */
+     * the number of entries in m_by_wtxid. */
     TxOrphanage::Count m_unique_rounded_input_scores{0};
 
-    /** Index from the parents' outputs to wtxids that exist in m_orphans. Used to find children of
+    /** Index from the parents' outputs to wtxids that exist in m_by_wtxid. Used to find children of
      * a transaction that can be reconsidered and to remove entries that conflict with a block.*/
     std::unordered_map<COutPoint, std::set<Wtxid>, SaltedOutpointHasher> m_outpoint_to_orphan_wtxids;
 
@@ -172,21 +166,26 @@ class TxOrphanageImpl final : public TxOrphanage {
      * number of peers and thus global {latency score, memory} limits. */
     std::unordered_map<NodeId, PeerDoSInfo> m_peer_orphanage_info;
 
-    /** Erase from m_orphans and update m_peer_orphanage_info. */
-    template<typename Tag>
-    void Erase(Iter<Tag> it);
+    /** Erase the announcement pointed to by both iterators. O(1) amortized erase from both indexes. */
+    void Erase(WtxidIter it, PeerIter peer_it);
 
-    /** Erase by wtxid. */
+    /** Erase by WtxidIter only; looks up the PeerIter via key search. Use when peer_it is unavailable. */
+    void Erase(WtxidIter it);
+
+    /** Erase by wtxid (all announcers). */
     bool EraseTxInternal(const Wtxid& wtxid);
 
-    /** Check if there is exactly one announcement with the same wtxid as it. */
-    bool IsUnique(Iter<ByWtxid> it) const;
+    /** Return true if there is exactly one announcement with the same wtxid as *it. */
+    bool IsUnique(WtxidIter it) const;
 
     /** Check if the orphanage needs trimming. */
     bool NeedsTrim() const;
 
     /** Limit the orphanage to MaxGlobalLatencyScore and MaxGlobalUsage. */
     void LimitOrphans();
+
+    /** Update m_reconsider on *it and keep m_by_peer consistent (erase old key, reinsert with new key). */
+    void SetReconsider(WtxidIter it, bool value);
 
 public:
     TxOrphanageImpl() = default;
@@ -235,29 +234,34 @@ public:
     void SanityCheck() const override;
 };
 
-template<typename Tag>
-void TxOrphanageImpl::Erase(Iter<Tag> it)
+void TxOrphanageImpl::Erase(WtxidIter wtxid_it, PeerIter peer_it)
 {
-    // Update m_peer_orphanage_info and clean up entries if they point to an empty struct.
-    // This means peers that are not storing any orphans do not have an entry in
-    // m_peer_orphanage_info (they can be added back later if they announce another orphan) and
-    // ensures disconnected peers are not tracked forever.
-    auto peer_it = m_peer_orphanage_info.find(it->m_announcer);
-    Assume(peer_it != m_peer_orphanage_info.end());
-    if (peer_it->second.Subtract(*it)) m_peer_orphanage_info.erase(peer_it);
+    // Read cached stats and key fields from peer_it to avoid dereferencing wtxid_it
+    // until we actually need to access the WtxidSet node (IsUnique, outpoint cleanup).
+    const NodeId announcer{std::get<0>(peer_it->first)};
+    const bool reconsider{std::get<1>(peer_it->first)};
+    const TxOrphanage::Usage mem_usage{peer_it->second.mem_usage};
+    const TxOrphanage::Count latency_score{peer_it->second.latency_score};
 
-    if (IsUnique(m_orphans.project<ByWtxid>(it))) {
+    // Update m_peer_orphanage_info and clean up entries if they point to an empty struct.
+    auto dos_it = m_peer_orphanage_info.find(announcer);
+    Assume(dos_it != m_peer_orphanage_info.end());
+    dos_it->second.m_total_usage -= mem_usage;
+    dos_it->second.m_total_latency_score -= latency_score;
+    dos_it->second.m_count_announcements -= 1;
+    if (dos_it->second.m_count_announcements == 0) m_peer_orphanage_info.erase(dos_it);
+
+    if (IsUnique(wtxid_it)) {
         m_unique_orphans -= 1;
-        m_unique_rounded_input_scores -= it->GetLatencyScore() - 1;
-        m_unique_orphan_usage -= it->GetMemUsage();
+        m_unique_rounded_input_scores -= latency_score - 1;
+        m_unique_orphan_usage -= mem_usage;
 
         // Remove references in m_outpoint_to_orphan_wtxids
-        const auto& wtxid{it->m_tx->GetWitnessHash()};
-        for (const auto& input : it->m_tx->vin) {
+        const auto& wtxid{wtxid_it->m_tx->GetWitnessHash()};
+        for (const auto& input : wtxid_it->m_tx->vin) {
             auto it_prev = m_outpoint_to_orphan_wtxids.find(input.prevout);
             if (it_prev != m_outpoint_to_orphan_wtxids.end()) {
                 it_prev->second.erase(wtxid);
-                // Clean up keys if they point to an empty set.
                 if (it_prev->second.empty()) {
                     m_outpoint_to_orphan_wtxids.erase(it_prev);
                 }
@@ -265,20 +269,38 @@ void TxOrphanageImpl::Erase(Iter<Tag> it)
         }
     }
 
-    // If this was the (unique) reconsiderable announcement for its wtxid, then the wtxid won't
-    // have any reconsiderable announcements left after erasing.
-    if (it->m_reconsider) m_reconsiderable_wtxids.erase(it->m_tx->GetWitnessHash());
+    // If this was the reconsiderable announcement for its wtxid, clear it.
+    if (reconsider) m_reconsiderable_wtxids.erase(wtxid_it->m_tx->GetWitnessHash());
 
-    m_orphans.get<Tag>().erase(it);
+    m_by_peer.erase(peer_it);   // O(1) amortized iterator erase
+    m_by_wtxid.erase(wtxid_it);
 }
 
-bool TxOrphanageImpl::IsUnique(Iter<ByWtxid> it) const
+void TxOrphanageImpl::Erase(WtxidIter it)
 {
-    // Iterators ByWtxid are sorted by wtxid, so check if neighboring elements have the same wtxid.
-    auto& index = m_orphans.get<ByWtxid>();
-    if (it == index.end()) return false;
-    if (std::next(it) != index.end() && std::next(it)->m_tx->GetWitnessHash() == it->m_tx->GetWitnessHash()) return false;
-    if (it != index.begin() && std::prev(it)->m_tx->GetWitnessHash() == it->m_tx->GetWitnessHash()) return false;
+    // Look up the peer iterator by key when the caller only has the wtxid iterator.
+    auto peer_it = m_by_peer.find(ByPeerView{it->m_announcer, it->m_reconsider, it->m_entry_sequence});
+    Assume(peer_it != m_by_peer.end());
+    Erase(it, peer_it);
+}
+
+void TxOrphanageImpl::SetReconsider(WtxidIter it, bool value)
+{
+    // The ByPeer key includes m_reconsider, so we must erase old entry and reinsert with new key.
+    auto old_peer_it = m_by_peer.find(ByPeerView{it->m_announcer, it->m_reconsider, it->m_entry_sequence});
+    Assume(old_peer_it != m_by_peer.end());
+    PeerEntry entry = old_peer_it->second;
+    m_by_peer.erase(old_peer_it);
+    it->m_reconsider = value;
+    m_by_peer.emplace(ByPeerView{it->m_announcer, it->m_reconsider, it->m_entry_sequence}, std::move(entry));
+}
+
+bool TxOrphanageImpl::IsUnique(WtxidIter it) const
+{
+    if (it == m_by_wtxid.end()) return false;
+    // m_by_wtxid is sorted by (wtxid, peer), so same-wtxid entries are adjacent.
+    if (std::next(it) != m_by_wtxid.end() && std::next(it)->m_tx->GetWitnessHash() == it->m_tx->GetWitnessHash()) return false;
+    if (it != m_by_wtxid.begin() && std::prev(it)->m_tx->GetWitnessHash() == it->m_tx->GetWitnessHash()) return false;
     return true;
 }
 
@@ -288,7 +310,7 @@ TxOrphanage::Usage TxOrphanageImpl::UsageByPeer(NodeId peer) const
     return it == m_peer_orphanage_info.end() ? 0 : it->second.m_total_usage;
 }
 
-TxOrphanage::Count TxOrphanageImpl::CountAnnouncements() const { return m_orphans.size(); }
+TxOrphanage::Count TxOrphanageImpl::CountAnnouncements() const { return m_by_wtxid.size(); }
 
 TxOrphanage::Usage TxOrphanageImpl::TotalOrphanUsage() const { return m_unique_orphan_usage; }
 
@@ -319,13 +341,17 @@ bool TxOrphanageImpl::AddTx(const CTransactionRef& tx, NodeId peer)
     // We will return false if the tx already exists under a different peer.
     const bool brand_new{!HaveTx(wtxid)};
 
-    auto [iter, inserted] = m_orphans.get<ByWtxid>().emplace(tx, peer, m_current_sequence);
+    auto [it, inserted] = m_by_wtxid.emplace(tx, peer, m_current_sequence);
     // If the announcement (same wtxid, same peer) already exists, emplacement fails. Return false.
     if (!inserted) return false;
 
+    // Insert into secondary index. m_reconsider starts false.
+    m_by_peer.emplace(ByPeerView{it->m_announcer, it->m_reconsider, it->m_entry_sequence},
+                      PeerEntry{it, it->GetMemUsage(), it->GetLatencyScore()});
     ++m_current_sequence;
+
     auto& peer_info = m_peer_orphanage_info.try_emplace(peer).first->second;
-    peer_info.Add(*iter);
+    peer_info.Add(*it);
 
     // Add links in m_outpoint_to_orphan_wtxids
     if (brand_new) {
@@ -335,67 +361,67 @@ bool TxOrphanageImpl::AddTx(const CTransactionRef& tx, NodeId peer)
         }
 
         m_unique_orphans += 1;
-        m_unique_orphan_usage += iter->GetMemUsage();
-        m_unique_rounded_input_scores += iter->GetLatencyScore() - 1;
+        m_unique_orphan_usage += it->GetMemUsage();
+        m_unique_rounded_input_scores += it->GetLatencyScore() - 1;
 
         LogDebug(BCLog::TXPACKAGES, "stored orphan tx %s (wtxid=%s), weight: %u (mapsz %u outsz %u)\n",
-                    txid.ToString(), wtxid.ToString(), sz, m_orphans.size(), m_outpoint_to_orphan_wtxids.size());
-        Assume(IsUnique(iter));
+                    txid.ToString(), wtxid.ToString(), sz, m_by_wtxid.size(), m_outpoint_to_orphan_wtxids.size());
+        Assume(IsUnique(it));
     } else {
         LogDebug(BCLog::TXPACKAGES, "added peer=%d as announcer of orphan tx %s (wtxid=%s)\n",
                     peer, txid.ToString(), wtxid.ToString());
-        Assume(!IsUnique(iter));
+        Assume(!IsUnique(it));
     }
 
-    // DoS prevention: do not allow m_orphanage to grow unbounded (see CVE-2012-3789)
+    // DoS prevention: do not allow m_by_wtxid to grow unbounded (see CVE-2012-3789)
     LimitOrphans();
     return brand_new;
 }
 
 bool TxOrphanageImpl::AddAnnouncer(const Wtxid& wtxid, NodeId peer)
 {
-    auto& index_by_wtxid = m_orphans.get<ByWtxid>();
-    auto it = index_by_wtxid.lower_bound(ByWtxidView{wtxid, MIN_PEER});
+    auto it = m_by_wtxid.lower_bound(ByWtxidView{wtxid, MIN_PEER});
 
-    // Do nothing if this transaction isn't already present. We can't create an entry if we don't
-    // have the tx data.
-    if (it == index_by_wtxid.end()) return false;
+    // Do nothing if this transaction isn't already present.
+    if (it == m_by_wtxid.end()) return false;
     if (it->m_tx->GetWitnessHash() != wtxid) return false;
 
     // Add another announcement, copying the CTransactionRef from one that already exists.
     const auto& ptx = it->m_tx;
-    auto [iter, inserted] = index_by_wtxid.emplace(ptx, peer, m_current_sequence);
+    auto [new_it, inserted] = m_by_wtxid.emplace(ptx, peer, m_current_sequence);
     // If the announcement (same wtxid, same peer) already exists, emplacement fails. Return false.
     if (!inserted) return false;
 
+    m_by_peer.emplace(ByPeerView{new_it->m_announcer, new_it->m_reconsider, new_it->m_entry_sequence},
+                      PeerEntry{new_it, new_it->GetMemUsage(), new_it->GetLatencyScore()});
     ++m_current_sequence;
+
     auto& peer_info = m_peer_orphanage_info.try_emplace(peer).first->second;
-    peer_info.Add(*iter);
+    peer_info.Add(*new_it);
 
     const auto& txid = ptx->GetHash();
     LogDebug(BCLog::TXPACKAGES, "added peer=%d as announcer of orphan tx %s (wtxid=%s)\n",
                 peer, txid.ToString(), wtxid.ToString());
 
-    Assume(!IsUnique(iter));
+    Assume(!IsUnique(new_it));
 
-    // DoS prevention: do not allow m_orphanage to grow unbounded (see CVE-2012-3789)
+    // DoS prevention: do not allow m_by_wtxid to grow unbounded (see CVE-2012-3789)
     LimitOrphans();
     return true;
 }
 
 bool TxOrphanageImpl::EraseTxInternal(const Wtxid& wtxid)
 {
-    auto& index_by_wtxid = m_orphans.get<ByWtxid>();
+    auto it = m_by_wtxid.lower_bound(ByWtxidView{wtxid, MIN_PEER});
+    if (it == m_by_wtxid.end() || it->m_tx->GetWitnessHash() != wtxid) return false;
 
-    auto it = index_by_wtxid.lower_bound(ByWtxidView{wtxid, MIN_PEER});
-    if (it == index_by_wtxid.end() || it->m_tx->GetWitnessHash() != wtxid) return false;
-
-    auto it_end = index_by_wtxid.upper_bound(ByWtxidView{wtxid, MAX_PEER});
+    auto it_end = m_by_wtxid.upper_bound(ByWtxidView{wtxid, MAX_PEER});
     unsigned int num_ann{0};
     const auto txid = it->m_tx->GetHash();
     while (it != it_end) {
-        Assume(it->m_tx->GetWitnessHash() == wtxid);
-        Erase<ByWtxid>(it++);
+        WtxidIter next = std::next(it);
+        Erase(it);
+        it = next;
         num_ann += 1;
     }
     LogDebug(BCLog::TXPACKAGES, "removed orphan tx %s (wtxid=%s) (%u announcements)\n", txid.ToString(), wtxid.ToString(), num_ann);
@@ -416,14 +442,14 @@ bool TxOrphanageImpl::EraseTx(const Wtxid& wtxid)
 /** Erase all entries by this peer. */
 void TxOrphanageImpl::EraseForPeer(NodeId peer)
 {
-    auto& index_by_peer = m_orphans.get<ByPeer>();
-    auto it = index_by_peer.lower_bound(ByPeerView{peer, false, 0});
-    if (it == index_by_peer.end() || it->m_announcer != peer) return;
+    auto it = m_by_peer.lower_bound(ByPeerView{peer, false, 0});
+    if (it == m_by_peer.end() || it->second.wtxid_it->m_announcer != peer) return;
 
     unsigned int num_ann{0};
-    while (it != index_by_peer.end() && it->m_announcer == peer) {
-        // Delete item, cleaning up m_outpoint_to_orphan_wtxids iff this entry is unique by wtxid.
-        Erase<ByPeer>(it++);
+    while (it != m_by_peer.end() && it->second.wtxid_it->m_announcer == peer) {
+        WtxidIter wtxid_it = it->second.wtxid_it;
+        PeerIter erase_it = it++;
+        Erase(wtxid_it, erase_it);
         num_ann += 1;
     }
     Assume(!m_peer_orphanage_info.contains(peer));
@@ -497,14 +523,16 @@ void TxOrphanageImpl::LimitOrphans()
         // We evict the oldest announcement(s) from this peer, sorting non-reconsiderable before reconsiderable.
         // The number of inner loop iterations is bounded by the total number of announcements.
         const auto& dos_threshold = heap_peer_dos.empty() ? FeeFrac{1, 1} : heap_peer_dos.front().second;
-        auto it_ann = m_orphans.get<ByPeer>().lower_bound(ByPeerView{worst_peer, false, 0});
+        auto it_ann = m_by_peer.lower_bound(ByPeerView{worst_peer, false, 0});
         unsigned int num_erased_this_round{0};
         unsigned int starting_num_ann{it_worst_peer->second.m_count_announcements};
         while (NeedsTrim()) {
-            if (!Assume(it_ann != m_orphans.get<ByPeer>().end())) break;
-            if (!Assume(it_ann->m_announcer == worst_peer)) break;
+            if (!Assume(it_ann != m_by_peer.end())) break;
+            if (!Assume(it_ann->second.wtxid_it->m_announcer == worst_peer)) break;
 
-            Erase<ByPeer>(it_ann++);
+            WtxidIter wtxid_it = it_ann->second.wtxid_it;
+            PeerIter erase_it = it_ann++;
+            Erase(wtxid_it, erase_it);
             num_erased += 1;
             num_erased_this_round += 1;
 
@@ -532,7 +560,6 @@ void TxOrphanageImpl::LimitOrphans()
 std::vector<std::pair<Wtxid, NodeId>> TxOrphanageImpl::AddChildrenToWorkSet(const CTransaction& tx, FastRandomContext& rng)
 {
     std::vector<std::pair<Wtxid, NodeId>> ret;
-    auto& index_by_wtxid = m_orphans.get<ByWtxid>();
     for (unsigned int i = 0; i < tx.vout.size(); i++) {
         const auto it_by_prev = m_outpoint_to_orphan_wtxids.find(COutPoint(tx.GetHash(), i));
         if (it_by_prev != m_outpoint_to_orphan_wtxids.end()) {
@@ -541,23 +568,23 @@ std::vector<std::pair<Wtxid, NodeId>> TxOrphanageImpl::AddChildrenToWorkSet(cons
                 if (m_reconsiderable_wtxids.contains(wtxid)) continue;
 
                 // Belt and suspenders, each entry in m_outpoint_to_orphan_wtxids should always have at least 1 announcement.
-                auto it = index_by_wtxid.lower_bound(ByWtxidView{wtxid, MIN_PEER});
-                if (!Assume(it != index_by_wtxid.end() && it->m_tx->GetWitnessHash() == wtxid)) continue;
+                auto it = m_by_wtxid.lower_bound(ByWtxidView{wtxid, MIN_PEER});
+                if (!Assume(it != m_by_wtxid.end() && it->m_tx->GetWitnessHash() == wtxid)) continue;
 
                 // Select a random peer to assign orphan processing, reducing wasted work if the orphan is still missing
                 // inputs. However, we don't want to create an issue in which the assigned peer can purposefully stop us
                 // from processing the orphan by disconnecting.
-                auto it_end = index_by_wtxid.upper_bound(ByWtxidView{wtxid, MAX_PEER});
+                auto it_end = m_by_wtxid.upper_bound(ByWtxidView{wtxid, MAX_PEER});
                 const auto num_announcers{std::distance(it, it_end)};
                 if (!Assume(num_announcers > 0)) continue;
                 std::advance(it, rng.randrange(num_announcers));
 
                 if (!Assume(it->m_tx->GetWitnessHash() == wtxid)) break;
 
-                // Mark this orphan as ready to be reconsidered.
-                static constexpr auto mark_reconsidered_modifier = [](auto& ann) { ann.m_reconsider = true; };
+                // Mark this orphan as ready to be reconsidered. Since we checked m_reconsiderable_wtxids above,
+                // the selected announcement must currently have m_reconsider=false.
                 Assume(!it->m_reconsider);
-                index_by_wtxid.modify(it, mark_reconsidered_modifier);
+                SetReconsider(it, true);
                 ret.emplace_back(wtxid, it->m_announcer);
                 m_reconsiderable_wtxids.insert(wtxid);
 
@@ -571,36 +598,36 @@ std::vector<std::pair<Wtxid, NodeId>> TxOrphanageImpl::AddChildrenToWorkSet(cons
 
 bool TxOrphanageImpl::HaveTx(const Wtxid& wtxid) const
 {
-    auto it_lower = m_orphans.get<ByWtxid>().lower_bound(ByWtxidView{wtxid, MIN_PEER});
-    return it_lower != m_orphans.get<ByWtxid>().end() && it_lower->m_tx->GetWitnessHash() == wtxid;
+    auto it = m_by_wtxid.lower_bound(ByWtxidView{wtxid, MIN_PEER});
+    return it != m_by_wtxid.end() && it->m_tx->GetWitnessHash() == wtxid;
 }
 
 CTransactionRef TxOrphanageImpl::GetTx(const Wtxid& wtxid) const
 {
-    auto it_lower = m_orphans.get<ByWtxid>().lower_bound(ByWtxidView{wtxid, MIN_PEER});
-    if (it_lower != m_orphans.get<ByWtxid>().end() && it_lower->m_tx->GetWitnessHash() == wtxid) return it_lower->m_tx;
+    auto it = m_by_wtxid.lower_bound(ByWtxidView{wtxid, MIN_PEER});
+    if (it != m_by_wtxid.end() && it->m_tx->GetWitnessHash() == wtxid) return it->m_tx;
     return nullptr;
 }
 
 bool TxOrphanageImpl::HaveTxFromPeer(const Wtxid& wtxid, NodeId peer) const
 {
-    return m_orphans.get<ByWtxid>().count(ByWtxidView{wtxid, peer}) > 0;
+    return m_by_wtxid.find(ByWtxidView{wtxid, peer}) != m_by_wtxid.end();
 }
 
 /** If there is a tx that can be reconsidered, return it and set it back to
  * non-reconsiderable. Otherwise, return a nullptr. */
 CTransactionRef TxOrphanageImpl::GetTxToReconsider(NodeId peer)
 {
-    auto it = m_orphans.get<ByPeer>().lower_bound(ByPeerView{peer, true, 0});
-    if (it != m_orphans.get<ByPeer>().end() && it->m_announcer == peer && it->m_reconsider) {
+    auto it = m_by_peer.lower_bound(ByPeerView{peer, true, 0});
+    if (it != m_by_peer.end() && std::get<0>(it->first) == peer && std::get<1>(it->first)) {
+        WtxidIter wtxid_it = it->second.wtxid_it;
         // Flip m_reconsider. Even if this transaction stays in orphanage, it shouldn't be
         // reconsidered again until there is a new reason to do so.
-        static constexpr auto mark_reconsidered_modifier = [](auto& ann) { ann.m_reconsider = false; };
-        m_orphans.get<ByPeer>().modify(it, mark_reconsidered_modifier);
+        SetReconsider(wtxid_it, false);
         // As there is exactly one m_reconsider announcement per reconsiderable wtxids, flipping
         // the m_reconsider flag means the wtxid is no longer reconsiderable.
-        m_reconsiderable_wtxids.erase(it->m_tx->GetWitnessHash());
-        return it->m_tx;
+        m_reconsiderable_wtxids.erase(wtxid_it->m_tx->GetWitnessHash());
+        return wtxid_it->m_tx;
     }
     return nullptr;
 }
@@ -608,13 +635,13 @@ CTransactionRef TxOrphanageImpl::GetTxToReconsider(NodeId peer)
 /** Return whether there is a tx that can be reconsidered. */
 bool TxOrphanageImpl::HaveTxToReconsider(NodeId peer)
 {
-    auto it = m_orphans.get<ByPeer>().lower_bound(ByPeerView{peer, true, 0});
-    return it != m_orphans.get<ByPeer>().end() && it->m_announcer == peer && it->m_reconsider;
+    auto it = m_by_peer.lower_bound(ByPeerView{peer, true, 0});
+    return it != m_by_peer.end() && std::get<0>(it->first) == peer && std::get<1>(it->first);
 }
 
 void TxOrphanageImpl::EraseForBlock(const CBlock& block)
 {
-    if (m_orphans.empty()) return;
+    if (m_by_wtxid.empty()) return;
 
     std::set<Wtxid> wtxids_to_erase;
     for (const CTransactionRef& ptx : block.vtx) {
@@ -656,17 +683,16 @@ std::vector<CTransactionRef> TxOrphanageImpl::GetChildrenFromSamePeer(const CTra
     // transactions are added first. Doing so helps avoid work when one of the orphans replaced
     // an earlier one. Since we require the NodeId to match, one peer's announcement order does
     // not bias how we process other peer's orphans.
-    auto& index_by_peer = m_orphans.get<ByPeer>();
-    auto it_upper = index_by_peer.upper_bound(ByPeerView{peer, true, std::numeric_limits<uint64_t>::max()});
-    auto it_lower = index_by_peer.lower_bound(ByPeerView{peer, false, 0});
+    auto it_upper = m_by_peer.upper_bound(ByPeerView{peer, true, std::numeric_limits<uint64_t>::max()});
+    auto it_lower = m_by_peer.lower_bound(ByPeerView{peer, false, 0});
 
     while (it_upper != it_lower) {
         --it_upper;
-        if (!Assume(it_upper->m_announcer == peer)) break;
+        if (!Assume(std::get<0>(it_upper->first) == peer)) break;
         // Check if this tx spends from parent.
-        for (const auto& input : it_upper->m_tx->vin) {
+        for (const auto& input : it_upper->second.wtxid_it->m_tx->vin) {
             if (input.prevout.hash == parent_txid) {
-                children_found.emplace_back(it_upper->m_tx);
+                children_found.emplace_back(it_upper->second.wtxid_it->m_tx);
                 break;
             }
         }
@@ -679,13 +705,13 @@ std::vector<TxOrphanage::OrphanInfo> TxOrphanageImpl::GetOrphanTransactions() co
     std::vector<TxOrphanage::OrphanInfo> result;
     result.reserve(m_unique_orphans);
 
-    auto& index_by_wtxid = m_orphans.get<ByWtxid>();
-    auto it = index_by_wtxid.begin();
+    // m_by_wtxid is sorted by (wtxid, peer), so same-wtxid entries are adjacent.
+    auto it = m_by_wtxid.begin();
     std::set<NodeId> this_orphan_announcers;
-    while (it != index_by_wtxid.end()) {
+    while (it != m_by_wtxid.end()) {
         this_orphan_announcers.insert(it->m_announcer);
-        // If this is the last entry, or the next entry has a different wtxid, build a OrphanInfo.
-        if (std::next(it) == index_by_wtxid.end() || std::next(it)->m_tx->GetWitnessHash() != it->m_tx->GetWitnessHash()) {
+        // If this is the last entry, or the next entry has a different wtxid, build an OrphanInfo.
+        if (std::next(it) == m_by_wtxid.end() || std::next(it)->m_tx->GetWitnessHash() != it->m_tx->GetWitnessHash()) {
             result.emplace_back(it->m_tx, std::move(this_orphan_announcers));
             this_orphan_announcers.clear();
         }
@@ -704,7 +730,7 @@ void TxOrphanageImpl::SanityCheck() const
     std::set<COutPoint> all_outpoints;
     std::set<Wtxid> reconstructed_reconsiderable_wtxids;
 
-    for (auto it = m_orphans.begin(); it != m_orphans.end(); ++it) {
+    for (auto it = m_by_wtxid.begin(); it != m_by_wtxid.end(); ++it) {
         for (const auto& input : it->m_tx->vin) {
             all_outpoints.insert(input.prevout);
         }
@@ -730,7 +756,7 @@ void TxOrphanageImpl::SanityCheck() const
     assert(m_reconsiderable_wtxids == reconstructed_reconsiderable_wtxids);
 
     // All outpoints exist in m_outpoint_to_orphan_wtxids, all keys in m_outpoint_to_orphan_wtxids correspond to some
-    // orphan, and all wtxids referenced in m_outpoint_to_orphan_wtxids are also in m_orphans.
+    // orphan, and all wtxids referenced in m_outpoint_to_orphan_wtxids are also in m_by_wtxid.
     // This ensures m_outpoint_to_orphan_wtxids is cleaned up.
     assert(all_outpoints.size() == m_outpoint_to_orphan_wtxids.size());
     for (const auto& [outpoint, wtxid_set] : m_outpoint_to_orphan_wtxids) {
@@ -741,8 +767,8 @@ void TxOrphanageImpl::SanityCheck() const
     }
 
     // Cached m_unique_orphans value is correct.
-    assert(m_orphans.size() >= m_unique_orphans);
-    assert(m_orphans.size() <= m_peer_orphanage_info.size() * m_unique_orphans);
+    assert(m_by_wtxid.size() >= m_unique_orphans);
+    assert(m_by_wtxid.size() <= m_peer_orphanage_info.size() * m_unique_orphans);
     assert(unique_wtxids_to_scores.size() == m_unique_orphans);
 
     const auto calculated_dedup_usage = std::accumulate(unique_wtxids_to_scores.begin(), unique_wtxids_to_scores.end(),
@@ -762,13 +788,23 @@ void TxOrphanageImpl::SanityCheck() const
     // Global latency score is deduplicated, should be less than or equal to the sum of all per-peer latency scores.
     const auto summed_peer_latency_score = std::accumulate(m_peer_orphanage_info.begin(), m_peer_orphanage_info.end(),
         TxOrphanage::Count{0}, [](TxOrphanage::Count sum, const auto pair) { return sum + pair.second.m_total_latency_score; });
-    assert(summed_peer_latency_score >= m_unique_rounded_input_scores + m_orphans.size());
+    assert(summed_peer_latency_score >= m_unique_rounded_input_scores + m_by_wtxid.size());
+
+    // Secondary index must be consistent with primary.
+    assert(m_by_peer.size() == m_by_wtxid.size());
+    for (const auto& [peer_key, entry] : m_by_peer) {
+        assert(std::get<0>(peer_key) == entry.wtxid_it->m_announcer);
+        assert(std::get<1>(peer_key) == entry.wtxid_it->m_reconsider);
+        assert(std::get<2>(peer_key) == entry.wtxid_it->m_entry_sequence);
+        assert(entry.mem_usage == entry.wtxid_it->GetMemUsage());
+        assert(entry.latency_score == entry.wtxid_it->GetLatencyScore());
+    }
 
     assert(!NeedsTrim());
 }
 
 TxOrphanage::Count TxOrphanageImpl::MaxGlobalLatencyScore() const { return m_max_global_latency_score; }
-TxOrphanage::Count TxOrphanageImpl::TotalLatencyScore() const { return m_unique_rounded_input_scores + m_orphans.size(); }
+TxOrphanage::Count TxOrphanageImpl::TotalLatencyScore() const { return m_unique_rounded_input_scores + m_by_wtxid.size(); }
 TxOrphanage::Usage TxOrphanageImpl::ReservedPeerUsage() const { return m_reserved_usage_per_peer; }
 TxOrphanage::Count TxOrphanageImpl::MaxPeerLatencyScore() const { return m_max_global_latency_score / std::max<unsigned int>(m_peer_orphanage_info.size(), 1); }
 TxOrphanage::Usage TxOrphanageImpl::MaxGlobalUsage() const { return m_reserved_usage_per_peer * std::max<int64_t>(m_peer_orphanage_info.size(), 1); }
@@ -777,6 +813,7 @@ bool TxOrphanageImpl::NeedsTrim() const
 {
     return TotalLatencyScore() > MaxGlobalLatencyScore() || TotalOrphanUsage() > MaxGlobalUsage();
 }
+
 std::unique_ptr<TxOrphanage> MakeTxOrphanage() noexcept
 {
     return std::make_unique<TxOrphanageImpl>();
