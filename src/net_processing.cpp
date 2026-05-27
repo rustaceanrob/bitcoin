@@ -7,6 +7,7 @@
 
 #include <addrman.h>
 #include <arith_uint256.h>
+#include <block_validation.h>
 #include <banman.h>
 #include <blockencodings.h>
 #include <chain.h>
@@ -21,6 +22,7 @@
 #include <flatfile.h>
 #include <headerssync.h>
 #include <logging.h>
+#include <mempool_validation.h>
 #include <merkleblock.h>
 #include <net.h>
 #include <net_permissions.h>
@@ -57,7 +59,7 @@
 #include <util/strencodings.h>
 #include <util/time.h>
 #include <util/trace.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <algorithm>
 #include <array>
@@ -1547,7 +1549,7 @@ void PeerManagerImpl::ReattemptPrivateBroadcast(CScheduler& scheduler)
     if (!stale_txs.empty()) {
         LOCK(cs_main);
         for (const auto& stale_tx : stale_txs) {
-            auto mempool_acceptable = m_chainman.ProcessTransaction(stale_tx, /*test_accept=*/true);
+            auto mempool_acceptable = ProcessTransaction(m_chainman, stale_tx, /*test_accept=*/true);
             if (mempool_acceptable.m_result_type == MempoolAcceptResult::ResultType::VALID) {
                 LogDebug(BCLog::PRIVBROADCAST,
                          "Reattempting broadcast of stale txid=%s wtxid=%s",
@@ -2972,9 +2974,9 @@ void PeerManagerImpl::ProcessHeadersMessage(CNode& pfrom, Peer& peer,
 
     // Now process all the headers.
     BlockValidationState state;
-    const bool processed{m_chainman.ProcessNewBlockHeaders(headers,
-                                                           /*min_pow_checked=*/true,
-                                                           state, &pindexLast)};
+    const bool processed{ProcessNewBlockHeaders(m_chainman, headers,
+                                                /*min_pow_checked=*/true,
+                                                state, &pindexLast)};
     if (!processed) {
         if (state.IsInvalid()) {
             if (!pfrom.IsInboundConn() && state.GetResult() == BlockValidationResult::BLOCK_CACHED_INVALID) {
@@ -3124,7 +3126,7 @@ bool PeerManagerImpl::ProcessOrphanTx(Peer& peer)
     CTransactionRef porphanTx = nullptr;
 
     while (CTransactionRef porphanTx = m_txdownloadman.GetTxToReconsider(peer.m_id)) {
-        const MempoolAcceptResult result = m_chainman.ProcessTransaction(porphanTx);
+        const MempoolAcceptResult result = ProcessTransaction(m_chainman, porphanTx);
         const TxValidationState& state = result.m_state;
         const Txid& orphanHash = porphanTx->GetHash();
         const Wtxid& orphan_wtxid = porphanTx->GetWitnessHash();
@@ -3156,7 +3158,7 @@ bool PeerManagerImpl::ProcessOrphanTx(Peer& peer)
 void PeerManagerImpl::ProcessBlock(CNode& node, const std::shared_ptr<const CBlock>& block, bool force_processing, bool min_pow_checked)
 {
     bool new_block{false};
-    m_chainman.ProcessNewBlock(block, force_processing, min_pow_checked, &new_block);
+    ProcessNewBlock(m_chainman, block, force_processing, min_pow_checked, &new_block);
     if (new_block) {
         node.m_last_block_time = GetTime<std::chrono::seconds>();
         // In case this block came from a different peer than we requested
@@ -4176,7 +4178,7 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         // ReceivedTx should not be telling us to validate the tx and a package.
         Assume(!package_to_validate.has_value());
 
-        const MempoolAcceptResult result = m_chainman.ProcessTransaction(ptx);
+        const MempoolAcceptResult result = ProcessTransaction(m_chainman, ptx);
         const TxValidationState& state = result.m_state;
 
         if (result.m_result_type == MempoolAcceptResult::ResultType::VALID) {
@@ -4232,7 +4234,7 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
 
         const CBlockIndex *pindex = nullptr;
         BlockValidationState state;
-        if (!m_chainman.ProcessNewBlockHeaders({{cmpctblock.header}}, /*min_pow_checked=*/true, state, &pindex)) {
+        if (!ProcessNewBlockHeaders(m_chainman, {{cmpctblock.header}}, /*min_pow_checked=*/true, state, &pindex)) {
             if (state.IsInvalid()) {
                 MaybePunishNodeForBlock(pfrom.GetId(), state, /*via_compact_block=*/true, "invalid header via cmpctblock");
                 return;

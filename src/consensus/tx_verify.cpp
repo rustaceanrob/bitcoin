@@ -212,3 +212,23 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, TxValidationState& state, 
     txfee = txfee_aux;
     return true;
 }
+
+bool CheckFinalTxAtTip(const CBlockIndex& active_chain_tip, const CTransaction& tx)
+{
+    // CheckFinalTxAtTip() uses active_chain_tip.Height()+1 to evaluate
+    // nLockTime because when IsFinalTx() is called within
+    // AcceptBlock(), the height of the block *being*
+    // evaluated is what is used. Thus if we want to know if a
+    // transaction can be part of the *next* block, we need to call
+    // IsFinalTx() with one more than active_chain_tip.Height().
+    const int nBlockHeight = active_chain_tip.nHeight + 1;
+
+    // BIP113 requires that time-locked transactions have nLockTime set to
+    // less than the median time of the previous block they're contained in.
+    // When the next block is created its previous block will be the current
+    // chain tip, so we use that to calculate the median time passed to
+    // IsFinalTx().
+    const int64_t nBlockTime{active_chain_tip.GetMedianTimePast()};
+
+    return IsFinalTx(tx, nBlockHeight, nBlockTime);
+}

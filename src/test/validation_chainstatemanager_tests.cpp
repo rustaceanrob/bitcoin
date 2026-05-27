@@ -19,7 +19,7 @@
 #include <util/byte_units.h>
 #include <util/result.h>
 #include <util/vector.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 #include <tinyformat.h>

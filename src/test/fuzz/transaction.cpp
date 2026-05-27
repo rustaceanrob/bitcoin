@@ -18,7 +18,7 @@
 #include <univalue.h>
 #include <util/chaintype.h>
 #include <util/rbf.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <cassert>
 

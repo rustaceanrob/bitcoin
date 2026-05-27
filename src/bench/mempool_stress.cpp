@@ -12,7 +12,7 @@
 #include <test/util/setup_common.h>
 #include <test/util/txmempool.h>
 #include <txmempool.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <cstddef>
 #include <cstdint>

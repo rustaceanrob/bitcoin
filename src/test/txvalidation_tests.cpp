@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <consensus/validation.h>
+#include <mempool_validation.h>
 #include <key_io.h>
 #include <policy/packages.h>
 #include <policy/policy.h>
@@ -14,7 +15,7 @@
 #include <test/util/common.h>
 #include <test/util/setup_common.h>
 #include <test/util/txmempool.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 
@@ -41,7 +42,7 @@ BOOST_FIXTURE_TEST_CASE(tx_mempool_reject_coinbase, TestChain100Setup)
     LOCK(cs_main);
 
     unsigned int initialPoolSize = m_node.mempool->size();
-    const MempoolAcceptResult result = m_node.chainman->ProcessTransaction(MakeTransactionRef(coinbaseTx));
+    const MempoolAcceptResult result = ProcessTransaction(*m_node.chainman, MakeTransactionRef(coinbaseTx));
 
     BOOST_CHECK(result.m_result_type == MempoolAcceptResult::ResultType::INVALID);
 

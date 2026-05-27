@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <consensus/validation.h>
+#include <mempool_validation.h>
 #include <key.h>
 #include <random.h>
 #include <script/sigcache.h>
@@ -11,7 +12,7 @@
 #include <test/util/setup_common.h>
 #include <txmempool.h>
 #include <util/chaintype.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 
@@ -19,12 +20,6 @@ struct Dersig100Setup : public TestChain100Setup {
     Dersig100Setup()
         : TestChain100Setup{ChainType::REGTEST, {.extra_args = {"-testactivationheight=dersig@102"}}} {}
 };
-
-bool CheckInputScripts(const CTransaction& tx, TxValidationState& state,
-                       const CCoinsViewCache& inputs, script_verify_flags flags, bool cacheSigStore,
-                       bool cacheFullScriptStore, PrecomputedTransactionData& txdata,
-                       ValidationCache& validation_cache,
-                       std::vector<CScriptCheck>* pvChecks) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 BOOST_AUTO_TEST_SUITE(txvalidationcache_tests)
 
@@ -39,7 +34,7 @@ BOOST_FIXTURE_TEST_CASE(tx_mempool_block_doublespend, Dersig100Setup)
     const auto ToMemPool = [this](const CMutableTransaction& tx) {
         LOCK(cs_main);
 
-        const MempoolAcceptResult result = m_node.chainman->ProcessTransaction(MakeTransactionRef(tx));
+        const MempoolAcceptResult result = ProcessTransaction(*m_node.chainman, MakeTransactionRef(tx));
         return result.m_result_type == MempoolAcceptResult::ResultType::VALID;
     };
 

@@ -5,6 +5,7 @@
 #include <addresstype.h>
 #include <clientversion.h>
 #include <coins.h>
+#include <consensus/tx_verify.h>
 #include <streams.h>
 #include <test/util/common.h>
 #include <test/util/poolresourcetester.h>
@@ -24,9 +25,6 @@
 #include <boost/test/unit_test.hpp>
 
 using namespace util::hex_literals;
-
-int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out);
-void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txundo, int nHeight);
 
 namespace
 {

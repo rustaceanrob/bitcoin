@@ -5,6 +5,7 @@
 
 #include <node/miner.h>
 
+#include <block_validation.h>
 #include <chain.h>
 #include <chainparams.h>
 #include <coins.h>
@@ -25,7 +26,7 @@
 #include <util/moneystr.h>
 #include <util/signalinterrupt.h>
 #include <util/time.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <algorithm>
 #include <utility>
@@ -71,7 +72,7 @@ void RegenerateCommitments(CBlock& block, ChainstateManager& chainman)
     block.vtx.at(0) = MakeTransactionRef(tx);
 
     const CBlockIndex* prev_block = WITH_LOCK(::cs_main, return chainman.m_blockman.LookupBlockIndex(block.hashPrevBlock));
-    chainman.GenerateCoinbaseCommitment(block, prev_block);
+    GenerateCoinbaseCommitment(chainman, block, prev_block);
 
     block.hashMerkleRoot = BlockMerkleRoot(block);
 }
@@ -201,7 +202,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock()
     coinbase_tx.lock_time = coinbaseTx.nLockTime;
 
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
-    m_chainstate.m_chainman.GenerateCoinbaseCommitment(*pblock, pindexPrev);
+    GenerateCoinbaseCommitment(m_chainstate.m_chainman, *pblock, pindexPrev);
 
     const CTransactionRef& final_coinbase{pblock->vtx[0]};
     if (final_coinbase->HasWitness()) {

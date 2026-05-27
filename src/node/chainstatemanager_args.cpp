@@ -16,7 +16,7 @@
 #include <util/result.h>
 #include <util/strencodings.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <algorithm>
 #include <chrono>

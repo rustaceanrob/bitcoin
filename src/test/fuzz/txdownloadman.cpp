@@ -21,7 +21,7 @@
 #include <util/hasher.h>
 #include <util/rbf.h>
 #include <util/time.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 namespace {

@@ -11,7 +11,7 @@
 #include <script/solver.h>
 #include <primitives/block.h>
 #include <util/chaintype.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 #include <test/util/common.h>

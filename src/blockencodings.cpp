@@ -3,6 +3,8 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <blockencodings.h>
+
+#include <block_validation.h>
 #include <chainparams.h>
 #include <common/system.h>
 #include <consensus/consensus.h>
@@ -13,7 +15,7 @@
 #include <random.h>
 #include <streams.h>
 #include <txmempool.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <unordered_map>
 

@@ -4,12 +4,13 @@
 
 #include <addresstype.h>
 #include <bench/bench.h>
+#include <block_validation.h>
 #include <interfaces/chain.h>
 #include <kernel/cs_main.h>
 #include <script/interpreter.h>
 #include <sync.h>
 #include <test/util/setup_common.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <cassert>
 #include <vector>
@@ -100,7 +101,7 @@ void BenchmarkConnectBlock(benchmark::Bench& bench, std::vector<CKey>& keys, std
         auto* pindex{chainman->m_blockman.AddToBlockIndex(test_block, chainman->m_best_header)}; // Doing this here doesn't impact the benchmark
         CCoinsViewCache viewNew{&chainstate.CoinsTip()};
 
-        assert(chainstate.ConnectBlock(test_block, test_block_state, pindex, viewNew));
+        assert(ConnectBlock(chainstate, test_block, test_block_state, pindex, viewNew));
     });
 }
 

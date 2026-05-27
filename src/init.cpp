@@ -40,10 +40,11 @@
 #include <net_processing.h>
 #include <netbase.h>
 #include <netgroup.h>
+#include <node/blockimport.h>
 #include <node/blockmanager_args.h>
 #include <node/blockstorage.h>
 #include <node/caches.h>
-#include <node/chainstate.h>
+#include <node/chainstate_load.h>
 #include <node/chainstatemanager_args.h>
 #include <node/context.h>
 #include <node/interface_ui.h>
@@ -82,7 +83,7 @@
 #include <util/threadnames.h>
 #include <util/time.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 #include <algorithm>

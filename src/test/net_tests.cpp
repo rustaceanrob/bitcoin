@@ -23,7 +23,7 @@
 #include <test/util/validation.h>
 #include <util/strencodings.h>
 #include <util/string.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 

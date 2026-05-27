@@ -11,7 +11,7 @@
 #include <ipc/capnp/mining.capnp.proxy.h>
 #include <node/miner.h>
 #include <node/types.h>
-#include <validation.h>
+#include <chainstate.h>
 
 namespace mp {
 // Custom serializations

@@ -31,8 +31,9 @@ add_library(bitcoinkernel
   ../flatfile.cpp
   ../hash.cpp
   ../logging.cpp
+  ../node/blockimport.cpp
   ../node/blockstorage.cpp
-  ../node/chainstate.cpp
+  ../node/chainstate_load.cpp
   ../policy/ephemeral_policy.cpp
   ../policy/feerate.cpp
   ../policy/packages.cpp
@@ -72,7 +73,10 @@ add_library(bitcoinkernel
   ../util/threadnames.cpp
   ../util/time.cpp
   ../util/tokenpipe.cpp
-  ../validation.cpp
+  ../block_validation.cpp
+  ../mempool_validation.cpp
+  ../script/script_check.cpp
+  ../chainstate.cpp
   ../validationinterface.cpp
   ../versionbits.cpp
   $<TARGET_OBJECTS:bitcoin_clientversion>

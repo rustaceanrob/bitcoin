@@ -6,7 +6,7 @@
 
 #include <common/args.h>
 #include <util/fs.h>
-#include <validation.h>
+#include <chainstate.h>
 
 namespace node {
 

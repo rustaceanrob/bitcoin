@@ -6,6 +6,7 @@
 
 #include <addrman.h>
 #include <banman.h>
+#include <block_validation.h>
 #include <chainparams.h>
 #include <common/system.h>
 #include <consensus/consensus.h>
@@ -14,13 +15,14 @@
 #include <crypto/sha256.h>
 #include <init.h>
 #include <init/common.h>
+#include <mempool_validation.h>
 #include <interfaces/chain.h>
 #include <kernel/mempool_entry.h>
 #include <logging.h>
 #include <net.h>
 #include <net_processing.h>
 #include <node/blockstorage.h>
-#include <node/chainstate.h>
+#include <node/chainstate_load.h>
 #include <node/context.h>
 #include <node/kernel_notifications.h>
 #include <node/mempool_args.h>
@@ -53,7 +55,7 @@
 #include <util/time.h>
 #include <util/translation.h>
 #include <util/vector.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 #include <algorithm>
@@ -426,7 +428,7 @@ CBlock TestChain100Setup::CreateAndProcessBlock(
 
     CBlock block = this->CreateBlock(txns, scriptPubKey, *chainstate);
     std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(block);
-    Assert(m_node.chainman)->ProcessNewBlock(shared_pblock, true, true, nullptr);
+    ProcessNewBlock(*Assert(m_node.chainman), shared_pblock, true, true, nullptr);
 
     return block;
 }
@@ -505,7 +507,7 @@ CMutableTransaction TestChain100Setup::CreateValidMempoolTransaction(const std::
     // If submit=true, add transaction to the mempool.
     if (submit) {
         LOCK(cs_main);
-        const MempoolAcceptResult result = m_node.chainman->ProcessTransaction(MakeTransactionRef(mempool_txn));
+        const MempoolAcceptResult result = ProcessTransaction(*m_node.chainman, MakeTransactionRef(mempool_txn));
         assert(result.m_result_type == MempoolAcceptResult::ResultType::VALID);
     }
     return mempool_txn;

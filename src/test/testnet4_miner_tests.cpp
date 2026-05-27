@@ -9,7 +9,7 @@
 #include <test/util/setup_common.h>
 #include <test/util/time.h>
 #include <util/time.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 

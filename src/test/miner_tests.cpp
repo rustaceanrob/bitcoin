@@ -3,12 +3,14 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <addresstype.h>
+#include <block_validation.h>
 #include <coins.h>
 #include <common/system.h>
 #include <consensus/consensus.h>
 #include <consensus/merkle.h>
 #include <consensus/tx_verify.h>
 #include <interfaces/mining.h>
+#include <mempool_validation.h>
 #include <node/miner.h>
 #include <policy/policy.h>
 #include <test/util/random.h>
@@ -21,7 +23,7 @@
 #include <util/strencodings.h>
 #include <util/time.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <versionbits.h>
 #include <pow.h>
 
@@ -830,7 +832,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         // via the Mining interface. The former is used by net_processing as well
         // as the submitblock RPC.
         if (current_height % 2 == 0) {
-            BOOST_REQUIRE(Assert(m_node.chainman)->ProcessNewBlock(shared_pblock, /*force_processing=*/true, /*min_pow_checked=*/true, nullptr));
+            BOOST_REQUIRE(ProcessNewBlock(*Assert(m_node.chainman), shared_pblock, /*force_processing=*/true, /*min_pow_checked=*/true, nullptr));
         } else {
             BOOST_REQUIRE(block_template->submitSolution(block.nVersion, block.nTime, block.nNonce, MakeTransactionRef(txCoinbase)));
         }

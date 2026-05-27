@@ -6,7 +6,7 @@
 
 #include <node/context.h>
 #include <txmempool.h>
-#include <validation.h>
+#include <chainstate.h>
 
 namespace node {
 void FindCoins(const NodeContext& node, std::map<COutPoint, Coin>& coins)

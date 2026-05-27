@@ -18,7 +18,7 @@
 #include <util/check.h>
 #include <util/log.h>
 #include <util/overflow.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <cstddef>
 #include <map>

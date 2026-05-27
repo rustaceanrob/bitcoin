@@ -6,6 +6,7 @@
 
 #include <kernel/bitcoinkernel.h>
 
+#include <block_validation.h>
 #include <chain.h>
 #include <coins.h>
 #include <consensus/tx_check.h>
@@ -18,8 +19,9 @@
 #include <kernel/notifications_interface.h>
 #include <kernel/warning.h>
 #include <logging.h>
+#include <node/blockimport.h>
 #include <node/blockstorage.h>
-#include <node/chainstate.h>
+#include <node/chainstate_load.h>
 #include <primitives/block.h>
 #include <primitives/transaction.h>
 #include <script/interpreter.h>
@@ -35,7 +37,7 @@
 #include <util/signalinterrupt.h>
 #include <util/task_runner.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 #include <cstddef>
@@ -1331,7 +1333,7 @@ int btck_chainstate_manager_process_block(
     int* _new_block)
 {
     bool new_block;
-    auto result = btck_ChainstateManager::get(chainman).m_chainman->ProcessNewBlock(btck_Block::get(block), /*force_processing=*/true, /*min_pow_checked=*/true, /*new_block=*/&new_block);
+    auto result = ProcessNewBlock(*btck_ChainstateManager::get(chainman).m_chainman, btck_Block::get(block), /*force_processing=*/true, /*min_pow_checked=*/true, /*new_block=*/&new_block);
     if (_new_block) {
         *_new_block = new_block ? 1 : 0;
     }
@@ -1344,9 +1346,8 @@ btck_BlockValidationState* btck_chainstate_manager_process_block_header(
 {
     try {
         auto& chainman = btck_ChainstateManager::get(chainstate_manager).m_chainman;
-
         auto state = btck_BlockValidationState::create();
-        bool result{chainman->ProcessNewBlockHeaders({&btck_BlockHeader::get(header), 1}, /*min_pow_checked=*/true, btck_BlockValidationState::get(state))};
+        auto result{ProcessNewBlockHeaders(*chainman, {&btck_BlockHeader::get(header), 1}, /*min_pow_checked=*/true, btck_BlockValidationState::get(state), /*ppindex=*/nullptr)};
         assert(result == btck_BlockValidationState::get(state).IsValid());
         return state;
     } catch (const std::exception& e) {

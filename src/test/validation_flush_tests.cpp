@@ -7,7 +7,7 @@
 #include <test/util/random.h>
 #include <test/util/common.h>
 #include <test/util/setup_common.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <boost/test/unit_test.hpp>
 

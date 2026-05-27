@@ -6,5 +6,5 @@ classes).
 
 This directory is at the moment
 sparsely populated. Eventually more substantial files like
-[`src/validation.cpp`](../validation.cpp) and
+[`src/chainstate.cpp`](../chainstate.cpp) and
 [`src/txmempool.cpp`](../txmempool.cpp) might be moved there.

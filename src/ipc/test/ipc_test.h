@@ -9,7 +9,7 @@
 #include <script/script.h>
 #include <univalue.h>
 #include <util/fs.h>
-#include <validation.h>
+#include <chainstate.h>
 
 class FooImplementation
 {

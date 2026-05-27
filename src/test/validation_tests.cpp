@@ -2,6 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <block_validation.h>
 #include <chainparams.h>
 #include <consensus/amount.h>
 #include <consensus/merkle.h>
@@ -11,7 +12,7 @@
 #include <signet.h>
 #include <uint256.h>
 #include <util/chaintype.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <string>
 

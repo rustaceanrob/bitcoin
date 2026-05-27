@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <consensus/validation.h>
+#include <mempool_validation.h>
 #include <node/context.h>
 #include <node/mempool_args.h>
 #include <node/miner.h>
@@ -18,7 +19,7 @@
 #include <util/check.h>
 #include <util/rbf.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 using node::BlockAssembler;

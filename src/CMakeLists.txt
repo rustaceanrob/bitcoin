@@ -177,10 +177,11 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   net_processing.cpp
   netgroup.cpp
   node/abort.cpp
+  node/blockimport.cpp
   node/blockmanager_args.cpp
   node/blockstorage.cpp
   node/caches.cpp
-  node/chainstate.cpp
+  node/chainstate_load.cpp
   node/chainstatemanager_args.cpp
   node/coin.cpp
   node/coins_view_args.cpp
@@ -213,6 +214,7 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   policy/settings.cpp
   policy/truc_policy.cpp
   private_broadcast.cpp
+  script/script_check.cpp
   script/sigcache.cpp
   signet.cpp
   torcontrol.cpp
@@ -220,7 +222,9 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   txgraph.cpp
   txmempool.cpp
   txrequest.cpp
-  validation.cpp
+  block_validation.cpp
+  mempool_validation.cpp
+  chainstate.cpp
   validationinterface.cpp
   versionbits.cpp
 )

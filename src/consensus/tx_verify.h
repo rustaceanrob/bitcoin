@@ -76,4 +76,7 @@ bool EvaluateSequenceLocks(const CBlockIndex& block, std::pair<int, int64_t> loc
  */
 bool SequenceLocks(const CTransaction &tx, int flags, std::vector<int>& prevHeights, const CBlockIndex& block);
 
+/** Check if transaction will be final in the next block to be created. */
+bool CheckFinalTxAtTip(const CBlockIndex& active_chain_tip, const CTransaction& tx);
+
 #endif // BITCOIN_CONSENSUS_TX_VERIFY_H

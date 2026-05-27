@@ -7,6 +7,7 @@
 #include <consensus/consensus.h>
 #include <random.h>
 #include <uint256.h>
+#include <undo.h>
 #include <util/log.h>
 #include <util/trace.h>
 
@@ -406,4 +407,47 @@ bool CCoinsViewErrorCatcher::HaveCoin(const COutPoint& outpoint) const
 std::optional<Coin> CCoinsViewErrorCatcher::PeekCoin(const COutPoint& outpoint) const
 {
     return ExecuteBackedWrapper<std::optional<Coin>>([&]() { return CCoinsViewBacked::PeekCoin(outpoint); }, m_err_callbacks);
+}
+
+DisconnectResult ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
+{
+    bool fClean = true;
+
+    if (view.HaveCoin(out)) fClean = false; // overwriting transaction output
+
+    if (undo.nHeight == 0) {
+        // Missing undo metadata (height and coinbase). Older versions included this
+        // information only in undo records for the last spend of a transactions'
+        // outputs. This implies that it must be present for some other output of the same tx.
+        const Coin& alternate = AccessByTxid(view, out.hash);
+        if (!alternate.IsSpent()) {
+            undo.nHeight = alternate.nHeight;
+            undo.fCoinBase = alternate.fCoinBase;
+        } else {
+            return DISCONNECT_FAILED; // adding output for transaction without known metadata
+        }
+    }
+    // If the coin already exists as an unspent coin in the cache, then the
+    // possible_overwrite parameter to AddCoin must be set to true. We have
+    // already checked whether an unspent coin exists above using HaveCoin, so
+    // we don't need to guess. When fClean is false, an unspent coin already
+    // existed and it is an overwrite.
+    view.AddCoin(out, std::move(undo), !fClean);
+
+    return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
+}
+
+void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo& txundo, int nHeight)
+{
+    // mark inputs spent
+    if (!tx.IsCoinBase()) {
+        txundo.vprevout.reserve(tx.vin.size());
+        for (const CTxIn& txin : tx.vin) {
+            txundo.vprevout.emplace_back();
+            bool is_spent = inputs.SpendCoin(txin.prevout, &txundo.vprevout.back());
+            assert(is_spent);
+        }
+    }
+    // add outputs
+    AddCoins(inputs, tx, nHeight);
 }

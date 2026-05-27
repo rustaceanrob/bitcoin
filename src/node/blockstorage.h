@@ -37,7 +37,6 @@
 #include <memory>
 #include <optional>
 #include <set>
-#include <span>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -319,6 +318,7 @@ public:
 
     std::unique_ptr<BlockTreeDB> m_block_tree_db GUARDED_BY(::cs_main);
 
+    std::set<CBlockIndex*>& DirtyBlockIndex() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return m_dirty_blockindex; }
     void WriteBlockIndexDB() EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
     bool LoadBlockIndexDB()
         EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
@@ -443,8 +443,6 @@ public:
     void CleanupBlockRevFiles() const;
 };
 
-// Calls ActivateBestChain() even if no blocks are imported.
-void ImportBlocks(ChainstateManager& chainman, std::span<const fs::path> import_paths);
 } // namespace node
 
 #endif // BITCOIN_NODE_BLOCKSTORAGE_H

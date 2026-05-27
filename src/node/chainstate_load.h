@@ -2,11 +2,11 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NODE_CHAINSTATE_H
-#define BITCOIN_NODE_CHAINSTATE_H
+#ifndef BITCOIN_NODE_CHAINSTATE_LOAD_H
+#define BITCOIN_NODE_CHAINSTATE_LOAD_H
 
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 
 #include <cstdint>
 #include <functional>
@@ -71,4 +71,4 @@ ChainstateLoadResult LoadChainstate(ChainstateManager& chainman, const kernel::C
 ChainstateLoadResult VerifyLoadedChainstate(ChainstateManager& chainman, const ChainstateLoadOptions& options);
 } // namespace node
 
-#endif // BITCOIN_NODE_CHAINSTATE_H
+#endif // BITCOIN_NODE_CHAINSTATE_LOAD_H

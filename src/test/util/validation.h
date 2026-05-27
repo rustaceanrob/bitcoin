@@ -5,7 +5,7 @@
 #ifndef BITCOIN_TEST_UTIL_VALIDATION_H
 #define BITCOIN_TEST_UTIL_VALIDATION_H
 
-#include <validation.h>
+#include <chainstate.h>
 
 namespace node {
 class BlockManager;

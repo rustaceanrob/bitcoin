@@ -4,6 +4,7 @@
 
 #include <test/util/txmempool.h>
 
+#include <mempool_validation.h>
 #include <chainparams.h>
 #include <node/context.h>
 #include <node/mempool_args.h>
@@ -14,7 +15,7 @@
 #include <util/check.h>
 #include <util/time.h>
 #include <util/translation.h>
-#include <validation.h>
+#include <chainstate.h>
 
 using node::NodeContext;
 

@@ -19,7 +19,7 @@
 #include <scheduler.h>
 #include <torcontrol.h>
 #include <txmempool.h>
-#include <validation.h>
+#include <chainstate.h>
 #include <validationinterface.h>
 
 namespace node {
