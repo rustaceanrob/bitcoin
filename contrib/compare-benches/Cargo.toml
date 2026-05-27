@@ -1,0 +1,5 @@
+[package]
+name = "compare-benches"
+version = "0.1.0"
+edition = "2021"
+description = "Compare bench_bitcoin results between master and HEAD"
