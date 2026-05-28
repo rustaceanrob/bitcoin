@@ -3,9 +3,10 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <bench/bench.h>
+#include <chainstate.h>
 #include <consensus/consensus.h>
 #include <mempool_validation.h>
-#include <node/miner.h>
+#include <node/mining_types.h>
 #include <primitives/transaction.h>
 #include <random.h>
 #include <script/script.h>
@@ -13,7 +14,6 @@
 #include <test/util/mining.h>
 #include <test/util/script.h>
 #include <test/util/setup_common.h>
-#include <chainstate.h>
 
 #include <array>
 #include <cassert>
