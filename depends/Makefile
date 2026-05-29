@@ -35,7 +35,6 @@ WORK_PATH = $(BASEDIR)/work
 BASE_CACHE ?= $(BASEDIR)/built
 SDK_PATH ?= $(BASEDIR)/SDKs
 NO_BOOST ?=
-NO_ZMQ ?=
 NO_USDT ?=
 LTO ?=
 FALLBACK_DOWNLOAD_PATH ?= https://bitcoincore.org/depends-sources
@@ -148,15 +147,10 @@ $(host_arch)_$(host_os)_id:=$(shell env CC='$(host_CC)' C_STANDARD='$(C_STANDARD
 
 boost_packages_$(NO_BOOST) = $(boost_packages)
 
-zmq_packages_$(NO_ZMQ) = $(zmq_packages)
 usdt_packages_$(NO_USDT) = $(usdt_$(host_os)_packages)
 
 packages += $($(host_arch)_$(host_os)_packages) $($(host_os)_packages) $(boost_packages_) $(ipc_packages) $(usdt_packages_)
 native_packages += $($(host_arch)_$(host_os)_native_packages) $($(host_os)_native_packages) $(multiprocess_native_packages)
-
-ifneq ($(zmq_packages_),)
-packages += $(zmq_packages)
-endif
 
 all_packages = $(packages) $(native_packages)
 
@@ -208,7 +202,6 @@ $(host_prefix)/toolchain.cmake : toolchain.cmake.in $(host_prefix)/.stamp_$(fina
             -e 's|@LDFLAGS@|$(strip $(host_LDFLAGS))|' \
             -e 's|@LDFLAGS_RELEASE@|$(strip $(host_release_LDFLAGS))|' \
             -e 's|@LDFLAGS_DEBUG@|$(strip $(host_debug_LDFLAGS))|' \
-            -e 's|@zmq_packages@|$(zmq_packages_)|' \
             -e 's|@usdt_packages@|$(usdt_packages_)|' \
             -e 's|@ipc_packages@|$(ipc_packages)|' \
             $< > $@

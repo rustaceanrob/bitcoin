@@ -67,21 +67,6 @@ git clone https://github.com/bitcoin/bitcoin.git
 
 #### GUI Dependencies
 
-#### ZMQ Dependencies
-
-Support for ZMQ notifications requires the following dependency.
-Skip if you do not need ZMQ functionality.
-
-``` bash
-brew install zeromq
-```
-
-Check out the [further configuration](#further-configuration) section for more information.
-
-For more information on ZMQ, see: [zmq.md](zmq.md)
-
----
-
 #### Test Suite Dependencies
 
 There is an included test suite that is useful for testing code changes when developing.

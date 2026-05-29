@@ -78,7 +78,6 @@ The following can be set when running make: `make FOO=bar`
 - `C_STANDARD`: Set the C standard version used. Defaults to `c11`.
 - `CXX_STANDARD`: Set the C++ standard version used. Defaults to `c++20`.
 - `NO_BOOST`: Don’t download/build/cache Boost
-- `NO_ZMQ`: Don’t download/build/cache packages needed for enabling ZeroMQ
 - `NO_USDT`: Don’t download/build/cache packages needed for enabling USDT tracepoints
 - `DEBUG`: Disable some optimizations and enable more runtime checking
 - `HOST_ID_SALT`: Optional salt to use when generating host package ids
@@ -88,7 +87,7 @@ The following can be set when running make: `make FOO=bar`
   of build error. After successful build log files are moved along with package archives
 - `LTO`: Enable options needed for LTO. Does not add `-flto` related options to *FLAGS.
 
-If some packages are not built (e.g. `make NO_ZMQ=1`), the appropriate CMake cache
+If some packages are not built (e.g. `make NO_BOOST=1`), the appropriate CMake cache
 variables will be set when generating the Bitcoin Core buildsystem.
 
 ## Compiler Configuration

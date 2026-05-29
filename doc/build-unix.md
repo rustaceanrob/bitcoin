@@ -58,10 +58,6 @@ Now, you can either build from self-compiled [depends](#dependencies) or install
 
     sudo apt-get install libboost-dev libcapnp-dev capnproto
 
-ZMQ-enabled binaries are compiled with `-DWITH_ZMQ=ON` and require the following dependency:
-
-    sudo apt-get install libzmq3-dev
-
 User-Space, Statically Defined Tracing (USDT) dependencies:
 
     sudo apt install systemtap-sdt-dev
@@ -79,10 +75,6 @@ Now, you can either build from self-compiled [depends](#dependencies) or install
 
     sudo dnf install boost-devel capnproto capnproto-devel
 
-ZMQ-enabled binaries are compiled with `-DWITH_ZMQ=ON` and require the following dependency:
-
-    sudo dnf install zeromq-devel
-
 User-Space, Statically Defined Tracing (USDT) dependencies:
 
     sudo dnf install systemtap-sdt-devel
@@ -99,10 +91,6 @@ Build requirements:
 Now, you can either build from self-compiled [depends](#dependencies) or install the required dependencies:
 
     apk add boost-dev capnproto capnproto-dev
-
-ZMQ dependencies (provides ZMQ API):
-
-    apk add zeromq-dev
 
 User-Space, Statically Defined Tracing (USDT) is not supported or tested on Alpine Linux at this time.
 
