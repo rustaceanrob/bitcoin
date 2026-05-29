@@ -17,8 +17,4 @@ export XCODE_BUILD_ID=17B100
 export RUN_UNIT_TESTS=false
 export RUN_FUNCTIONAL_TESTS=false
 export GOAL="install"
-export BITCOIN_CONFIG="\
- --preset=dev-mode \
- -DWITH_USDT=OFF \
- -DREDUCE_EXPORTS=ON \
-"
+export BITCOIN_CONFIG="--preset=ci-macos-cross-x86_64"

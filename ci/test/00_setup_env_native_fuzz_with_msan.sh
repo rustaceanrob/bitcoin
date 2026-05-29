@@ -19,14 +19,7 @@ export DEP_OPTS="DEBUG=1 CC=clang CXX=clang++ CFLAGS='${MSAN_FLAGS}' CXXFLAGS='$
 export GOAL="all"
 # Setting CMAKE_{C,CXX}_FLAGS_DEBUG flags to an empty string ensures that the flags set in MSAN_FLAGS remain unaltered.
 # _FORTIFY_SOURCE is not compatible with MSAN.
-export BITCOIN_CONFIG="\
- -DCMAKE_BUILD_TYPE=Debug \
- -DCMAKE_C_FLAGS_DEBUG='' \
- -DCMAKE_CXX_FLAGS_DEBUG='' \
- -DBUILD_FOR_FUZZING=ON \
- -DSANITIZERS=memory \
- -DAPPEND_CPPFLAGS='-DBOOST_MULTI_INDEX_ENABLE_SAFE_MODE -U_FORTIFY_SOURCE' \
-"
+export BITCOIN_CONFIG="--preset=ci-native-fuzz-msan"
 export USE_INSTRUMENTED_LIBCPP="MemoryWithOrigins"
 export RUN_UNIT_TESTS="false"
 export RUN_FUNCTIONAL_TESTS="false"

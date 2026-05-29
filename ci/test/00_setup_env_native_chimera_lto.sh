@@ -15,8 +15,4 @@ export CI_BASE_PACKAGES="ccache chimerautils chimerautils-extra clang cmake curl
 export PIP_PACKAGES="--break-system-packages pycapnp"
 export DEP_OPTS="build_CC=clang build_CXX=clang++ build_TAR=gtar AR=llvm-ar CC=clang CXX=clang++ NM=llvm-nm RANLIB=llvm-ranlib STRIP=llvm-strip"
 export GOAL="install"
-export BITCOIN_CONFIG="\
- --preset=dev-mode \
- -DREDUCE_EXPORTS=ON \
- -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
-"
+export BITCOIN_CONFIG="--preset=ci-native-chimera-lto"
