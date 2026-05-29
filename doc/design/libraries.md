@@ -10,7 +10,6 @@
 | *libbitcoin_ipc*         | IPC functionality used by *bitcoin-node* and *bitcoin-cli* executables. |
 | *libbitcoin_node*        | P2P and RPC server functionality used by *bitcoind* executable. |
 | *libbitcoin_util*        | Home for common functionality shared by different executables and libraries. Similar to *libbitcoin_common*, but lower-level (see [Dependencies](#dependencies)). |
-| *libbitcoin_zmq*         | [ZeroMQ](../zmq.md) functionality used by *bitcoind* executable. |
 
 ## Conventions
 

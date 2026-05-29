@@ -82,10 +82,6 @@ target_link_libraries(bitcoin_consensus
     secp256k1
 )
 
-if(WITH_ZMQ)
-  add_subdirectory(zmq)
-endif()
-
 # Home for common functionality shared by different executables and libraries.
 # Similar to `bitcoin_util` library, but higher-level.
 add_library(bitcoin_common STATIC EXCLUDE_FROM_ALL
@@ -236,7 +232,6 @@ target_link_libraries(bitcoin_node
     core_interface
     bitcoin_common
     bitcoin_util
-    $<TARGET_NAME_IF_EXISTS:bitcoin_zmq>
     leveldb
     minisketch
     Boost::headers

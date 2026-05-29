@@ -1401,11 +1401,6 @@ downstream users and applications time to migrate.
 - Deprecated REST endpoints or behaviors should be documented in `doc/REST-interface.md`
   with the version they were deprecated.
 
-### ZMQ
-
-- Deprecated ZMQ topics or behaviors should be documented in `doc/zmq.md` with the version
-  they were deprecated.
-
 ## Internal interface guidelines
 
 Internal interfaces between parts of the codebase that are meant to be

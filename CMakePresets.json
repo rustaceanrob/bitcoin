@@ -13,8 +13,7 @@
       "architecture": "x64",
       "toolchainFile": "$env{VCPKG_ROOT}\\scripts\\buildsystems\\vcpkg.cmake",
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows",
-        "WITH_ZMQ": "ON"
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
       }
     },
     {
@@ -29,8 +28,7 @@
       "architecture": "x64",
       "toolchainFile": "$env{VCPKG_ROOT}\\scripts\\buildsystems\\vcpkg.cmake",
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static",
-        "WITH_ZMQ": "ON"
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static"
       }
     },
     {
@@ -74,8 +72,7 @@
         "BUILD_UTIL": "ON",
         "BUILD_UTIL_CHAINSTATE": "ON",
         "ENABLE_IPC": "ON",
-        "WITH_USDT": "ON",
-        "WITH_ZMQ": "ON"
+        "WITH_USDT": "ON"
       }
     }
   ]
