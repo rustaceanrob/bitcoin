@@ -15,10 +15,4 @@ export PACKAGES="llvm clang g++-multilib"
 export DEP_OPTS="DEBUG=1"
 export GOAL="install"
 export CI_LIMIT_STACK_SIZE=1
-export BITCOIN_CONFIG="\
- --preset=dev-mode \
- -DCMAKE_BUILD_TYPE=Debug \
- -DCMAKE_C_COMPILER='clang;-m32' \
- -DCMAKE_CXX_COMPILER='clang++;-m32' \
- -DAPPEND_CPPFLAGS='-DBOOST_MULTI_INDEX_ENABLE_SAFE_MODE' \
-"
+export BITCOIN_CONFIG="--preset=ci-i686"

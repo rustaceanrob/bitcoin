@@ -15,9 +15,4 @@ export NO_DEPENDS=1
 # bind tests excluded for now, see https://github.com/bitcoin/bitcoin/issues/17765#issuecomment-602068547
 export TEST_RUNNER_EXTRA="--exclude rpc_bind --exclude feature_bind_extra"
 export GOAL="install"
-export BITCOIN_CONFIG="\
- --preset=dev-mode \
- -DWITH_USDT=OFF \
- -DCMAKE_C_COMPILER=clang \
- -DCMAKE_CXX_COMPILER=clang++ \
-"
+export BITCOIN_CONFIG="--preset=ci-native-valgrind"
