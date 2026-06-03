@@ -41,6 +41,7 @@ inline std::ostream& operator<<(std::ostream& os, const T& e)
 }
 
 template <typename T>
+    requires requires(std::ostream& os, const T& t) { os << t; }
 inline std::ostream& operator<<(std::ostream& os, const std::optional<T>& v)
 {
     return v ? os << *v
