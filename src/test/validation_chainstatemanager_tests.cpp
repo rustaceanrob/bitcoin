@@ -26,11 +26,10 @@
 
 #include <vector>
 
-#include <boost/test/unit_test.hpp>
+#include <test/util/framework.hpp>
+TEST_SUITE_BEGIN("validation_chainstatemanager_tests")
 
-BOOST_FIXTURE_TEST_SUITE(validation_chainstatemanager_tests, TestingSetup)
-
-BOOST_FIXTURE_TEST_CASE(chainstatemanager_ibd_exit_after_loading_blocks, ChainTestingSetup)
+FIXTURE_TEST_CASE("chainstatemanager_ibd_exit_after_loading_blocks", ChainTestingSetup)
 {
     CBlockIndex tip;
     ChainstateManager& chainman{*Assert(m_node.chainman)};
@@ -60,7 +59,7 @@ BOOST_FIXTURE_TEST_CASE(chainstatemanager_ibd_exit_after_loading_blocks, ChainTe
                     for (const bool tip_recent : {false, true}) {
                         apply(cached_is_ibd, loading_blocks, tip_exists, enough_work, tip_recent);
                         const bool expected_ibd = cached_is_ibd && (loading_blocks || !tip_exists || !enough_work || !tip_recent);
-                        BOOST_CHECK_EQUAL(chainman.IsInitialBlockDownload(), expected_ibd);
+                        CHECK(chainman.IsInitialBlockDownload() == expected_ibd);
                     }
                 }
             }
@@ -68,7 +67,7 @@ BOOST_FIXTURE_TEST_CASE(chainstatemanager_ibd_exit_after_loading_blocks, ChainTe
     }
 }
 
-BOOST_FIXTURE_TEST_CASE(loadblockindex_invalid_descendants, TestChain100Setup)
+FIXTURE_TEST_CASE("loadblockindex_invalid_descendants", TestChain100Setup)
 {
     LOCK(Assert(m_node.chainman)->GetMutex());
     // consider the chain of blocks grand_parent <- parent <- child
@@ -88,14 +87,14 @@ BOOST_FIXTURE_TEST_CASE(loadblockindex_invalid_descendants, TestChain100Setup)
     m_node.chainman->LoadBlockIndex();
 
     // check grand_parent, parent, child is marked as BLOCK_FAILED_VALID after reloading the block index
-    BOOST_CHECK(grand_parent->nStatus & BLOCK_FAILED_VALID);
-    BOOST_CHECK(parent->nStatus & BLOCK_FAILED_VALID);
-    BOOST_CHECK(child->nStatus & BLOCK_FAILED_VALID);
+    CHECK((grand_parent->nStatus & BLOCK_FAILED_VALID));
+    CHECK((parent->nStatus & BLOCK_FAILED_VALID));
+    CHECK((child->nStatus & BLOCK_FAILED_VALID));
 }
 
 //! Verify that ReconsiderBlock clears failure flags for the target block, its ancestors, and descendants,
 //! but not for sibling forks that diverge from a shared ancestor.
-BOOST_FIXTURE_TEST_CASE(invalidate_block_and_reconsider_fork, TestChain100Setup)
+FIXTURE_TEST_CASE("invalidate_block_and_reconsider_fork", TestChain100Setup)
 {
     ChainstateManager& chainman = *Assert(m_node.chainman);
     Chainstate& chainstate = chainman.ActiveChainstate();
@@ -117,8 +116,8 @@ BOOST_FIXTURE_TEST_CASE(invalidate_block_and_reconsider_fork, TestChain100Setup)
     // by temporarily invalidating block99. the chain tip now falls to block98,
     // mine 2 new blocks on top of block 98 (block99' and block100') and then restore block99 and block 100.
     BlockValidationState state;
-    BOOST_REQUIRE(chainstate.InvalidateBlock(state, block99));
-    BOOST_REQUIRE(WITH_LOCK(cs_main, return chainman.ActiveChain().Tip()) == block98);
+    REQUIRE(chainstate.InvalidateBlock(state, block99));
+    REQUIRE((WITH_LOCK(cs_main, return chainman.ActiveChain().Tip()) == block98));
     CScript coinbase_script = CScript() << ToByteVector(coinbaseKey.GetPubKey()) << OP_CHECKSIG;
     for (int i = 0; i < 2; ++i) {
         CreateAndProcessBlock({}, coinbase_script);
@@ -128,9 +127,9 @@ BOOST_FIXTURE_TEST_CASE(invalidate_block_and_reconsider_fork, TestChain100Setup)
     {
         LOCK(chainman.GetMutex());
         fork_block99 = chainman.ActiveChain()[99];
-        BOOST_REQUIRE(fork_block99->pprev == block98);
+        REQUIRE((fork_block99->pprev == block98));
         fork_block100 = chainman.ActiveChain()[100];
-        BOOST_REQUIRE(fork_block100->pprev == fork_block99);
+        REQUIRE((fork_block100->pprev == fork_block99));
     }
     // Restore original block99 and block100
     {
@@ -139,27 +138,27 @@ BOOST_FIXTURE_TEST_CASE(invalidate_block_and_reconsider_fork, TestChain100Setup)
         chainman.RecalculateBestHeader();
     }
     chainstate.ActivateBestChain(state);
-    BOOST_REQUIRE(WITH_LOCK(cs_main, return chainman.ActiveChain().Tip()) == block100);
+    REQUIRE((WITH_LOCK(cs_main, return chainman.ActiveChain().Tip()) == block100));
 
     {
         LOCK(chainman.GetMutex());
-        BOOST_CHECK(!(block100->nStatus & BLOCK_FAILED_VALID));
-        BOOST_CHECK(!(block99->nStatus & BLOCK_FAILED_VALID));
-        BOOST_CHECK(!(fork_block100->nStatus & BLOCK_FAILED_VALID));
-        BOOST_CHECK(!(fork_block99->nStatus & BLOCK_FAILED_VALID));
+        CHECK(!(block100->nStatus & BLOCK_FAILED_VALID));
+        CHECK(!(block99->nStatus & BLOCK_FAILED_VALID));
+        CHECK(!(fork_block100->nStatus & BLOCK_FAILED_VALID));
+        CHECK(!(fork_block99->nStatus & BLOCK_FAILED_VALID));
     }
 
     // Invalidate block98
-    BOOST_REQUIRE(chainstate.InvalidateBlock(state, block98));
+    REQUIRE(chainstate.InvalidateBlock(state, block98));
 
     {
         LOCK(chainman.GetMutex());
         // block98 and all descendants of block98 are marked BLOCK_FAILED_VALID
-        BOOST_CHECK(block98->nStatus & BLOCK_FAILED_VALID);
-        BOOST_CHECK(block99->nStatus & BLOCK_FAILED_VALID);
-        BOOST_CHECK(block100->nStatus & BLOCK_FAILED_VALID);
-        BOOST_CHECK(fork_block99->nStatus & BLOCK_FAILED_VALID);
-        BOOST_CHECK(fork_block100->nStatus & BLOCK_FAILED_VALID);
+        CHECK((block98->nStatus & BLOCK_FAILED_VALID));
+        CHECK((block99->nStatus & BLOCK_FAILED_VALID));
+        CHECK((block100->nStatus & BLOCK_FAILED_VALID));
+        CHECK((fork_block99->nStatus & BLOCK_FAILED_VALID));
+        CHECK((fork_block100->nStatus & BLOCK_FAILED_VALID));
     }
 
     // Reconsider block99. ResetBlockFailureFlags clears BLOCK_FAILED_VALID from
@@ -173,11 +172,11 @@ BOOST_FIXTURE_TEST_CASE(invalidate_block_and_reconsider_fork, TestChain100Setup)
     chainstate.ActivateBestChain(state);
     {
         LOCK(chainman.GetMutex());
-        BOOST_CHECK(!(block98->nStatus & BLOCK_FAILED_VALID));
-        BOOST_CHECK(!(block99->nStatus & BLOCK_FAILED_VALID));
-        BOOST_CHECK(!(block100->nStatus & BLOCK_FAILED_VALID));
-        BOOST_CHECK(fork_block99->nStatus & BLOCK_FAILED_VALID);
-        BOOST_CHECK(fork_block100->nStatus & BLOCK_FAILED_VALID);
+        CHECK(!(block98->nStatus & BLOCK_FAILED_VALID));
+        CHECK(!(block99->nStatus & BLOCK_FAILED_VALID));
+        CHECK(!(block100->nStatus & BLOCK_FAILED_VALID));
+        CHECK((fork_block99->nStatus & BLOCK_FAILED_VALID));
+        CHECK((fork_block100->nStatus & BLOCK_FAILED_VALID));
     }
 }
 
@@ -196,7 +195,7 @@ util::Result<Options> SetOptsFromArgs(ArgsManager& args_man, Options opts,
     return opts;
 }
 
-BOOST_FIXTURE_TEST_CASE(chainstatemanager_args, BasicTestingSetup)
+FIXTURE_TEST_CASE("chainstatemanager_args", BasicTestingSetup)
 {
     //! Try to apply the provided args to a ChainstateManager::Options
     auto get_opts = [&](const std::vector<const char*>& args) {
@@ -210,34 +209,34 @@ BOOST_FIXTURE_TEST_CASE(chainstatemanager_args, BasicTestingSetup)
     //! Like get_opts, but requires the provided args to be valid and unwraps the result
     auto get_valid_opts = [&](const std::vector<const char*>& args) {
         const auto result{get_opts(args)};
-        BOOST_REQUIRE_MESSAGE(result, util::ErrorString(result).original);
+        REQUIRE(result, util::ErrorString(result).original);
         return *result;
     };
 
     // test -assumevalid
-    BOOST_CHECK(!get_valid_opts({}).assumed_valid_block);
-    BOOST_CHECK_EQUAL(get_valid_opts({"-assumevalid="}).assumed_valid_block, uint256::ZERO);
-    BOOST_CHECK_EQUAL(get_valid_opts({"-assumevalid=0"}).assumed_valid_block, uint256::ZERO);
-    BOOST_CHECK_EQUAL(get_valid_opts({"-noassumevalid"}).assumed_valid_block, uint256::ZERO);
-    BOOST_CHECK_EQUAL(get_valid_opts({"-assumevalid=0x12"}).assumed_valid_block, uint256{0x12});
+    CHECK(!get_valid_opts({}).assumed_valid_block);
+    CHECK(get_valid_opts({"-assumevalid="}).assumed_valid_block == uint256::ZERO);
+    CHECK(get_valid_opts({"-assumevalid=0"}).assumed_valid_block == uint256::ZERO);
+    CHECK(get_valid_opts({"-noassumevalid"}).assumed_valid_block == uint256::ZERO);
+    CHECK(get_valid_opts({"-assumevalid=0x12"}).assumed_valid_block == uint256{0x12});
 
     std::string assume_valid{"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"};
-    BOOST_CHECK_EQUAL(get_valid_opts({("-assumevalid=" + assume_valid).c_str()}).assumed_valid_block, uint256::FromHex(assume_valid));
+    CHECK(get_valid_opts({("-assumevalid=" + assume_valid).c_str()}).assumed_valid_block == uint256::FromHex(assume_valid));
 
-    BOOST_CHECK(!get_opts({"-assumevalid=xyz"}));                                                               // invalid hex characters
-    BOOST_CHECK(!get_opts({"-assumevalid=01234567890123456789012345678901234567890123456789012345678901234"})); // > 64 hex chars
+    CHECK(!get_opts({"-assumevalid=xyz"}));                                                               // invalid hex characters
+    CHECK(!get_opts({"-assumevalid=01234567890123456789012345678901234567890123456789012345678901234"})); // > 64 hex chars
 
     // test -minimumchainwork
-    BOOST_CHECK(!get_valid_opts({}).minimum_chain_work);
-    BOOST_CHECK_EQUAL(get_valid_opts({"-minimumchainwork=0"}).minimum_chain_work, arith_uint256());
-    BOOST_CHECK_EQUAL(get_valid_opts({"-nominimumchainwork"}).minimum_chain_work, arith_uint256());
-    BOOST_CHECK_EQUAL(get_valid_opts({"-minimumchainwork=0x1234"}).minimum_chain_work, arith_uint256{0x1234});
+    CHECK(!get_valid_opts({}).minimum_chain_work);
+    CHECK(get_valid_opts({"-minimumchainwork=0"}).minimum_chain_work == arith_uint256());
+    CHECK(get_valid_opts({"-nominimumchainwork"}).minimum_chain_work == arith_uint256());
+    CHECK(get_valid_opts({"-minimumchainwork=0x1234"}).minimum_chain_work == arith_uint256{0x1234});
 
     std::string minimum_chainwork{"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"};
-    BOOST_CHECK_EQUAL(get_valid_opts({("-minimumchainwork=" + minimum_chainwork).c_str()}).minimum_chain_work, UintToArith256(uint256::FromHex(minimum_chainwork).value()));
+    CHECK(get_valid_opts({("-minimumchainwork=" + minimum_chainwork).c_str()}).minimum_chain_work == UintToArith256(uint256::FromHex(minimum_chainwork).value()));
 
-    BOOST_CHECK(!get_opts({"-minimumchainwork=xyz"}));                                                               // invalid hex characters
-    BOOST_CHECK(!get_opts({"-minimumchainwork=01234567890123456789012345678901234567890123456789012345678901234"})); // > 64 hex chars
+    CHECK(!get_opts({"-minimumchainwork=xyz"}));                                                               // invalid hex characters
+    CHECK(!get_opts({"-minimumchainwork=01234567890123456789012345678901234567890123456789012345678901234"})); // > 64 hex chars
 }
 
-BOOST_AUTO_TEST_SUITE_END()
+TEST_SUITE_END()

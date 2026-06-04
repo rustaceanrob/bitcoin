@@ -23,19 +23,18 @@
 #include <util/check.h>
 #include <chainstate.h>
 
-#include <boost/test/unit_test.hpp>
-
+#include <test/util/framework.hpp>
 #include <memory>
 #include <optional>
 #include <vector>
 
 class CTxMemPool;
 
-BOOST_FIXTURE_TEST_SUITE(validation_chainstate_tests, ChainTestingSetup)
+TEST_SUITE_BEGIN("validation_chainstate_tests")
 
 //! Test resizing coins-related Chainstate caches during runtime.
 //!
-BOOST_AUTO_TEST_CASE(validation_chainstate_resize_caches)
+FIXTURE_TEST_CASE("validation_chainstate_resize_caches", ChainTestingSetup)
 {
     ChainstateManager& manager = *Assert(m_node.chainman);
     CTxMemPool& mempool = *Assert(m_node.mempool);
@@ -43,7 +42,7 @@ BOOST_AUTO_TEST_CASE(validation_chainstate_resize_caches)
     c1.InitCoinsDB(
         /*cache_size_bytes=*/8_MiB, /*in_memory=*/true, /*should_wipe=*/false);
     WITH_LOCK(::cs_main, c1.InitCoinsCache(8_MiB));
-    BOOST_REQUIRE(c1.LoadGenesisBlock()); // Need at least one block loaded to be able to flush caches
+    REQUIRE(c1.LoadGenesisBlock()); // Need at least one block loaded to be able to flush caches
 
     // Add a coin to the in-memory cache, upsize once, then downsize.
     {
@@ -54,7 +53,7 @@ BOOST_AUTO_TEST_CASE(validation_chainstate_resize_caches)
         // flush during ResizecoinsCaches() and will subsequently hit an assertion.
         c1.CoinsTip().SetBestBlock(m_rng.rand256());
 
-        BOOST_CHECK(c1.CoinsTip().HaveCoinInCache(outpoint));
+        CHECK(c1.CoinsTip().HaveCoinInCache(outpoint));
 
         c1.ResizeCoinsCaches(
             16_MiB, // upsizing the coinsview cache
@@ -62,7 +61,7 @@ BOOST_AUTO_TEST_CASE(validation_chainstate_resize_caches)
         );
 
         // View should still have the coin cached, since we haven't destructed the cache on upsize.
-        BOOST_CHECK(c1.CoinsTip().HaveCoinInCache(outpoint));
+        CHECK(c1.CoinsTip().HaveCoinInCache(outpoint));
 
         c1.ResizeCoinsCaches(
             4_MiB, // downsizing the coinsview cache
@@ -70,11 +69,11 @@ BOOST_AUTO_TEST_CASE(validation_chainstate_resize_caches)
         );
 
         // The view cache should be empty since we had to destruct to downsize.
-        BOOST_CHECK(!c1.CoinsTip().HaveCoinInCache(outpoint));
+        CHECK(!c1.CoinsTip().HaveCoinInCache(outpoint));
     }
 }
 
-BOOST_FIXTURE_TEST_CASE(connect_tip_does_not_cache_inputs_on_failed_connect, TestChain100Setup)
+FIXTURE_TEST_CASE("connect_tip_does_not_cache_inputs_on_failed_connect", TestChain100Setup)
 {
     Chainstate& chainstate{Assert(m_node.chainman)->ActiveChainstate()};
 
@@ -91,12 +90,12 @@ BOOST_FIXTURE_TEST_CASE(connect_tip_does_not_cache_inputs_on_failed_connect, Tes
 
     const auto tip{WITH_LOCK(cs_main, return chainstate.m_chain.Tip()->GetBlockHash())};
     const CBlock block{CreateBlock({tx}, CScript{} << OP_TRUE)};
-    BOOST_CHECK(ProcessNewBlock(*Assert(m_node.chainman), std::make_shared<CBlock>(block), true, true, nullptr));
+    CHECK(ProcessNewBlock(*Assert(m_node.chainman), std::make_shared<CBlock>(block), true, true, nullptr));
 
     LOCK(cs_main);
-    BOOST_CHECK_EQUAL(tip, chainstate.m_chain.Tip()->GetBlockHash()); // block rejected
-    BOOST_CHECK(!chainstate.CoinsTip().HaveCoinInCache(outpoint));    // input not cached
+    CHECK(tip == chainstate.m_chain.Tip()->GetBlockHash()); // block rejected
+    CHECK(!chainstate.CoinsTip().HaveCoinInCache(outpoint));    // input not cached
 }
 
 
-BOOST_AUTO_TEST_SUITE_END()
+TEST_SUITE_END()

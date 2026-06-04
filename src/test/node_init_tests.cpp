@@ -5,7 +5,7 @@
 #include <init.h>
 #include <interfaces/init.h>
 
-#include <boost/test/unit_test.hpp>
+#include <test/util/framework.hpp>
 #include <test/util/common.h>
 #include <test/util/setup_common.h>
 
@@ -16,7 +16,7 @@ struct InitTestSetup : BasicTestingSetup {
     InitTestSetup() : BasicTestingSetup{ChainType::REGTEST} {}
 };
 
-BOOST_FIXTURE_TEST_SUITE(node_init_tests, InitTestSetup)
+TEST_SUITE_BEGIN("node_init_tests")
 
 //! Custom implementation of interfaces::Init for testing.
 class TestInit : public interfaces::Init
@@ -31,7 +31,7 @@ public:
     NodeContext& m_node;
 };
 
-BOOST_AUTO_TEST_CASE(init_test)
+FIXTURE_TEST_CASE("init_test", InitTestSetup)
 {
     // Clear state set by BasicTestingSetup that AppInitMain assumes is unset.
     LogInstance().DisconnectTestLogger();
@@ -43,10 +43,10 @@ BOOST_AUTO_TEST_CASE(init_test)
 
     // Run through initialization and shutdown code.
     TestInit init{m_node};
-    BOOST_CHECK(AppInitInterfaces(m_node));
-    BOOST_CHECK(AppInitMain(m_node));
+    CHECK(AppInitInterfaces(m_node));
+    CHECK(AppInitMain(m_node));
     Interrupt(m_node);
     Shutdown(m_node);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
+TEST_SUITE_END()
