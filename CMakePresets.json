@@ -123,6 +123,8 @@
       "displayName": "CI i686 Linux build",
       "errors": {"dev": true},
       "cacheVariables": {
+        "APPEND_CFLAGS": "-msse2 -mfpmath=sse",
+        "APPEND_CXXFLAGS": "-msse2 -mfpmath=sse",
         "APPEND_CPPFLAGS": "-DBOOST_MULTI_INDEX_ENABLE_SAFE_MODE",
         "BUILD_BENCH": "ON",
         "BUILD_CLI": "ON",
