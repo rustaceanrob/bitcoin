@@ -6,7 +6,13 @@
 #include <script/script_check.h>
 
 #include <script/interpreter.h>
+#include <script/sigcache.h>
 #include <tinyformat.h>
+
+#include <vector>
+
+class CScript;
+struct CScriptWitness;
 
 std::optional<std::pair<ScriptError, std::string>> CScriptCheck::operator()()
 {

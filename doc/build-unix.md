@@ -1,11 +1,10 @@
-UNIX BUILD NOTES
-====================
+# UNIX BUILD NOTES
+
 Some notes on how to build Bitcoin Core in Unix.
 
 (For BSD specific instructions, see `build-*bsd.md` in this directory.)
 
-To Build
----------------------
+## To Build
 
 ```bash
 cmake -B build
@@ -18,8 +17,7 @@ cmake --install build  # Optional
 ```
 
 See below for instructions on how to [install the dependencies on popular Linux
-distributions](#linux-distribution-specific-instructions), or the
-[dependencies](#dependencies) section for a complete overview.
+distributions](#dependencies).
 
 ## Memory Requirements
 
@@ -40,15 +38,18 @@ Finally, clang (often less resource hungry) can be used instead of gcc, which is
 
     cmake -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
 
-## Linux Distribution Specific Instructions
+## Dependencies
 
-### Ubuntu & Debian
+You can either build from self-compiled [depends](/depends/README.md) or
+install the dependencies from your distribution package manager. Dependencies
+for additional features in later columns are optional.
 
-#### Dependency Build Instructions
-
-Build requirements for the latest Debian "stable" release, or the latest Ubuntu LTS release:
-
-    sudo apt-get install build-essential cmake pkgconf python3
+| Package manager         | Required build dependencies | SQLite (wallet) | Cap'n Proto (IPC) | ZMQ | USDT | Qt and libqrencode (GUI) |
+| ----------------------- | --------------------------- | --------------- | ----------------- | --- | ---- | ------------------------ |
+| Debian / Ubuntu (`apt`) | `build-essential cmake pkgconf python3 libevent-dev libboost-dev` | `libsqlite3-dev` | `libcapnp-dev capnproto` | `libzmq3-dev` | `systemtap-sdt-dev` | `qt6-base-dev qt6-tools-dev qt6-l10n-tools qt6-tools-dev-tools libgl-dev qt6-wayland libqrencode-dev` |
+| Fedora (`dnf`)          | `gcc-c++ cmake make python3 libevent-devel boost-devel` | `sqlite-devel` | `capnproto capnproto-devel` | `zeromq-devel` | `systemtap-sdt-devel` | `qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland qrencode-devel` |
+| Alpine (`apk`)          | `build-base cmake linux-headers pkgconf python3 libevent-dev boost-dev` | `sqlite-dev` | `capnproto capnproto-dev` | `zeromq-dev` | Not supported | `qt6-qtbase-dev qt6-qttools-dev libqrencode-dev` |
+| Arch (`pacman`)         | `gcc make cmake pkgconf python libevent boost` | `sqlite` | `capnproto` | `zeromq` | `systemtap` | `qt6-base qt6-tools qt6-wayland qrencode` |
 
 For Debian "oldstable", or earlier Ubuntu LTS releases, you may need to pick a
 later compiler version, according to the [dependencies](/doc/dependencies.md)

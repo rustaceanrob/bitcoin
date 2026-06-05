@@ -8,7 +8,6 @@
 
 #include <primitives/transaction.h>
 #include <script/script_error.h>
-#include <script/sigcache.h>
 #include <script/verify_flags.h>
 
 #include <optional>
@@ -16,6 +15,7 @@
 #include <type_traits>
 #include <utility>
 
+class SignatureCache;
 struct PrecomputedTransactionData;
 
 /**
