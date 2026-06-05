@@ -146,9 +146,9 @@ BOOST_AUTO_TEST_CASE(NullOverride)
 {
     common::Settings settings;
     settings.command_line_options["name"].emplace_back("value");
-    BOOST_CHECK_EQUAL(R"("value")", GetSetting(settings, "section", "name", false, false, false).write().c_str());
+    BOOST_CHECK_EQUAL(R"("value")", GetSetting(settings, "section", "name", false, false, false).write());
     settings.forced_settings["name"] = {};
-    BOOST_CHECK_EQUAL(R"(null)", GetSetting(settings, "section", "name", false, false, false).write().c_str());
+    BOOST_CHECK_EQUAL(R"(null)", GetSetting(settings, "section", "name", false, false, false).write());
 }
 
 // Test different ways settings can be merged, and verify results. This test can

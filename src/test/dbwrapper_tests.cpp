@@ -425,7 +425,7 @@ BOOST_AUTO_TEST_CASE(iterator_string_ordering)
                 for (int z = 0; z < y; ++z)
                     exp_key += exp_key;
                 StringContentsSerializer key;
-                uint32_t value;
+                uint32_t value{};
                 BOOST_CHECK(it->Valid());
                 if (!it->Valid()) // Avoid spurious errors about invalid iterator's key and value in case of failure
                     break;
