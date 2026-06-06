@@ -120,7 +120,8 @@ BOOST_AUTO_TEST_CASE(return_value)
     {
         btcsignals::scoped_connection conn0 = sig0.connect(ReturnTrue);
         ret = sig0();
-        BOOST_CHECK(ret && *ret == true);
+        BOOST_CHECK(ret);
+        BOOST_CHECK(*ret == true);
     }
     ret = sig0();
     BOOST_CHECK(!ret);
@@ -128,10 +129,12 @@ BOOST_AUTO_TEST_CASE(return_value)
         btcsignals::scoped_connection conn1 = sig0.connect(ReturnTrue);
         btcsignals::scoped_connection conn0 = sig0.connect(ReturnFalse);
         ret = sig0();
-        BOOST_CHECK(ret && *ret == false);
+        BOOST_CHECK(ret);
+        BOOST_CHECK(*ret == false);
         conn0.disconnect();
         ret = sig0();
-        BOOST_CHECK(ret && *ret == true);
+        BOOST_CHECK(ret);
+        BOOST_CHECK(*ret == true);
     }
     ret = sig0();
     BOOST_CHECK(!ret);
