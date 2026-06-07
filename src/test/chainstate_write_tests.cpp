@@ -7,15 +7,14 @@
 #include <chainstate.h>
 #include <validationinterface.h>
 
-#include <boost/test/unit_test.hpp>
-
+#include <test/util/framework.hpp>
 // Taken from validation.cpp
 static constexpr auto DATABASE_WRITE_INTERVAL_MIN{50min};
 static constexpr auto DATABASE_WRITE_INTERVAL_MAX{70min};
 
-BOOST_AUTO_TEST_SUITE(chainstate_write_tests)
+TEST_SUITE_BEGIN(chainstate_write_tests)
 
-BOOST_FIXTURE_TEST_CASE(chainstate_write_interval, TestingSetup)
+FIXTURE_TEST_CASE(chainstate_write_interval, TestingSetup)
 {
     struct TestSubscriber final : CValidationInterface {
         bool m_did_flush{false};
@@ -34,24 +33,24 @@ BOOST_FIXTURE_TEST_CASE(chainstate_write_interval, TestingSetup)
     // The first periodic flush sets m_next_write and does not flush
     chainstate.FlushStateToDisk(state_dummy, FlushStateMode::PERIODIC);
     m_node.validation_signals->SyncWithValidationInterfaceQueue();
-    BOOST_CHECK(!sub->m_did_flush);
+    CHECK(!sub->m_did_flush);
 
     // The periodic flush interval is between 50 and 70 minutes (inclusive)
     clock += DATABASE_WRITE_INTERVAL_MIN - 1min;
     chainstate.FlushStateToDisk(state_dummy, FlushStateMode::PERIODIC);
     m_node.validation_signals->SyncWithValidationInterfaceQueue();
-    BOOST_CHECK(!sub->m_did_flush);
+    CHECK(!sub->m_did_flush);
 
     clock += DATABASE_WRITE_INTERVAL_MAX;
     chainstate.FlushStateToDisk(state_dummy, FlushStateMode::PERIODIC);
     m_node.validation_signals->SyncWithValidationInterfaceQueue();
-    BOOST_CHECK(sub->m_did_flush);
+    CHECK(sub->m_did_flush);
 }
 
 // Test that we do PERIODIC flushes inside ActivateBestChain.
 // This is necessary for reindex-chainstate to be able to periodically flush
 // before reaching chain tip.
-BOOST_FIXTURE_TEST_CASE(write_during_multiblock_activation, TestChain100Setup)
+FIXTURE_TEST_CASE(write_during_multiblock_activation, TestChain100Setup)
 {
     struct TestSubscriber final : CValidationInterface
     {
@@ -79,7 +78,7 @@ BOOST_FIXTURE_TEST_CASE(write_during_multiblock_activation, TestChain100Setup)
         chainstate.DisconnectTip(state_dummy, nullptr);
     }
 
-    BOOST_CHECK_EQUAL(second_from_tip->pprev, chainstate.m_chain.Tip());
+    CHECK(second_from_tip->pprev == chainstate.m_chain.Tip());
 
     // Set m_next_write to current time
     chainstate.FlushStateToDisk(state_dummy, FlushStateMode::FORCE_FLUSH);
@@ -93,12 +92,12 @@ BOOST_FIXTURE_TEST_CASE(write_during_multiblock_activation, TestChain100Setup)
 
     // ActivateBestChain back to tip
     chainstate.ActivateBestChain(state_dummy, nullptr);
-    BOOST_CHECK_EQUAL(tip, chainstate.m_chain.Tip());
+    CHECK(tip == chainstate.m_chain.Tip());
     // Check that we flushed inside ActivateBestChain while we were at the
     // second block from tip, since FlushStateToDisk is called with PERIODIC
     // inside the outer loop.
     m_node.validation_signals->SyncWithValidationInterfaceQueue();
-    BOOST_CHECK_EQUAL(sub->m_flushed_at_block, second_from_tip);
+    CHECK(sub->m_flushed_at_block == second_from_tip);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
+TEST_SUITE_END()

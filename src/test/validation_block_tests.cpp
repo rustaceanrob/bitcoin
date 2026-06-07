@@ -2,8 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <boost/test/unit_test.hpp>
-
+#include <test/util/framework.hpp>
 #include <block_validation.h>
 #include <chainparams.h>
 #include <consensus/consensus.h>
@@ -43,7 +42,8 @@ struct MinerTestingSetup : public RegTestingSetup {
 };
 } // namespace validation_block_tests
 
-BOOST_FIXTURE_TEST_SUITE(validation_block_tests, MinerTestingSetup)
+namespace validation_block_tests {
+TEST_SUITE_BEGIN(validation_block_tests)
 
 struct TestSubscriber final : public CValidationInterface {
     uint256 m_expected_tip;
@@ -52,21 +52,21 @@ struct TestSubscriber final : public CValidationInterface {
 
     void UpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockIndex* pindexFork, bool fInitialDownload) override
     {
-        BOOST_CHECK_EQUAL(m_expected_tip, pindexNew->GetBlockHash());
+        CHECK(m_expected_tip == pindexNew->GetBlockHash());
     }
 
     void BlockConnected(const std::shared_ptr<const CBlock>& block, const CBlockIndex* pindex) override
     {
-        BOOST_CHECK_EQUAL(m_expected_tip, block->hashPrevBlock);
-        BOOST_CHECK_EQUAL(m_expected_tip, pindex->pprev->GetBlockHash());
+        CHECK(m_expected_tip == block->hashPrevBlock);
+        CHECK(m_expected_tip == pindex->pprev->GetBlockHash());
 
         m_expected_tip = block->GetHash();
     }
 
     void BlockDisconnected(const std::shared_ptr<const CBlock>& block, const CBlockIndex* pindex) override
     {
-        BOOST_CHECK_EQUAL(m_expected_tip, block->GetHash());
-        BOOST_CHECK_EQUAL(m_expected_tip, pindex->GetBlockHash());
+        CHECK(m_expected_tip == block->GetHash());
+        CHECK(m_expected_tip == pindex->GetBlockHash());
 
         m_expected_tip = block->hashPrevBlock;
     }
@@ -81,7 +81,7 @@ std::shared_ptr<CBlock> MinerTestingSetup::Block(const uint256& prev_hash)
     auto block_template{mining->createNewBlock({
         .coinbase_output_script = CScript{} << i++ << OP_TRUE,
     }, /*cooldown=*/false)};
-    BOOST_REQUIRE(block_template);
+    REQUIRE(block_template);
     auto pblock = std::make_shared<CBlock>(block_template->getBlock());
     pblock->hashPrevBlock = prev_hash;
     pblock->nTime = ++time;
@@ -118,7 +118,7 @@ std::shared_ptr<CBlock> MinerTestingSetup::FinalizeBlock(std::shared_ptr<CBlock>
     // submit block header, so that miner can get the block height from the
     // global state and the node has the topology of the chain
     BlockValidationState ignored;
-    BOOST_CHECK(ProcessNewBlockHeaders(*Assert(m_node.chainman), {{*pblock}}, true, ignored));
+    CHECK(ProcessNewBlockHeaders(*Assert(m_node.chainman), {{*pblock}}, true, ignored));
 
     return pblock;
 }
@@ -165,7 +165,7 @@ void MinerTestingSetup::BuildChain(const uint256& root, int height, const unsign
     }
 }
 
-BOOST_AUTO_TEST_CASE(processnewblock_signals_ordering)
+FIXTURE_TEST_CASE(processnewblock_signals_ordering, MinerTestingSetup)
 {
     // build a large-ish chain that's likely to have some forks
     std::vector<std::shared_ptr<const CBlock>> blocks;
@@ -176,7 +176,7 @@ BOOST_AUTO_TEST_CASE(processnewblock_signals_ordering)
 
     bool ignored;
     // Connect the genesis block and drain any outstanding events
-    BOOST_CHECK(ProcessNewBlock(*Assert(m_node.chainman), std::make_shared<CBlock>(Params().GenesisBlock()), true, true, &ignored));
+    CHECK(ProcessNewBlock(*Assert(m_node.chainman), std::make_shared<CBlock>(Params().GenesisBlock()), true, true, &ignored));
     m_node.validation_signals->SyncWithValidationInterfaceQueue();
 
     // subscribe to events (this subscriber will validate event ordering)
@@ -220,7 +220,7 @@ BOOST_AUTO_TEST_CASE(processnewblock_signals_ordering)
     m_node.validation_signals->UnregisterSharedValidationInterface(sub);
 
     LOCK(cs_main);
-    BOOST_CHECK_EQUAL(sub->m_expected_tip, m_node.chainman->ActiveChain().Tip()->GetBlockHash());
+    CHECK(sub->m_expected_tip == m_node.chainman->ActiveChain().Tip()->GetBlockHash());
 }
 
 /**
@@ -240,7 +240,7 @@ BOOST_AUTO_TEST_CASE(processnewblock_signals_ordering)
  * or consistent with the chain state after the reorg, and not just consistent
  * with some intermediate state during the reorg.
  */
-BOOST_AUTO_TEST_CASE(mempool_locks_reorg)
+FIXTURE_TEST_CASE(mempool_locks_reorg, MinerTestingSetup)
 {
     bool ignored;
     auto ProcessBlock = [&](std::shared_ptr<const CBlock> block) -> bool {
@@ -248,13 +248,13 @@ BOOST_AUTO_TEST_CASE(mempool_locks_reorg)
     };
 
     // Process all mined blocks
-    BOOST_REQUIRE(ProcessBlock(std::make_shared<CBlock>(Params().GenesisBlock())));
+    REQUIRE(ProcessBlock(std::make_shared<CBlock>(Params().GenesisBlock())));
     auto last_mined = GoodBlock(Params().GenesisBlock().GetHash());
-    BOOST_REQUIRE(ProcessBlock(last_mined));
+    REQUIRE(ProcessBlock(last_mined));
 
     // Run the test multiple times
     for (int test_runs = 3; test_runs > 0; --test_runs) {
-        BOOST_CHECK_EQUAL(last_mined->GetHash(), WITH_LOCK(Assert(m_node.chainman)->GetMutex(), return m_node.chainman->ActiveChain().Tip()->GetBlockHash()));
+        CHECK(last_mined->GetHash() == WITH_LOCK(Assert(m_node.chainman)->GetMutex(), return m_node.chainman->ActiveChain().Tip()->GetBlockHash()));
 
         // Later on split from here
         const uint256 split_hash{last_mined->hashPrevBlock};
@@ -271,13 +271,13 @@ BOOST_AUTO_TEST_CASE(mempool_locks_reorg)
             txs.push_back(MakeTransactionRef(mtx));
 
             last_mined = GoodBlock(last_mined->GetHash());
-            BOOST_REQUIRE(ProcessBlock(last_mined));
+            REQUIRE(ProcessBlock(last_mined));
         }
 
         // Mature the inputs of the txs
         for (int j = COINBASE_MATURITY; j > 0; --j) {
             last_mined = GoodBlock(last_mined->GetHash());
-            BOOST_REQUIRE(ProcessBlock(last_mined));
+            REQUIRE(ProcessBlock(last_mined));
         }
 
         // Mine a reorg (and hold it back) before adding the txs to the mempool
@@ -296,13 +296,13 @@ BOOST_AUTO_TEST_CASE(mempool_locks_reorg)
             LOCK(cs_main);
             for (const auto& tx : txs) {
                 const MempoolAcceptResult result = ProcessTransaction(*m_node.chainman, tx);
-                BOOST_REQUIRE(result.m_result_type == MempoolAcceptResult::ResultType::VALID);
+                REQUIRE((result.m_result_type == MempoolAcceptResult::ResultType::VALID));
             }
         }
 
         // Check that all txs are in the pool
         {
-            BOOST_CHECK_EQUAL(m_node.mempool->size(), txs.size());
+            CHECK(m_node.mempool->size() == txs.size());
         }
 
         // Run a thread that simulates an RPC caller that is polling while
@@ -335,14 +335,14 @@ BOOST_AUTO_TEST_CASE(mempool_locks_reorg)
             ProcessBlock(b);
         }
         // Check that the reorg was eventually successful
-        BOOST_CHECK_EQUAL(last_mined->GetHash(), WITH_LOCK(Assert(m_node.chainman)->GetMutex(), return m_node.chainman->ActiveChain().Tip()->GetBlockHash()));
+        CHECK(last_mined->GetHash() == WITH_LOCK(Assert(m_node.chainman)->GetMutex(), return m_node.chainman->ActiveChain().Tip()->GetBlockHash()));
 
         // We can join the other thread, which returns when the reorg was successful
         rpc_thread.join();
     }
 }
 
-BOOST_AUTO_TEST_CASE(witness_commitment_index)
+FIXTURE_TEST_CASE(witness_commitment_index, MinerTestingSetup)
 {
     LOCK(Assert(m_node.chainman)->GetMutex());
     CScript pubKey;
@@ -351,7 +351,7 @@ BOOST_AUTO_TEST_CASE(witness_commitment_index)
     auto block_template{mining->createNewBlock({
         .coinbase_output_script = pubKey,
     }, /*cooldown=*/false)};
-    BOOST_REQUIRE(block_template);
+    REQUIRE(block_template);
     CBlock pblock{block_template->getBlock()};
 
     CTxOut witness;
@@ -378,6 +378,7 @@ BOOST_AUTO_TEST_CASE(witness_commitment_index)
     txCoinbase.vout[3] = invalid;
     pblock.vtx[0] = MakeTransactionRef(std::move(txCoinbase));
 
-    BOOST_CHECK_EQUAL(GetWitnessCommitmentIndex(pblock), 2);
+    CHECK(GetWitnessCommitmentIndex(pblock) == 2);
 }
-BOOST_AUTO_TEST_SUITE_END()
+TEST_SUITE_END()
+} // namespace validation_block_tests
