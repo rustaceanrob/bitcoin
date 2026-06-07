@@ -231,16 +231,16 @@ FIXTURE_TEST_CASE(package_validation_tests, TxPackageTest)
         auto it_child = result_parent_child.m_tx_results.find(tx_child->GetWitnessHash());
 
         CHECK((it_parent->second.m_effective_feerate.value().GetFee(GetVirtualTransactionSize(*tx_parent)) == COIN));
-        CHECK(it_parent->second.m_wtxids_fee_calculations.value().size() == 1);
+        CHECK(it_parent->second.m_wtxids_fee_calculations.value().size() == 1U);
         CHECK(it_parent->second.m_wtxids_fee_calculations.value().front() == tx_parent->GetWitnessHash());
 
         CHECK((it_child->second.m_effective_feerate.value().GetFee(GetVirtualTransactionSize(*tx_child)) == COIN));
-        CHECK(it_child->second.m_wtxids_fee_calculations.value().size() == 1);
+        CHECK(it_child->second.m_wtxids_fee_calculations.value().size() == 1U);
         CHECK(it_child->second.m_wtxids_fee_calculations.value().front() == tx_child->GetWitnessHash());
     }
     // A single, giant transaction submitted through ProcessNewPackage fails on single tx policy.
     CTransactionRef giant_ptx = create_placeholder_tx(999, 999);
-    CHECK(GetVirtualTransactionSize(*giant_ptx) > DEFAULT_CLUSTER_SIZE_LIMIT_KVB * 1000);
+    CHECK(GetVirtualTransactionSize(*giant_ptx) > static_cast<int64_t>(DEFAULT_CLUSTER_SIZE_LIMIT_KVB * 1000));
     Package package_single_giant{giant_ptx};
     auto result_single_large = ProcessNewPackage(m_node.chainman->ActiveChainstate(), *m_node.mempool, package_single_giant, /*test_accept=*/true, /*client_maxfeerate=*/{});
     if (auto err_single_large{CheckPackageMempoolAcceptResult(package_single_giant, result_single_large, /*expect_valid=*/false, nullptr)}) {
@@ -457,10 +457,10 @@ FIXTURE_TEST_CASE(package_submission_tests, TxPackageTest)
         CHECK((it_parent != submit_parent_child.m_tx_results.end()));
         CHECK(it_parent->second.m_state.IsValid());
         CHECK((it_parent->second.m_effective_feerate == CFeeRate(1 * COIN, GetVirtualTransactionSize(*tx_parent))));
-        CHECK(it_parent->second.m_wtxids_fee_calculations.value().size() == 1);
+        CHECK(it_parent->second.m_wtxids_fee_calculations.value().size() == 1U);
         CHECK(it_parent->second.m_wtxids_fee_calculations.value().front() == tx_parent->GetWitnessHash());
         CHECK((it_child->second.m_effective_feerate == CFeeRate(1 * COIN, GetVirtualTransactionSize(*tx_child))));
-        CHECK(it_child->second.m_wtxids_fee_calculations.value().size() == 1);
+        CHECK(it_child->second.m_wtxids_fee_calculations.value().size() == 1U);
         CHECK(it_child->second.m_wtxids_fee_calculations.value().front() == tx_child->GetWitnessHash());
 
         CHECK(m_node.mempool->size() == expected_pool_size);
@@ -578,7 +578,7 @@ FIXTURE_TEST_CASE(package_single_tx, TxPackageTest)
         auto it_parent = result_just_parent.m_tx_results.find(tx_parent->GetWitnessHash());
         CHECK(it_parent->second.m_state.IsValid(), it_parent->second.m_state.ToString());
         CHECK((it_parent->second.m_effective_feerate.value().GetFee(GetVirtualTransactionSize(*tx_parent)) == high_fee));
-        CHECK(it_parent->second.m_wtxids_fee_calculations.value().size() == 1);
+        CHECK(it_parent->second.m_wtxids_fee_calculations.value().size() == 1U);
         CHECK(it_parent->second.m_wtxids_fee_calculations.value().front() == tx_parent->GetWitnessHash());
     }
     expected_pool_size += 1;
@@ -599,7 +599,7 @@ FIXTURE_TEST_CASE(package_single_tx, TxPackageTest)
         auto it_child = result_just_child.m_tx_results.find(tx_child->GetWitnessHash());
         CHECK(it_child->second.m_state.IsValid(), it_child->second.m_state.ToString());
         CHECK((it_child->second.m_effective_feerate.value().GetFee(GetVirtualTransactionSize(*tx_child)) == high_fee));
-        CHECK(it_child->second.m_wtxids_fee_calculations.value().size() == 1);
+        CHECK(it_child->second.m_wtxids_fee_calculations.value().size() == 1U);
         CHECK(it_child->second.m_wtxids_fee_calculations.value().front() == tx_child->GetWitnessHash());
     }
     expected_pool_size += 1;

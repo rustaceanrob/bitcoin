@@ -34,7 +34,7 @@ FIXTURE_TEST_CASE(file, BasicTestingSetup)
             BanMan banman{banlist_path, /*client_interface=*/nullptr, /*default_ban_time=*/0};
             banmap_t entries_read;
             banman.GetBanned(entries_read);
-            CHECK(entries_read.size() == 1);
+            CHECK(entries_read.size() == 1U);
         }
     }
 }

@@ -388,7 +388,7 @@ FIXTURE_TEST_CASE(addrman_new_multiplicity, BasicTestingSetup)
         addrman->Add({addr}, source);
     }
     AddressPosition addr_pos = addrman->FindAddressEntry(addr).value();
-    CHECK(addr_pos.multiplicity == 1U);
+    CHECK(addr_pos.multiplicity == 1);
     CHECK(addrman->Size() == 1U);
 
     // if nTime increases, an addr can occur in up to 8 buckets
@@ -401,7 +401,7 @@ FIXTURE_TEST_CASE(addrman_new_multiplicity, BasicTestingSetup)
         addrman->Add({addr}, source);
     }
     AddressPosition addr_pos_multi = addrman->FindAddressEntry(addr).value();
-    CHECK(addr_pos_multi.multiplicity == 8U);
+    CHECK(addr_pos_multi.multiplicity == 8);
     // multiplicity doesn't affect size
     CHECK(addrman->Size() == 1U);
 }
@@ -643,7 +643,7 @@ FIXTURE_TEST_CASE(caddrinfo_get_new_bucket_legacy, BasicTestingSetup)
     }
     // Test: IP addresses in the different source groups should map to MORE
     //  than 64 buckets.
-    CHECK(buckets.size() > 64);
+    CHECK(buckets.size() > 64U);
 }
 
 // The following three test cases use asmap.raw
@@ -695,7 +695,7 @@ FIXTURE_TEST_CASE(caddrinfo_get_tried_bucket, BasicTestingSetup)
     }
     // Test: IP addresses in the different /16 prefix MAY map to more than
     // 8 buckets.
-    CHECK(buckets.size() > 8);
+    CHECK(buckets.size() > 8U);
 
     buckets.clear();
     for (int j = 0; j < 255; j++) {
@@ -772,7 +772,7 @@ FIXTURE_TEST_CASE(caddrinfo_get_new_bucket, BasicTestingSetup)
     }
     // Test: IP addresses in the different source /16 prefixes usually map to MORE
     // than 1 bucket.
-    CHECK(buckets.size() > 1);
+    CHECK(buckets.size() > 1U);
 
     buckets.clear();
     for (int p = 0; p < 255; p++) {
@@ -866,7 +866,7 @@ FIXTURE_TEST_CASE(remove_invalid, BasicTestingSetup)
     addrman->Add({new1, tried1, new2, tried2}, CNetAddr{});
     addrman->Good(tried1);
     addrman->Good(tried2);
-    REQUIRE(addrman->Size() == 4);
+    REQUIRE(addrman->Size() == 4U);
 
     stream << *addrman;
 
@@ -889,7 +889,7 @@ FIXTURE_TEST_CASE(remove_invalid, BasicTestingSetup)
 
     addrman = std::make_unique<AddrMan>(EMPTY_NETGROUPMAN, DETERMINISTIC, GetCheckRatio(m_node));
     stream >> *addrman;
-    CHECK(addrman->Size() == 2);
+    CHECK(addrman->Size() == 2U);
 }
 
 FIXTURE_TEST_CASE(addrman_selecttriedcollision, BasicTestingSetup)

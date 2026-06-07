@@ -31,7 +31,7 @@ FIXTURE_TEST_CASE(fsbridge_pathtostring, BasicTestingSetup)
     // and these functions do encoding and decoding, so the behavior of this
     // test would be undefined.
     std::string invalid_u8_str = "\xf0";
-    CHECK(invalid_u8_str.size() == 1);
+    CHECK(invalid_u8_str.size() == 1U);
     CHECK(fs::PathToString(fs::PathFromString(invalid_u8_str)) == invalid_u8_str);
 #endif
 }

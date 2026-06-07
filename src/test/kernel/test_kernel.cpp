@@ -331,7 +331,7 @@ void CheckRange(const RangeType& range, size_t expected_size)
     using value_type = std::ranges::range_value_t<RangeType>;
 
     CHECK(range.size() == expected_size);
-    REQUIRE(range.size() > 0); // Some checks below assume a non-empty range
+    REQUIRE(range.size() > 0U); // Some checks below assume a non-empty range
     REQUIRE(!range.empty());
 
     CHECK((range.begin() != range.end()));
@@ -409,9 +409,9 @@ TEST_CASE(btck_transaction_tests)
     auto empty_data = hex_string_to_byte_vec("");
     CHECK_THROWS_AS(Transaction{empty_data}, std::runtime_error);
 
-    CHECK(tx.CountOutputs() == 2);
-    CHECK(tx.CountInputs() == 1);
-    CHECK(tx.GetLocktime() == 510826);
+    CHECK(tx.CountOutputs() == 2U);
+    CHECK(tx.CountInputs() == 1U);
+    CHECK(tx.GetLocktime() == 510826U);
     auto broken_tx_data{std::span<std::byte>{tx_data.begin(), tx_data.begin() + 10}};
     CHECK_THROWS_AS(Transaction{broken_tx_data}, std::runtime_error);
     auto input{tx.GetInput(0)};
@@ -684,9 +684,9 @@ TEST_CASE(btck_block_header_tests)
     auto mainnet_block_1_header = hex_string_to_byte_vec("010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051fd1e4ba744bbbe680e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e36299");
     BlockHeader header{mainnet_block_1_header};
     CHECK(header.Version() == 1);
-    CHECK(header.Timestamp() == 1231469665);
-    CHECK(header.Bits() == 0x1d00ffff);
-    CHECK(header.Nonce() == 2573394689);
+    CHECK(header.Timestamp() == 1231469665U);
+    CHECK(header.Bits() == 0x1d00ffffU);
+    CHECK(header.Nonce() == 2573394689U);
     CHECK(byte_span_to_hex_string_reversed(header.Hash().ToBytes()) == "00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048");
     auto prev_hash = header.PrevHash();
     CHECK(byte_span_to_hex_string_reversed(prev_hash.ToBytes()) == "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f");
@@ -699,14 +699,14 @@ TEST_CASE(btck_block_header_tests)
     Block block{raw_block};
     BlockHeader block_header{block.GetHeader()};
     CHECK(block_header.Version() == 1);
-    CHECK(block_header.Timestamp() == 1231469665);
-    CHECK(block_header.Bits() == 0x1d00ffff);
-    CHECK(block_header.Nonce() == 2573394689);
+    CHECK(block_header.Timestamp() == 1231469665U);
+    CHECK(block_header.Bits() == 0x1d00ffffU);
+    CHECK(block_header.Nonce() == 2573394689U);
     CHECK(byte_span_to_hex_string_reversed(block_header.Hash().ToBytes()) == "00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048");
 
     // Verify header from block serializes to first 80 bytes of raw block
     auto block_header_bytes = block_header.ToBytes();
-    CHECK(block_header_bytes.size() == 80);
+    CHECK(block_header_bytes.size() == 80U);
     check_equal(block_header_bytes, std::span<const std::byte>(raw_block.data(), 80));
 }
 
@@ -880,19 +880,19 @@ void chainman_mainnet_validation_test(TestDirectory& test_directory)
     TransactionView tx{block.GetTransaction(block.CountTransactions() - 1)};
     CHECK(byte_span_to_hex_string_reversed(tx.Txid().ToBytes()) == "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098");
     CHECK(header.Version() == 1);
-    CHECK(header.Timestamp() == 1231469665);
-    CHECK(header.Bits() == 0x1d00ffff);
-    CHECK(header.Nonce() == 2573394689);
-    CHECK(tx.CountInputs() == 1);
+    CHECK(header.Timestamp() == 1231469665U);
+    CHECK(header.Bits() == 0x1d00ffffU);
+    CHECK(header.Nonce() == 2573394689U);
+    CHECK(tx.CountInputs() == 1U);
     Transaction tx2 = tx;
-    CHECK(tx2.CountInputs() == 1);
+    CHECK(tx2.CountInputs() == 1U);
     for (auto transaction : block.Transactions()) {
-        CHECK(transaction.CountInputs() == 1);
+        CHECK(transaction.CountInputs() == 1U);
     }
     auto output_counts = *(block.Transactions() | std::views::transform([](const auto& tx) {
                                return tx.CountOutputs();
                            })).begin();
-    CHECK(output_counts == 1);
+    CHECK(output_counts == 1U);
 
     validation_interface->m_expected_valid_block.emplace(raw_block);
     auto ser_block{block.ToBytes()};
@@ -917,8 +917,8 @@ void chainman_mainnet_validation_test(TestDirectory& test_directory)
     // Check that we can read the previous block
     BlockTreeEntry tip_2{*tip.GetPrevious()};
     Block read_block_2{*chainman->ReadBlock(tip_2)};
-    CHECK(chainman->ReadBlockSpentOutputs(tip_2).Count() == 0);
-    CHECK(chainman->ReadBlockSpentOutputs(tip).Count() == 0);
+    CHECK(chainman->ReadBlockSpentOutputs(tip_2).Count() == 0U);
+    CHECK(chainman->ReadBlockSpentOutputs(tip).Count() == 0U);
 
     // It should be an error if we go another block back, since the genesis has no ancestor
     CHECK(!tip_2.GetPrevious());
@@ -1193,7 +1193,7 @@ TEST_CASE(btck_chainman_regtest_tests)
     BlockSpentOutputs block_spent_outputs_prev{chainman->ReadBlockSpentOutputs(*tip.GetPrevious())};
     CheckHandle(block_spent_outputs, block_spent_outputs_prev);
     CheckRange(block_spent_outputs_prev.TxsSpentOutputs(), block_spent_outputs_prev.Count());
-    CHECK(block_spent_outputs.Count() == 1);
+    CHECK(block_spent_outputs.Count() == 1U);
 
     // Get transaction spent outputs from the last transaction in the two blocks
     TransactionSpentOutputsView transaction_spent_outputs{block_spent_outputs.GetTxSpentOutputs(block_spent_outputs.Count() - 1)};
@@ -1212,15 +1212,15 @@ TEST_CASE(btck_chainman_regtest_tests)
     // Validate coin properties
     TransactionOutputView output = coin.GetOutput();
     uint32_t coin_height = coin.GetConfirmationHeight();
-    CHECK(coin_height == 143);
+    CHECK(coin_height == 143U);
     CHECK(output.Amount() == 3949990974);
 
     // Test script pubkey serialization
     auto script_pubkey = output.GetScriptPubkey();
     auto script_pubkey_bytes{script_pubkey.ToBytes()};
-    CHECK(script_pubkey_bytes.size() == 34);
+    CHECK(script_pubkey_bytes.size() == 34U);
     auto round_trip_script_pubkey{ScriptPubkey(script_pubkey_bytes)};
-    CHECK(round_trip_script_pubkey.ToBytes().size() == 34);
+    CHECK(round_trip_script_pubkey.ToBytes().size() == 34U);
 
     for (const auto tx_spent_outputs : block_spent_outputs.TxsSpentOutputs()) {
         for (const auto coins : tx_spent_outputs.Coins()) {

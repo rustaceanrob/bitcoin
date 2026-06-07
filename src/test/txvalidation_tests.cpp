@@ -396,7 +396,7 @@ FIXTURE_TEST_CASE(version3_tests, RegTestingSetup)
         auto tx_v3_multi_parent = make_tx(mempool_outpoints, /*version=*/3);
         package_multi_parents.emplace_back(tx_v3_multi_parent);
         auto parents{pool.GetParents(entry.FromTx(tx_v3_multi_parent))};
-        CHECK(parents.size() == 3);
+        CHECK(parents.size() == 3U);
         const auto expected_error_str{strprintf("tx %s (wtxid=%s) would have too many ancestors",
             tx_v3_multi_parent->GetHash().ToString(), tx_v3_multi_parent->GetWitnessHash().ToString())};
         auto result{SingleTRUCChecks(pool, tx_v3_multi_parent, parents, empty_conflicts_set, GetVirtualTransactionSize(*tx_v3_multi_parent))};
@@ -475,7 +475,7 @@ FIXTURE_TEST_CASE(version3_tests, RegTestingSetup)
         auto parents{pool.GetParents(entry.FromTx(tx_many_sigops))};
         // legacy uses fAccurate = false, and the maximum number of multisig keys is used
         const int64_t total_sigops{static_cast<int64_t>(tx_many_sigops->vin.size()) * static_cast<int64_t>(script_multisig.GetSigOpCount(/*fAccurate=*/false))};
-        CHECK(total_sigops == tx_many_sigops->vin.size() * MAX_PUBKEYS_PER_MULTISIG);
+        CHECK(total_sigops == static_cast<int64_t>(tx_many_sigops->vin.size()) * MAX_PUBKEYS_PER_MULTISIG);
         const int64_t bip141_vsize{GetVirtualTransactionSize(*tx_many_sigops)};
         // Weight limit is not reached...
         CHECK((SingleTRUCChecks(pool, tx_many_sigops, parents, empty_conflicts_set, bip141_vsize) == std::nullopt));

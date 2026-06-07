@@ -26,12 +26,12 @@ using State = HeadersSyncState::State;
         REQUIRE(hss.GetState() == exp_state);                                                  \
         CHECK(result.success == exp_success);                                                  \
         CHECK(result.request_more == exp_request_more);                                        \
-        CHECK(result.pow_validated_headers.size() == exp_headers_size);                        \
+        CHECK(result.pow_validated_headers.size() == static_cast<size_t>(exp_headers_size));   \
         const std::optional<uint256> pow_validated_prev_opt{exp_pow_validated_prev};                     \
         if (pow_validated_prev_opt) {                                                                    \
             CHECK(result.pow_validated_headers.at(0).hashPrevBlock == pow_validated_prev_opt); \
         } else {                                                                                         \
-            CHECK(exp_headers_size == 0);                                                      \
+            CHECK(static_cast<size_t>(exp_headers_size) == 0U);                                \
         }                                                                                                \
         const std::optional<uint256> locator_hash_opt{exp_locator_hash};                                 \
         if (locator_hash_opt) {                                                                          \

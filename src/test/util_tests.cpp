@@ -201,29 +201,29 @@ FIXTURE_TEST_CASE(parse_hex, BasicTestingSetup)
     // Empty string is supported
     static_assert(""_hex.empty());
     static_assert(""_hex_u8.empty());
-    CHECK(""_hex_v.size() == 0);
-    CHECK(""_hex_v_u8.size() == 0);
-    CHECK(ParseHex("").size() == 0);
-    CHECK(TryParseHex<uint8_t>("").value().size() == 0);
+    CHECK(""_hex_v.size() == 0U);
+    CHECK(""_hex_v_u8.size() == 0U);
+    CHECK(ParseHex("").size() == 0U);
+    CHECK(TryParseHex<uint8_t>("").value().size() == 0U);
 
     // Spaces between nibbles is treated as invalid
-    CHECK(ParseHex("AAF F").size() == 0);
+    CHECK(ParseHex("AAF F").size() == 0U);
     CHECK(!TryParseHex("AAF F").has_value());
 
     // Embedded null is treated as invalid
     const std::string with_embedded_null{" 11 "s
                                          " \0 "
                                          " 22 "s};
-    CHECK(with_embedded_null.size() == 11);
-    CHECK(ParseHex(with_embedded_null).size() == 0);
+    CHECK(with_embedded_null.size() == 11U);
+    CHECK(ParseHex(with_embedded_null).size() == 0U);
     CHECK(!TryParseHex(with_embedded_null).has_value());
 
     // Non-hex is treated as invalid
-    CHECK(ParseHex("1234 invalid 1234").size() == 0);
+    CHECK(ParseHex("1234 invalid 1234").size() == 0U);
     CHECK(!TryParseHex("1234 invalid 1234").has_value());
 
     // Truncated input is treated as invalid
-    CHECK(ParseHex("12 3").size() == 0);
+    CHECK(ParseHex("12 3").size() == 0U);
     CHECK(!TryParseHex("12 3").has_value());
 }
 
@@ -635,11 +635,11 @@ static void TestAddMatrixOverflow()
     CHECK(MAXI == SaturatingAdd(T{1}, MAXI));
     CHECK(MAXI == SaturatingAdd(MAXI, MAXI));
 
-    CHECK(0 == CheckedAdd(T{0}, T{0}).value());
+    CHECK(T{0} == CheckedAdd(T{0}, T{0}).value());
     CHECK(MAXI == CheckedAdd(T{0}, MAXI).value());
     CHECK(MAXI == CheckedAdd(T{1}, MAXI - 1).value());
     CHECK(MAXI - 1 == CheckedAdd(T{1}, MAXI - 2).value());
-    CHECK(0 == SaturatingAdd(T{0}, T{0}));
+    CHECK(T{0} == SaturatingAdd(T{0}, T{0}));
     CHECK(MAXI == SaturatingAdd(T{0}, MAXI));
     CHECK(MAXI == SaturatingAdd(T{1}, MAXI - 1));
     CHECK(MAXI - 1 == SaturatingAdd(T{1}, MAXI - 2));
@@ -749,8 +749,8 @@ FIXTURE_TEST_CASE(test_ToIntegral, BasicTestingSetup)
     CHECK(!ToIntegral<int16_t>("32768"));
 
     CHECK(!ToIntegral<uint16_t>("-1"));
-    CHECK(ToIntegral<uint16_t>("0").value() == 0U);
-    CHECK(ToIntegral<uint16_t>("65535").value() == 65'535U);
+    CHECK(ToIntegral<uint16_t>("0").value() == 0);
+    CHECK(ToIntegral<uint16_t>("65535").value() == 65'535);
     CHECK(!ToIntegral<uint16_t>("65536"));
 
     CHECK(!ToIntegral<int8_t>("-129"));
@@ -759,8 +759,8 @@ FIXTURE_TEST_CASE(test_ToIntegral, BasicTestingSetup)
     CHECK(!ToIntegral<int8_t>("128"));
 
     CHECK(!ToIntegral<uint8_t>("-1"));
-    CHECK(ToIntegral<uint8_t>("0").value() == 0U);
-    CHECK(ToIntegral<uint8_t>("255").value() == 255U);
+    CHECK(ToIntegral<uint8_t>("0").value() == 0);
+    CHECK(ToIntegral<uint8_t>("255").value() == 255);
     CHECK(!ToIntegral<uint8_t>("256"));
 }
 
@@ -844,20 +844,20 @@ FIXTURE_TEST_CASE(test_LocaleIndependentAtoi, BasicTestingSetup)
     CHECK(LocaleIndependentAtoi<int16_t>("32767") == 32'767);
     CHECK(LocaleIndependentAtoi<int16_t>("32768") == 32'767);
 
-    CHECK(LocaleIndependentAtoi<uint16_t>("-1") == 0U);
-    CHECK(LocaleIndependentAtoi<uint16_t>("0") == 0U);
-    CHECK(LocaleIndependentAtoi<uint16_t>("65535") == 65'535U);
-    CHECK(LocaleIndependentAtoi<uint16_t>("65536") == 65'535U);
+    CHECK(LocaleIndependentAtoi<uint16_t>("-1") == 0);
+    CHECK(LocaleIndependentAtoi<uint16_t>("0") == 0);
+    CHECK(LocaleIndependentAtoi<uint16_t>("65535") == 65'535);
+    CHECK(LocaleIndependentAtoi<uint16_t>("65536") == 65'535);
 
     CHECK(LocaleIndependentAtoi<int8_t>("-129") == -128);
     CHECK(LocaleIndependentAtoi<int8_t>("-128") == -128);
     CHECK(LocaleIndependentAtoi<int8_t>("127") == 127);
     CHECK(LocaleIndependentAtoi<int8_t>("128") == 127);
 
-    CHECK(LocaleIndependentAtoi<uint8_t>("-1") == 0U);
-    CHECK(LocaleIndependentAtoi<uint8_t>("0") == 0U);
-    CHECK(LocaleIndependentAtoi<uint8_t>("255") == 255U);
-    CHECK(LocaleIndependentAtoi<uint8_t>("256") == 255U);
+    CHECK(LocaleIndependentAtoi<uint8_t>("-1") == 0);
+    CHECK(LocaleIndependentAtoi<uint8_t>("0") == 0);
+    CHECK(LocaleIndependentAtoi<uint8_t>("255") == 255);
+    CHECK(LocaleIndependentAtoi<uint8_t>("256") == 255);
 }
 
 FIXTURE_TEST_CASE(test_ToIntegralHex, BasicTestingSetup)
@@ -865,21 +865,21 @@ FIXTURE_TEST_CASE(test_ToIntegralHex, BasicTestingSetup)
     std::optional<uint64_t> n;
     // Valid values
     n = ToIntegral<uint64_t>("1234", 16);
-    CHECK(*n == 0x1234);
+    CHECK(*n == 0x1234U);
     n = ToIntegral<uint64_t>("a", 16);
-    CHECK(*n == 0xA);
+    CHECK(*n == 0xAU);
     n = ToIntegral<uint64_t>("0000000a", 16);
-    CHECK(*n == 0xA);
+    CHECK(*n == 0xAU);
     n = ToIntegral<uint64_t>("100", 16);
-    CHECK(*n == 0x100);
+    CHECK(*n == 0x100U);
     n = ToIntegral<uint64_t>("DEADbeef", 16);
-    CHECK(*n == 0xDEADbeef);
+    CHECK(*n == 0xDEADbeefU);
     n = ToIntegral<uint64_t>("FfFfFfFf", 16);
-    CHECK(*n == 0xFfFfFfFf);
+    CHECK(*n == 0xFfFfFfFfU);
     n = ToIntegral<uint64_t>("123456789", 16);
     CHECK(*n == 0x123456789ULL);
     n = ToIntegral<uint64_t>("0", 16);
-    CHECK(*n == 0);
+    CHECK(*n == 0U);
     n = ToIntegral<uint64_t>("FfFfFfFfFfFfFfFf", 16);
     CHECK(*n == 0xFfFfFfFfFfFfFfFfULL);
     std::optional<int64_t> m = ToIntegral<int64_t>("-1", 16);
@@ -1332,14 +1332,14 @@ FIXTURE_TEST_CASE(test_SplitString, BasicTestingSetup)
     // Empty string.
     {
         std::vector<std::string> result = SplitString("", '-');
-        CHECK(result.size() == 1);
+        CHECK(result.size() == 1U);
         CHECK(result[0] == "");
     }
 
     // Empty items.
     {
         std::vector<std::string> result = SplitString("-", '-');
-        CHECK(result.size() == 2);
+        CHECK(result.size() == 2U);
         CHECK(result[0] == "");
         CHECK(result[1] == "");
     }
@@ -1347,7 +1347,7 @@ FIXTURE_TEST_CASE(test_SplitString, BasicTestingSetup)
     // More empty items.
     {
         std::vector<std::string> result = SplitString("--", '-');
-        CHECK(result.size() == 3);
+        CHECK(result.size() == 3U);
         CHECK(result[0] == "");
         CHECK(result[1] == "");
         CHECK(result[2] == "");
@@ -1356,14 +1356,14 @@ FIXTURE_TEST_CASE(test_SplitString, BasicTestingSetup)
     // Separator is not present.
     {
         std::vector<std::string> result = SplitString("abc", '-');
-        CHECK(result.size() == 1);
+        CHECK(result.size() == 1U);
         CHECK(result[0] == "abc");
     }
 
     // Basic behavior.
     {
         std::vector<std::string> result = SplitString("a-b", '-');
-        CHECK(result.size() == 2);
+        CHECK(result.size() == 2U);
         CHECK(result[0] == "a");
         CHECK(result[1] == "b");
     }
@@ -1371,7 +1371,7 @@ FIXTURE_TEST_CASE(test_SplitString, BasicTestingSetup)
     // Case-sensitivity of the separator.
     {
         std::vector<std::string> result = SplitString("AAA", 'a');
-        CHECK(result.size() == 1);
+        CHECK(result.size() == 1U);
         CHECK(result[0] == "AAA");
     }
 
@@ -1608,8 +1608,8 @@ FIXTURE_TEST_CASE(util_ParseByteUnits, BasicTestingSetup)
     auto noop = ByteUnit::NOOP;
 
     // no multiplier
-    CHECK(ParseByteUnits("1", noop).value() == 1);
-    CHECK(ParseByteUnits("0", noop).value() == 0);
+    CHECK(ParseByteUnits("1", noop).value() == 1U);
+    CHECK(ParseByteUnits("0", noop).value() == 0U);
 
     CHECK(ParseByteUnits("1k", noop).value() == 1000ULL);
     CHECK(ParseByteUnits("1K", noop).value() == 1ULL << 10);
@@ -1702,21 +1702,21 @@ FIXTURE_TEST_CASE(clearshrink_test, BasicTestingSetup)
     {
         std::vector<uint8_t> v = {1, 2, 3};
         ClearShrink(v);
-        CHECK(v.size() == 0);
-        CHECK(v.capacity() == 0);
+        CHECK(v.size() == 0U);
+        CHECK(v.capacity() == 0U);
     }
 
     {
         std::vector<bool> v = {false, true, false, false, true, true};
         ClearShrink(v);
-        CHECK(v.size() == 0);
-        CHECK(v.capacity() == 0);
+        CHECK(v.size() == 0U);
+        CHECK(v.capacity() == 0U);
     }
 
     {
         std::deque<int> v = {1, 3, 3, 7};
         ClearShrink(v);
-        CHECK(v.size() == 0);
+        CHECK(v.size() == 0U);
         // std::deque has no capacity() we can observe.
     }
 }
@@ -1762,10 +1762,10 @@ void TestSaturatingLeftShift()
     constexpr auto MAX{std::numeric_limits<T>::max()};
 
     // Basic operations
-    CHECK(SaturatingLeftShift<T>(0, 1) == 0);
-    CHECK(SaturatingLeftShift<T>(0, 127) == 0);
-    CHECK(SaturatingLeftShift<T>(1, 1) == 2);
-    CHECK(SaturatingLeftShift<T>(2, 2) == 8);
+    CHECK(SaturatingLeftShift<T>(0, 1) == T{0});
+    CHECK(SaturatingLeftShift<T>(0, 127) == T{0});
+    CHECK(SaturatingLeftShift<T>(1, 1) == T{2});
+    CHECK(SaturatingLeftShift<T>(2, 2) == T{8});
     CHECK(SaturatingLeftShift<T>(MAX >> 1, 1) == MAX - 1);
 
     // Max left shift
@@ -1815,19 +1815,19 @@ concept BraceInitializesTo = requires { Int{bytes}; };
 FIXTURE_TEST_CASE(mib_string_literal_test, BasicTestingSetup)
 {
     // Basic equivalences and simple arithmetic operations
-    CHECK(0_MiB == 0);
-    CHECK(1_MiB == 1 << 20);
-    CHECK(1_MiB == 1024 * 1024);
+    CHECK(0_MiB == 0ULL);
+    CHECK(1_MiB ==  1ULL << 20);
+    CHECK(1_MiB == 1024ULL * 1024);
     CHECK(1_MiB == 0x100000U);
     CHECK(1_MiB == 1048576U);
     CHECK(2ULL * 1_MiB == 2ULL << 20);
     CHECK((3_MiB + 123) / double(1_MiB) == (3_MiB + 123) / 1024.0 / 1024.0);
 
     // Specific codebase values
-    CHECK(4_MiB == 1 << 22);
-    CHECK(8_MiB == 1 << 23);
+    CHECK(4_MiB ==  1ULL << 22);
+    CHECK(8_MiB ==  1ULL << 23);
     CHECK(16_MiB == 0x1000000U);
-    CHECK(16_MiB == 1 << 24);
+    CHECK(16_MiB ==  1ULL << 24);
     CHECK(32_MiB == 0x2000000U);
     CHECK(32_MiB == 32U << 20);
     CHECK(50_MiB / 1_MiB == 50U);
@@ -1882,9 +1882,9 @@ FIXTURE_TEST_CASE(ceil_div_test, BasicTestingSetup)
 FIXTURE_TEST_CASE(gib_string_literal_test, BasicTestingSetup)
 {
     // Basic equivalences and simple arithmetic operations
-    CHECK(0_GiB == 0);
-    CHECK(1_GiB == 1 << 30);
-    CHECK(1_GiB == 1024 * 1024 * 1024);
+    CHECK(0_GiB == 0ULL);
+    CHECK(1_GiB == 1ULL << 30);
+    CHECK(1_GiB == 1024ULL * 1024 * 1024);
     CHECK(1_GiB == 0x40000000U);
     CHECK(1_GiB == 1073741824U);
     CHECK(1_GiB == 1_MiB * 1024);

@@ -271,7 +271,7 @@ FIXTURE_TEST_CASE(MempoolSizeLimitTest, TestingSetup)
     // ... with a 1/4 halflife when mempool is < 1/4 its target size
 
     clock += 5 * HALFLIFE;
-    CHECK(pool.GetMinFee(1).GetFeePerK() == DEFAULT_INCREMENTAL_RELAY_FEE);
+    CHECK(pool.GetMinFee(1).GetFeePerK() == static_cast<CAmount>(DEFAULT_INCREMENTAL_RELAY_FEE));
     // ... but feerate should never drop below DEFAULT_INCREMENTAL_RELAY_FEE
 
     clock += HALFLIFE;

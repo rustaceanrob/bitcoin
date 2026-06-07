@@ -1139,15 +1139,15 @@ FIXTURE_TEST_CASE(ccoins_reset_guard, BasicTestingSetup)
         const auto reset_guard{cache.CreateResetGuard()};
         CHECK((cache.AccessCoin(outpoint) == coin));
         CHECK(!cache.AccessCoin(outpoint).IsSpent());
-        CHECK(cache.GetCacheSize() == 1);
-        CHECK(cache.GetDirtyCount() == 1);
+        CHECK(cache.GetCacheSize() == 1U);
+        CHECK(cache.GetDirtyCount() == 1U);
         CHECK(cache.GetBestBlock() == cache_best_block);
         CHECK(!root_cache.HaveCoinInCache(outpoint));
     }
 
     CHECK(cache.AccessCoin(outpoint).IsSpent());
-    CHECK(cache.GetCacheSize() == 0);
-    CHECK(cache.GetDirtyCount() == 0);
+    CHECK(cache.GetCacheSize() == 0U);
+    CHECK(cache.GetDirtyCount() == 0U);
     CHECK(cache.GetBestBlock() == base_best_block);
     CHECK(!root_cache.HaveCoinInCache(outpoint));
 
@@ -1157,7 +1157,7 @@ FIXTURE_TEST_CASE(ccoins_reset_guard, BasicTestingSetup)
     }
 
     CHECK(cache.AccessCoin(outpoint).IsSpent());
-    CHECK(cache.GetCacheSize() == 0);
+    CHECK(cache.GetCacheSize() == 0U);
     CHECK(cache.GetDirtyCount() == 0U);
     CHECK(cache.GetBestBlock() == base_best_block);
     CHECK(!root_cache.HaveCoinInCache(outpoint));

@@ -228,8 +228,8 @@ FIXTURE_TEST_CASE(peer_dos_limits, BasicTestingSetup)
         }
         orphanage->SanityCheck();
         CHECK(orphanage->AnnouncementsFromPeer(peer_dosy) == max_announcements);
-        CHECK(orphanage->AnnouncementsFromPeer(peer1) == 0);
-        CHECK(orphanage->AnnouncementsFromPeer(peer2) == 0);
+        CHECK(orphanage->AnnouncementsFromPeer(peer1) == 0U);
+        CHECK(orphanage->AnnouncementsFromPeer(peer2) == 0U);
 
         // Add 10 unique transactions from peer1.
         // LimitOrphans should evict from peer_dosy, because that's the one exceeding announcement limits.
@@ -362,10 +362,10 @@ FIXTURE_TEST_CASE(peer_dos_limits, BasicTestingSetup)
         orphanage->AddTx(ptx_large, peer_large);
 
         // peer_normal should still have 10 transactions, and peer_large should have 1.
-        CHECK(orphanage->AnnouncementsFromPeer(peer_normal) == 10);
-        CHECK(orphanage->AnnouncementsFromPeer(peer_large) == 1);
+        CHECK(orphanage->AnnouncementsFromPeer(peer_normal) == 10U);
+        CHECK(orphanage->AnnouncementsFromPeer(peer_large) == 1U);
         CHECK(orphanage->HaveTxFromPeer(ptx_large->GetWitnessHash(), peer_large));
-        CHECK(orphanage->CountAnnouncements() == 11);
+        CHECK(orphanage->CountAnnouncements() == 11U);
 
         orphanage->SanityCheck();
     }
@@ -383,8 +383,8 @@ FIXTURE_TEST_CASE(peer_dos_limits, BasicTestingSetup)
             auto ptx = MakeTransactionSpending(outpoints_9, m_rng);
             orphanage->AddTx(ptx, 0);
         }
-        CHECK(orphanage->CountAnnouncements() == 10);
-        CHECK(orphanage->TotalLatencyScore() == 10);
+        CHECK(orphanage->CountAnnouncements() == 10U);
+        CHECK(orphanage->TotalLatencyScore() == 10U);
 
         // Add 10 transactions with 50 inputs each.
         std::vector<COutPoint> outpoints_50;
@@ -400,17 +400,17 @@ FIXTURE_TEST_CASE(peer_dos_limits, BasicTestingSetup)
             if (i < 5) CHECK(!orphanage->AddTx(ptx, 1));
         }
         // 10 of the 9-input transactions + 10 of the 50-input transactions + 5 more announcements of the 50-input transactions
-        CHECK(orphanage->CountAnnouncements() == 25);
+        CHECK(orphanage->CountAnnouncements() == 25U);
         // Base of 25 announcements, plus 10 * 5 for the 50-input transactions (counted just once)
-        CHECK(orphanage->TotalLatencyScore() == 25 + 50);
+        CHECK(orphanage->TotalLatencyScore() == static_cast<unsigned>(25 + 50));
 
         // Peer 0 sent all 20 transactions
-        CHECK(orphanage->AnnouncementsFromPeer(0) == 20);
-        CHECK(orphanage->LatencyScoreFromPeer(0) == 20 + 10 * 5);
+        CHECK(orphanage->AnnouncementsFromPeer(0) == 20U);
+        CHECK(orphanage->LatencyScoreFromPeer(0) == static_cast<unsigned>(20 + 10 * 5));
 
         // Peer 1 sent 5 of the 10 transactions with many inputs
-        CHECK(orphanage->AnnouncementsFromPeer(1) == 5);
-        CHECK(orphanage->LatencyScoreFromPeer(1) == 5 + 5 * 5);
+        CHECK(orphanage->AnnouncementsFromPeer(1) == 5U);
+        CHECK(orphanage->LatencyScoreFromPeer(1) == static_cast<unsigned>(5 + 5 * 5));
 
         orphanage->SanityCheck();
     }
@@ -632,7 +632,7 @@ FIXTURE_TEST_CASE(get_children, BasicTestingSetup)
         {
             std::set<CTransactionRef> expected_parent1_node1{child_p1n0};
 
-            CHECK(orphanage->GetChildrenFromSamePeer(parent1, node1).size() == 1);
+            CHECK(orphanage->GetChildrenFromSamePeer(parent1, node1).size() == 1U);
             CHECK(orphanage->HaveTxFromPeer(child_p1n0->GetWitnessHash(), node1));
             CHECK(EqualTxns(expected_parent1_node1, orphanage->GetChildrenFromSamePeer(parent1, node1)));
         }
@@ -656,7 +656,7 @@ FIXTURE_TEST_CASE(get_children, BasicTestingSetup)
         {
             std::set<CTransactionRef> expected_parent2_node2{child_p1n0_p2n0};
 
-            CHECK(1 == orphanage->GetChildrenFromSamePeer(parent2, node2).size());
+            CHECK(1U == orphanage->GetChildrenFromSamePeer(parent2, node2).size());
             CHECK(orphanage->HaveTxFromPeer(child_p1n0_p2n0->GetWitnessHash(), node2));
             CHECK(EqualTxns(expected_parent2_node2, orphanage->GetChildrenFromSamePeer(parent2, node2)));
         }
@@ -731,7 +731,7 @@ FIXTURE_TEST_CASE(process_block, BasicTestingSetup)
         CHECK(!orphanage->HaveTx(expected_removed_wtxid));
     }
     // Only remaining tx is control_tx
-    CHECK(orphanage->CountUniqueOrphans() == 1);
+    CHECK(orphanage->CountUniqueOrphans() == 1U);
     CHECK(orphanage->HaveTx(control_tx->GetWitnessHash()));
 }
 
@@ -840,7 +840,7 @@ FIXTURE_TEST_CASE(peer_worksets, BasicTestingSetup)
 
         // Parent accepted: child is added to 1 of 3 worksets.
         auto newly_reconsiderable = orphanage->AddChildrenToWorkSet(*tx_missing_parent, det_rand);
-        CHECK(newly_reconsiderable.size() == 1);
+        CHECK(newly_reconsiderable.size() == 1U);
         int node0_reconsider = orphanage->HaveTxToReconsider(node0);
         int node1_reconsider = orphanage->HaveTxToReconsider(node1);
         int node2_reconsider = orphanage->HaveTxToReconsider(node2);
@@ -862,7 +862,7 @@ FIXTURE_TEST_CASE(peer_worksets, BasicTestingSetup)
 
         // Delete this tx, clearing the orphanage.
         CHECK(orphanage->EraseTx(orphan_wtxid) == 1);
-        CHECK(orphanage->CountUniqueOrphans() == 0);
+        CHECK(orphanage->CountUniqueOrphans() == 0U);
         for (NodeId node = node0; node <= node2; ++node) {
             CHECK(orphanage->GetTxToReconsider(node) == nullptr);
             CHECK(!orphanage->HaveTxFromPeer(orphan_wtxid, node));

@@ -582,7 +582,7 @@ FIXTURE_TEST_CASE(streams_buffered_file_rand, BasicTestingSetup)
                 bf.SetLimit(currentPos + 1);
                 bf >> a;
                 for (uint8_t i = 0; i < 1; ++i) {
-                    CHECK(a[i] == currentPos);
+                    CHECK(a[i] == static_cast<uint8_t>(currentPos));
                     currentPos++;
                 }
                 break;
@@ -594,7 +594,7 @@ FIXTURE_TEST_CASE(streams_buffered_file_rand, BasicTestingSetup)
                 bf.SetLimit(currentPos + 2);
                 bf >> a;
                 for (uint8_t i = 0; i < 2; ++i) {
-                    CHECK(a[i] == currentPos);
+                    CHECK(a[i] == static_cast<uint8_t>(currentPos));
                     currentPos++;
                 }
                 break;
@@ -606,7 +606,7 @@ FIXTURE_TEST_CASE(streams_buffered_file_rand, BasicTestingSetup)
                 bf.SetLimit(currentPos + 5);
                 bf >> a;
                 for (uint8_t i = 0; i < 5; ++i) {
-                    CHECK(a[i] == currentPos);
+                    CHECK(a[i] == static_cast<uint8_t>(currentPos));
                     currentPos++;
                 }
                 break;
@@ -634,7 +634,7 @@ FIXTURE_TEST_CASE(streams_buffered_file_rand, BasicTestingSetup)
                 bf.SetLimit(currentPos + 1);
                 uint8_t i;
                 bf >> i;
-                CHECK(i == currentPos);
+                CHECK(i == static_cast<uint8_t>(currentPos));
                 currentPos++;
                 break;
             }

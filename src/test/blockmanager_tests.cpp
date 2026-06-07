@@ -164,7 +164,7 @@ FIXTURE_TEST_CASE(blockmanager_block_data_part, TestChain100Setup)
 
     auto block{blockman.ReadRawBlock(tip_block_pos)};
     REQUIRE(block);
-    REQUIRE(block->size() >= 200);
+    REQUIRE(block->size() >= 200U);
 
     const auto expect_part{[&](size_t offset, size_t size) {
         auto res{blockman.ReadRawBlock(tip_block_pos, std::pair{offset, size})};
@@ -192,7 +192,7 @@ FIXTURE_TEST_CASE(blockmanager_block_data_part_error, TestChain100Setup)
 
     auto block{blockman.ReadRawBlock(tip_block_pos)};
     REQUIRE(block);
-    REQUIRE(block->size() >= 200);
+    REQUIRE(block->size() >= 200U);
 
     const auto expect_part_error{[&](size_t offset, size_t size) {
         auto res{blockman.ReadRawBlock(tip_block_pos, std::pair{offset, size})};
@@ -259,7 +259,7 @@ FIXTURE_TEST_CASE(blockmanager_flush_block_file, BasicTestingSetup)
 
     // Blockstore is empty
     LOCK(::cs_main);
-    CHECK(blockman.CalculateCurrentUsage() == 0);
+    CHECK(blockman.CalculateCurrentUsage() == 0U);
 
     // Write the first block to a new location.
     FlatFilePos pos1{blockman.WriteBlock(block1, /*nHeight=*/1)};
@@ -290,10 +290,10 @@ FIXTURE_TEST_CASE(blockmanager_flush_block_file, BasicTestingSetup)
     // Verify this behavior by attempting (and failing) to write block 3 data
     // to block 2 location.
     CBlockFileInfo* block_data = blockman.GetBlockFileInfo(0);
-    CHECK(block_data->nBlocks == 2);
+    CHECK(block_data->nBlocks == 2U);
     blockman.UpdateBlockInfo(block3, /*nHeight=*/3, /*pos=*/pos2);
     // Metadata is updated...
-    CHECK(block_data->nBlocks == 3);
+    CHECK(block_data->nBlocks == 3U);
     // ...but there are still only two blocks in the file
     CHECK(blockman.CalculateCurrentUsage() == (TEST_BLOCK_SIZE + STORAGE_HEADER_BYTES) * 2);
 

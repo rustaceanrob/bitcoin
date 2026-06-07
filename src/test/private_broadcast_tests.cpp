@@ -36,9 +36,9 @@ FIXTURE_TEST_CASE(basic, BasicTestingSetup)
 
     // No transactions initially.
     CHECK(!pb.PickTxForSend(/*will_send_to_nodeid=*/recipient1, /*will_send_to_address=*/addr1).has_value());
-    CHECK(pb.GetStale().size() == 0);
+    CHECK(pb.GetStale().size() == 0U);
     CHECK(!pb.HavePendingTransactions());
-    CHECK(pb.GetBroadcastInfo().size() == 0);
+    CHECK(pb.GetBroadcastInfo().size() == 0U);
 
     // Make a transaction and add it.
     const auto tx1{MakeDummyTx(/*id=*/1, /*num_witness=*/0)};
@@ -59,7 +59,7 @@ FIXTURE_TEST_CASE(basic, BasicTestingSetup)
     }};
     const auto check_peer_counts{[&](size_t tx1_peer_count, size_t tx2_peer_count) {
         const auto infos{pb.GetBroadcastInfo()};
-        CHECK(infos.size() == 2);
+        CHECK(infos.size() == 2U);
         CHECK(find_tx_info(infos, tx1).peers.size() == tx1_peer_count);
         CHECK(find_tx_info(infos, tx2).peers.size() == tx2_peer_count);
     }};
@@ -91,13 +91,13 @@ FIXTURE_TEST_CASE(basic, BasicTestingSetup)
     CHECK(!pb.DidNodeConfirmReception(nonexistent_recipient));
 
     // 1. Freshly added transactions should NOT be stale yet.
-    CHECK(pb.GetStale().size() == 0);
+    CHECK(pb.GetStale().size() == 0U);
 
     // 2. Fast-forward the mock clock past the INITIAL_STALE_DURATION.
     clock += PrivateBroadcast::INITIAL_STALE_DURATION + 1min;
 
     // 3. Now that the initial duration has passed, both unconfirmed transactions should be stale.
-    CHECK(pb.GetStale().size() == 2);
+    CHECK(pb.GetStale().size() == 2U);
 
     // Confirm reception by recipient1.
     pb.NodeConfirmedReception(nonexistent_recipient); // Dummy call.
@@ -107,34 +107,34 @@ FIXTURE_TEST_CASE(basic, BasicTestingSetup)
     CHECK(!pb.DidNodeConfirmReception(recipient2));
 
     const auto infos{pb.GetBroadcastInfo()};
-    CHECK(infos.size() == 2);
+    CHECK(infos.size() == 2U);
     {
         const auto& peers{find_tx_info(infos, tx_for_recipient1).peers};
-        CHECK(peers.size() == 1);
+        CHECK(peers.size() == 1U);
         CHECK(peers[0].address.ToStringAddrPort() == addr1.ToStringAddrPort());
         CHECK(peers[0].received.has_value());
     }
     {
         const auto& peers{find_tx_info(infos, tx_for_recipient2).peers};
-        CHECK(peers.size() == 1);
+        CHECK(peers.size() == 1U);
         CHECK(peers[0].address.ToStringAddrPort() == addr2.ToStringAddrPort());
         CHECK(!peers[0].received.has_value());
     }
 
     const auto stale_state{pb.GetStale()};
-    CHECK(stale_state.size() == 1);
+    CHECK(stale_state.size() == 1U);
     CHECK(stale_state[0] == tx_for_recipient2);
 
     clock += 10h;
 
-    CHECK(pb.GetStale().size() == 2);
+    CHECK(pb.GetStale().size() == 2U);
 
-    CHECK(pb.Remove(tx_for_recipient1).value() == 1);
+    CHECK(pb.Remove(tx_for_recipient1).value() == 1U);
     CHECK(!pb.Remove(tx_for_recipient1).has_value());
-    CHECK(pb.Remove(tx_for_recipient2).value() == 0);
+    CHECK(pb.Remove(tx_for_recipient2).value() == 0U);
     CHECK(!pb.Remove(tx_for_recipient2).has_value());
 
-    CHECK(pb.GetBroadcastInfo().size() == 0);
+    CHECK(pb.GetBroadcastInfo().size() == 0U);
     const CService addr_nonexistent{ipv4Addr, 3333};
     CHECK(!pb.PickTxForSend(/*will_send_to_nodeid=*/nonexistent_recipient, /*will_send_to_address=*/addr_nonexistent).has_value());
 }
@@ -148,12 +148,12 @@ FIXTURE_TEST_CASE(stale_unpicked_tx, BasicTestingSetup)
     REQUIRE(pb.Add(tx));
 
     // Unpicked transactions use the longer INITIAL_STALE_DURATION.
-    CHECK(pb.GetStale().size() == 0);
+    CHECK(pb.GetStale().size() == 0U);
     clock += PrivateBroadcast::INITIAL_STALE_DURATION - 1min;
-    CHECK(pb.GetStale().size() == 0);
+    CHECK(pb.GetStale().size() == 0U);
     clock += 2min;
     const auto stale_state{pb.GetStale()};
-    REQUIRE(stale_state.size() == 1);
+    REQUIRE(stale_state.size() == 1U);
     CHECK(stale_state[0] == tx);
 }
 

@@ -187,7 +187,7 @@ FIXTURE_TEST_CASE(thread_safety, BasicTestingSetup)
     // sig will have been called 2000 times, and at least 1000 of those will
     // have been executing multiple incrementing callbacks. So while val is
     // probably MUCH bigger, it's guaranteed to be at least 3000.
-    CHECK(val.load() >= 3000);
+    CHECK(val.load() >= 3000U);
 }
 
 /* Test that connection and disconnection works from within signal

@@ -165,7 +165,7 @@ FIXTURE_TEST_CASE(randbits_test, BasicTestingSetup)
                 }
                 CHECK(gen == gen2);
                 // Make sure the result is in range.
-                if (bits < 64) CHECK(gen >> bits == 0);
+                if (bits < 64) CHECK(gen >> bits == 0U);
                 // Mark all the seen bits in the output.
                 for (int bit = 0; bit < bits; ++bit) {
                     int idx = bit + (bits * (bits - 1)) / 2 + 2080 * ctx_test_bitsleft;
@@ -228,8 +228,8 @@ FIXTURE_TEST_CASE(shuffle_stat_test, BasicTestingSetup)
             CHECK((count == 0));
         } else {
             chi_score += ((count - 100.0) * (count - 100.0)) / 100.0;
-            CHECK(count > 50);
-            CHECK(count < 150);
+            CHECK(count > 50U);
+            CHECK(count < 150U);
             sum += count;
         }
     }

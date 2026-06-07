@@ -167,7 +167,7 @@ TEST_CASE(script_assets_test)
     file.read(data.data(), data.size());
     UniValue tests = read_json(data);
     CHECK(tests.isArray());
-    CHECK(tests.size() > 0);
+    CHECK(tests.size() > 0U);
 
     for (size_t i = 0; i < tests.size(); i++) {
         AssetTest(tests[i], signature_cache);

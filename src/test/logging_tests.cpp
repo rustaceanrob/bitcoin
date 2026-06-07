@@ -257,7 +257,7 @@ FIXTURE_TEST_CASE(logging_Conf, LogSetup)
         CHECK(LogInstance().LogLevel() == BCLog::Level::Debug);
 
         const auto& category_levels{LogInstance().CategoryLevels()};
-        CHECK(category_levels.size() == 2);
+        CHECK(category_levels.size() == 2U);
 
         const auto net_it{category_levels.find(BCLog::LogFlags::NET)};
         CHECK((net_it != category_levels.end()));
@@ -405,16 +405,16 @@ void TestLogFromLocation(Location location, const std::string& message,
     /* BOOST_TEST_INFO_SCOPE(log_lines.size() << " log_lines read: \n" << util::Join(log_lines, "\n")) */;
 
     if (status == Status::STILL_SUPPRESSED) {
-        CHECK(log_lines.size() == 0);
+        CHECK(log_lines.size() == 0U);
         return;
     }
 
     if (status == Status::NEWLY_SUPPRESSED) {
-        REQUIRE(log_lines.size() == 2);
+        REQUIRE(log_lines.size() == 2U);
         CHECK(log_lines[0].starts_with("[*] [warning] Excessive logging detected"));
         log_lines.erase(log_lines.begin());
     }
-    REQUIRE(log_lines.size() == 1);
+    REQUIRE(log_lines.size() == 1U);
     auto& payload{log_lines.back()};
     CHECK(suppressions_active == payload.starts_with("[*]"));
     CHECK(payload.ends_with(message));

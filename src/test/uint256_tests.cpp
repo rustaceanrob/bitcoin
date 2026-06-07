@@ -163,18 +163,18 @@ TEST_CASE(methods) // GetHex FromHex begin() end() size() GetLow64 GetSerializeS
     CHECK_EQUAL_RANGES(ZeroL, std::ranges::subrange(ZeroArray, ZeroArray + uint256::size()));
     CHECK_EQUAL_RANGES(OneL, std::ranges::subrange(OneArray, OneArray + uint256::size()));
     CHECK(R1L.size() == sizeof(R1L));
-    CHECK(sizeof(R1L) == 32);
-    CHECK(R1L.size() == 32);
-    CHECK(R2L.size() == 32);
-    CHECK(ZeroL.size() == 32);
-    CHECK(MaxL.size() == 32);
+    CHECK(sizeof(R1L) == 32U);
+    CHECK(R1L.size() == 32U);
+    CHECK(R2L.size() == 32U);
+    CHECK(ZeroL.size() == 32U);
+    CHECK(MaxL.size() == 32U);
     CHECK(R1L.begin() + 32 == R1L.end());
     CHECK(R2L.begin() + 32 == R2L.end());
     CHECK(OneL.begin() + 32 == OneL.end());
     CHECK(MaxL.begin() + 32 == MaxL.end());
     CHECK(TmpL.begin() + 32 == TmpL.end());
-    CHECK(GetSerializeSize(R1L) == 32);
-    CHECK(GetSerializeSize(ZeroL) == 32);
+    CHECK(GetSerializeSize(R1L) == 32U);
+    CHECK(GetSerializeSize(ZeroL) == 32U);
 
     DataStream ss{};
     ss << R1L;
@@ -209,18 +209,18 @@ TEST_CASE(methods) // GetHex FromHex begin() end() size() GetLow64 GetSerializeS
     CHECK_EQUAL_RANGES(ZeroS, std::ranges::subrange(ZeroArray, ZeroArray + uint160::size()));
     CHECK_EQUAL_RANGES(OneS, std::ranges::subrange(OneArray, OneArray + uint160::size()));
     CHECK(R1S.size() == sizeof(R1S));
-    CHECK(sizeof(R1S) == 20);
-    CHECK(R1S.size() == 20);
-    CHECK(R2S.size() == 20);
-    CHECK(ZeroS.size() == 20);
-    CHECK(MaxS.size() == 20);
+    CHECK(sizeof(R1S) == 20U);
+    CHECK(R1S.size() == 20U);
+    CHECK(R2S.size() == 20U);
+    CHECK(ZeroS.size() == 20U);
+    CHECK(MaxS.size() == 20U);
     CHECK(R1S.begin() + 20 == R1S.end());
     CHECK(R2S.begin() + 20 == R2S.end());
     CHECK(OneS.begin() + 20 == OneS.end());
     CHECK(MaxS.begin() + 20 == MaxS.end());
     CHECK(TmpS.begin() + 20 == TmpS.end());
-    CHECK(GetSerializeSize(R1S) == 20);
-    CHECK(GetSerializeSize(ZeroS) == 20);
+    CHECK(GetSerializeSize(R1S) == 20U);
+    CHECK(GetSerializeSize(ZeroS) == 20U);
 
     ss << R1S;
     CHECK(ss.str() == std::string(R1Array,R1Array+20));
@@ -304,7 +304,7 @@ TEST_CASE(from_user_hex)
     CHECK(uint256::FromUserHex("0xFf") == uint256{0xff});
     CHECK(uint256::FromUserHex("Ff") == uint256{0xff});
     const std::string valid_hex_64{"0x0123456789abcdef0123456789abcdef0123456789ABDCEF0123456789ABCDEF"};
-    REQUIRE(valid_hex_64.size() == 2 + 64); // 0x prefix and 64 hex digits
+    REQUIRE(valid_hex_64.size() == 2U + 64U); // 0x prefix and 64 hex digits
     CHECK(uint256::FromUserHex(valid_hex_64.substr(2)).value().ToString() == ToLower(valid_hex_64.substr(2)));
     CHECK(uint256::FromUserHex(valid_hex_64.substr(0)).value().ToString() == ToLower(valid_hex_64.substr(2)));
 

@@ -270,8 +270,8 @@ void check_computeblockversion(VersionBitsCache& versionbitscache, const Consens
     uint32_t period = params.vDeployments[dep].period;
     uint32_t threshold = params.vDeployments[dep].threshold;
 
-    REQUIRE(period > 0); // no division by zero, thankyou
-    REQUIRE(0 < threshold); // must be able to have a window that doesn't activate
+    REQUIRE(period > 0U); // no division by zero, thankyou
+    REQUIRE(0U < threshold); // must be able to have a window that doesn't activate
     REQUIRE(threshold < period); // must be able to have a window that does activate
 
     // should not be any signalling for first block

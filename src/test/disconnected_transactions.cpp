@@ -16,7 +16,7 @@ FIXTURE_TEST_CASE(disconnectpool_memory_limits, TestChain100Setup)
     // transactions would realistically be in a block together, they just need distinct txids and
     // uniform size for this test to work.
     std::vector<CTransactionRef> block_vtx(m_coinbase_txns);
-    CHECK(block_vtx.size() == 100);
+    CHECK(block_vtx.size() == 100U);
 
     // Roughly estimate sizes to sanity check that DisconnectedBlockTransactions::DynamicMemoryUsage
     // is within an expected range.
@@ -52,7 +52,7 @@ FIXTURE_TEST_CASE(disconnectpool_memory_limits, TestChain100Setup)
         CHECK((disconnectpool.DynamicMemoryUsage() <= MAP_1 + ENTRY_USAGE_ESTIMATE));
 
         // Only 1 transaction can be kept
-        CHECK(1 == evicted_txns.size());
+        CHECK(1U == evicted_txns.size());
         // Transactions are added from back to front and eviction is FIFO.
         CHECK(block_vtx.at(1) == evicted_txns.front());
 
@@ -66,7 +66,7 @@ FIXTURE_TEST_CASE(disconnectpool_memory_limits, TestChain100Setup)
         const size_t USAGE_100_OVERESTIMATE{MAP_100 + ENTRY_USAGE_ESTIMATE * 100};
         DisconnectedBlockTransactions disconnectpool{USAGE_100_OVERESTIMATE};
         auto evicted_txns{disconnectpool.AddTransactionsFromBlock(block_vtx)};
-        CHECK(evicted_txns.size() == 0);
+        CHECK(evicted_txns.size() == 0U);
         CHECK((disconnectpool.DynamicMemoryUsage() <= USAGE_100_OVERESTIMATE));
 
         usage_full = disconnectpool.DynamicMemoryUsage();
@@ -82,7 +82,7 @@ FIXTURE_TEST_CASE(disconnectpool_memory_limits, TestChain100Setup)
         CHECK((disconnectpool.DynamicMemoryUsage() <= MAX_MEMUSAGE_99));
 
         // Only 1 transaction needed to be evicted
-        CHECK(1 == evicted_txns.size());
+        CHECK(1U == evicted_txns.size());
 
         // Transactions are added from back to front and eviction is FIFO.
         // The last transaction of block_vtx should be the first to be evicted.

@@ -126,7 +126,7 @@ std::set<CPubKey> GetKeyData(const FlatSigningProvider& provider, int flags) {
     for (const auto& [_, pubkey] : provider.pubkeys) {
         if (flags & XONLY_KEYS) {
             unsigned char bytes[33];
-            CHECK(pubkey.size() == 33);
+            CHECK(pubkey.size() == 33U);
             std::copy(pubkey.begin(), pubkey.end(), bytes);
             bytes[0] = 0x02;
             CPubKey norm_pubkey{bytes};
@@ -153,7 +153,7 @@ std::set<std::pair<CPubKey, KeyOriginInfo>> GetKeyOriginData(const FlatSigningPr
         if (ignored.contains(keyid)) continue;
         if (flags & XONLY_KEYS) {
             unsigned char bytes[33];
-            CHECK(data.first.size() == 33);
+            CHECK(data.first.size() == 33U);
             std::copy(data.first.begin(), data.first.end(), bytes);
             bytes[0] = 0x02;
             CPubKey norm_pubkey{bytes};
@@ -339,7 +339,7 @@ void DoCheck(std::string prv, std::string pub, const std::string& norm_pub, int 
                 // For ranged, unhardened derivation, None of the keys in origins should appear in the cache but the cache should have parent keys
                 // But we can derive one level from each of those parent keys and find them all
                 CHECK(der_xpub_cache.empty());
-                CHECK(parent_xpub_cache.size() > 0);
+                CHECK(parent_xpub_cache.size() > 0U);
                 std::set<CPubKey> pubkeys;
                 for (const auto& xpub_pair : parent_xpub_cache) {
                     const CExtPubKey& xpub = xpub_pair.second;
@@ -347,14 +347,14 @@ void DoCheck(std::string prv, std::string pub, const std::string& norm_pub, int 
                     CHECK(xpub.Derive(der, i));
                     pubkeys.insert(der.pubkey);
                 }
-                int count_pks = 0;
+                size_t count_pks = 0;
                 for (const auto& origin_pair : script_provider_cached.origins) {
                     const CPubKey& pk = origin_pair.second.first;
                     count_pks += pubkeys.count(pk);
                 }
                 if (flags & MUSIG_DERIVATION) {
                     if (!(flags & MIXED_MUSIG)) {
-                        CHECK(count_pks == 1);
+                        CHECK(count_pks == 1U);
                     }
                     CHECK(num_xpubs == pubkeys.size());
                 } else {
@@ -391,7 +391,7 @@ void DoCheck(std::string prv, std::string pub, const std::string& norm_pub, int 
                     CHECK(xpub.Derive(der, i));
                     pubkeys.insert(der.pubkey);
                 }
-                int count_pks = 0;
+                size_t count_pks = 0;
                 for (const auto& origin_pair : script_provider_cached.origins) {
                     const CPubKey& pk = origin_pair.second.first;
                     count_pks += pubkeys.count(pk);

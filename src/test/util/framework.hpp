@@ -250,13 +250,20 @@ struct CapturedExpression {
     template <typename U>
     auto operator||(const U&) = delete;
 
-#define DECOMPOSE_OP(op)                                                                                                                     \
-    template <typename U>                                                                                                                    \
-    Result operator op(const U& rhs) const                                                                                                   \
-    {                                                                                                                                        \
-        _Pragma("GCC diagnostic push")                                                                                                       \
-            _Pragma("GCC diagnostic ignored \"-Wsign-compare\"") bool btc_test_result = static_cast<bool>(lhs op rhs);                       \
-        _Pragma("GCC diagnostic pop") return btc_test_result ? Result::ok() : Result::failed(stringify(lhs) + " " #op " " + stringify(rhs)); \
+#define DECOMPOSE_OP(op)                                                                              \
+    template <typename U>                                                                             \
+    Result operator op(const U& rhs) const                                                            \
+    {                                                                                                 \
+        if constexpr (std::is_integral_v<T> && std::is_integral_v<U>) {                               \
+            static_assert(                                                                            \
+                std::is_signed_v<decltype(std::declval<T>() + 0)> ==                                  \
+                    std::is_signed_v<decltype(std::declval<U>() + 0)>,                                \
+                "Mixed signed/unsigned comparison in CHECK/REQUIRE; cast one side explicitly");       \
+        }                                                                                             \
+        bool btc_test_result = static_cast<bool>(lhs op rhs);                                         \
+        return btc_test_result                                                                        \
+            ? Result::ok()                                                                            \
+            : Result::failed(stringify(lhs) + " " #op " " + stringify(rhs));                          \
     }
 
     DECOMPOSE_OP(==)

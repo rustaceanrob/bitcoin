@@ -355,18 +355,18 @@ FIXTURE_TEST_CASE(iterator_ordering, BasicTestingSetup)
     for (const int seek_start : {0x00, 0x80}) {
         it->Seek((uint8_t)seek_start);
         for (unsigned int x=seek_start; x<255; ++x) {
-            uint8_t key;
-            uint32_t value;
+            uint8_t key{};
+            uint32_t value{};
             CHECK(it->Valid());
             if (!it->Valid()) // Avoid spurious errors about invalid iterator's key and value in case of failure
                 break;
             CHECK(it->GetKey(key));
             if (x & 1) {
-                CHECK(key == x + 1);
+                CHECK(static_cast<unsigned>(key) == x + 1);
                 continue;
             }
             CHECK(it->GetValue(value));
-            CHECK(key == x);
+            CHECK(static_cast<unsigned>(key) == x);
             CHECK(value == x*x);
             it->Next();
         }

@@ -177,14 +177,14 @@ TEST_CASE(line_reader_test)
         // Check three lines terminated by \n and \r\n, trimming whitespace
         std::string_view input = "once upon a time\n there was a dog \r\nwho liked food\n";
         LineReader reader(input, /*max_line_length=*/128);
-        CHECK(reader.Consumed() == 0);
-        CHECK(reader.Remaining() == 51);
+        CHECK(reader.Consumed() == 0U);
+        CHECK(reader.Remaining() == 51U);
         std::optional<std::string> line1{reader.ReadLine()};
-        CHECK(reader.Consumed() == 17);
-        CHECK(reader.Remaining() == 34);
+        CHECK(reader.Consumed() == 17U);
+        CHECK(reader.Remaining() == 34U);
         std::optional<std::string> line2{reader.ReadLine()};
-        CHECK(reader.Consumed() == 36);
-        CHECK(reader.Remaining() == 15);
+        CHECK(reader.Consumed() == 36U);
+        CHECK(reader.Remaining() == 15U);
         std::optional<std::string> line3{reader.ReadLine()};
         std::optional<std::string> line4{reader.ReadLine()};
         CHECK(line1);
@@ -194,8 +194,8 @@ TEST_CASE(line_reader_test)
         CHECK(line1.value() == "once upon a time");
         CHECK(line2.value() == "there was a dog");
         CHECK(line3.value() == "who liked food");
-        CHECK(reader.Consumed() == 51);
-        CHECK(reader.Remaining() == 0);
+        CHECK(reader.Consumed() == 51U);
+        CHECK(reader.Remaining() == 0U);
     }
     {
         // Do not exceed max_line_length + 1 while searching for \n
@@ -269,7 +269,7 @@ TEST_CASE(line_reader_test)
         // Data can still be read using ReadLength
         CHECK(reader.ReadLength(22) == "once upon a time there");
         // End of buffer reached
-        CHECK(reader.Remaining() == 0);
+        CHECK(reader.Remaining() == 0U);
     }
     {
         // Read specific number of bytes regardless of max_line_length or \n unless buffer is too short
@@ -283,7 +283,7 @@ TEST_CASE(line_reader_test)
         // After the error the iterator is reset so we can try again
         CHECK(reader.ReadLength(31) == "here was a dog \r\nwho liked food");
         // End of buffer reached
-        CHECK(reader.Remaining() == 0);
+        CHECK(reader.Remaining() == 0U);
     }
 }
 

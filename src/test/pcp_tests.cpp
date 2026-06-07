@@ -300,7 +300,7 @@ FIXTURE_TEST_CASE(natpmp_ipv4, PCPTestingSetup)
     CHECK(mapping->version == 0);
     CHECK(mapping->internal.ToStringAddrPort() == "192.168.0.6:1234");
     CHECK(mapping->external.ToStringAddrPort() == "1.2.3.4:1234");
-    CHECK(mapping->lifetime == 500);
+    CHECK(mapping->lifetime == 500U);
 }
 
 // PCP IPv4 good-weather scenario.
@@ -344,7 +344,7 @@ FIXTURE_TEST_CASE(pcp_ipv4, PCPTestingSetup)
     CHECK(mapping->version == 2);
     CHECK(mapping->internal.ToStringAddrPort() == "192.168.0.6:1234");
     CHECK(mapping->external.ToStringAddrPort() == "1.2.3.4:1234");
-    CHECK(mapping->lifetime == 500);
+    CHECK(mapping->lifetime == 500U);
 }
 
 // PCP IPv6 good-weather scenario.
@@ -388,7 +388,7 @@ FIXTURE_TEST_CASE(pcp_ipv6, PCPTestingSetup)
     CHECK(mapping->version == 2);
     CHECK(mapping->internal.ToStringAddrPort() == "[2a10:1234:5678:9abc:def0:1234:5678:9abc]:1234");
     CHECK(mapping->external.ToStringAddrPort() == "[2a10:1234:5678:9abc:def0:1234:5678:9abc]:1234");
-    CHECK(mapping->lifetime == 500);
+    CHECK(mapping->lifetime == 500U);
 }
 
 // PCP timeout.

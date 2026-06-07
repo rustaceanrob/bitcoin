@@ -1163,27 +1163,27 @@ static TxoutType GetTxoutType(const CScript& output_script)
     return Solver(output_script, unused);
 }
 
-#define CHECK_SCRIPT_STATIC_SIZE(script, expected_size)                   \
-    do {                                                                  \
-        CHECK((script).size() == (expected_size));              \
-        CHECK((script).capacity() == CScriptBase::STATIC_SIZE); \
-        CHECK((script).allocated_memory() == 0);                \
+#define CHECK_SCRIPT_STATIC_SIZE(script, expected_size)                          \
+    do {                                                                         \
+        CHECK((script).size() == static_cast<size_t>(expected_size));            \
+        CHECK((script).capacity() == CScriptBase::STATIC_SIZE);                  \
+        CHECK((script).allocated_memory() == 0U);                                \
     } while (0)
 
-#define CHECK_SCRIPT_DYNAMIC_SIZE(script, expected_size, expected_extra)                 \
-    do {                                                                 \
-        CHECK((script).size() == (expected_size));             \
-        CHECK((script).capacity() == (expected_extra));         \
-        CHECK((script).allocated_memory() == (expected_extra)); \
+#define CHECK_SCRIPT_DYNAMIC_SIZE(script, expected_size, expected_extra)            \
+    do {                                                                            \
+        CHECK((script).size() == static_cast<size_t>(expected_size));               \
+        CHECK((script).capacity() == static_cast<size_t>(expected_extra));          \
+        CHECK((script).allocated_memory() == static_cast<size_t>(expected_extra));  \
     } while (0)
 
 FIXTURE_TEST_CASE(script_size_and_capacity_test, ScriptTest)
 {
-    CHECK(sizeof(CompressedScript) == 40);
-    CHECK(sizeof(CScriptBase) == 40);
+    CHECK(sizeof(CompressedScript) == 40U);
+    CHECK(sizeof(CScriptBase) == 40U);
     CHECK(sizeof(CScriptBase) != sizeof(prevector<CScriptBase::STATIC_SIZE + 1, uint8_t>)); // CScriptBase size should be set to avoid wasting space in padding
-    CHECK(sizeof(CScript) == 40);
-    CHECK(sizeof(CTxOut) == 48);
+    CHECK(sizeof(CScript) == 40U);
+    CHECK(sizeof(CTxOut) == 48U);
 
     CKey dummy_key;
     dummy_key.MakeNewKey(/*fCompressed=*/true);

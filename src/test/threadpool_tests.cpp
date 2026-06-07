@@ -140,7 +140,7 @@ FIXTURE_TEST_CASE(submit_tasks_complete_successfully, ThreadPoolFixture)
     WAIT_FOR(futures);
     int expected_value = (num_tasks * (num_tasks + 1)) / 2; // Gauss sum.
     CHECK(counter.load() == expected_value);
-    CHECK(threadPool.WorkQueueSize() == 0);
+    CHECK(threadPool.WorkQueueSize() == 0U);
 }
 
 // Test 2, maintain all threads busy except one
@@ -166,7 +166,7 @@ FIXTURE_TEST_CASE(single_available_worker_executes_all_tasks, ThreadPoolFixture)
     blocker.release(NUM_WORKERS_DEFAULT - 1);
     WAIT_FOR(blocking_tasks);
     threadPool.Stop();
-    CHECK(threadPool.WorkersCount() == 0);
+    CHECK(threadPool.WorkersCount() == 0U);
 }
 
 // Test 3, wait for work to finish
@@ -226,9 +226,9 @@ FIXTURE_TEST_CASE(process_tasks_manually_when_workers_busy, ThreadPoolFixture)
     const auto& blocking_tasks = BlockWorkers(threadPool, blocker, NUM_WORKERS_DEFAULT);
 
     // Now submit tasks and check that none of them are executed.
-    int num_tasks = 20;
-    std::atomic<int> counter = 0;
-    for (int i = 0; i < num_tasks; i++) {
+    size_t num_tasks = 20;
+    std::atomic<size_t> counter = 0;
+    for (size_t i = 0; i < num_tasks; i++) {
         (void)Submit(threadPool, [&counter]() {
             counter.fetch_add(1, std::memory_order_relaxed);
         });
@@ -237,11 +237,11 @@ FIXTURE_TEST_CASE(process_tasks_manually_when_workers_busy, ThreadPoolFixture)
     CHECK(threadPool.WorkQueueSize() == num_tasks);
 
     // Now process manually
-    for (int i = 0; i < num_tasks; i++) {
+    for (size_t i = 0; i < num_tasks; i++) {
         threadPool.ProcessTask();
     }
     CHECK(counter.load() == num_tasks);
-    CHECK(threadPool.WorkQueueSize() == 0);
+    CHECK(threadPool.WorkQueueSize() == 0U);
     blocker.release(NUM_WORKERS_DEFAULT);
     threadPool.Stop();
     WAIT_FOR(blocking_tasks);
@@ -277,7 +277,7 @@ FIXTURE_TEST_CASE(task_submitted_while_busy_completes, ThreadPoolFixture)
     std::future<bool> future = Submit(threadPool, []() { return true; });
 
     // At this point, all workers are blocked, and the extra task is queued
-    CHECK(threadPool.WorkQueueSize() == 1);
+    CHECK(threadPool.WorkQueueSize() == 1U);
 
     // Wait a short moment before unblocking the threads to mimic a concurrent shutdown
     std::thread thread_unblocker([&blocker]() {
@@ -296,7 +296,7 @@ FIXTURE_TEST_CASE(task_submitted_while_busy_completes, ThreadPoolFixture)
     WAIT_FOR(blocking_tasks);
 
     // Pool should be stopped and no workers remaining
-    CHECK(threadPool.WorkersCount() == 0);
+    CHECK(threadPool.WorkersCount() == 0U);
 }
 
 // Test 9, more workers than available cores (congestion test)
@@ -355,7 +355,7 @@ FIXTURE_TEST_CASE(interrupt_blocks_new_submissions, ThreadPoolFixture)
     CHECK(counter.load() == 1);
     threadPool.Stop();
     WAIT_FOR(blocking_tasks);
-    CHECK(threadPool.WorkersCount() == 0);
+    CHECK(threadPool.WorkersCount() == 0U);
 }
 
 // Test 11, Start() must not cause a deadlock when called during Stop()
@@ -430,7 +430,7 @@ FIXTURE_TEST_CASE(stop_active_wait_drains_queue, ThreadPoolFixture)
     const auto blocking_tasks = BlockWorkers(threadPool, blocker, NUM_WORKERS_DEFAULT);
 
     auto main_thread_id = std::this_thread::get_id();
-    std::atomic<int> main_thread_tasks{0};
+    std::atomic<size_t> main_thread_tasks{0};
     const size_t num_tasks = 20;
     for (size_t i = 0; i < num_tasks; i++) {
         (void)Submit(threadPool, [&main_thread_tasks, main_thread_id]() {
@@ -492,7 +492,7 @@ FIXTURE_TEST_CASE(submit_range_of_tasks_complete_successfully, ThreadPoolFixture
     const auto expected_squares_sum{2 * ((num_tasks * (num_tasks + 1) * ((num_tasks * 2) + 1)) / 6)};
     CHECK(sum == expected_sum);
     CHECK(squares_sum == expected_squares_sum);
-    CHECK(threadPool.WorkQueueSize() == 0);
+    CHECK(threadPool.WorkQueueSize() == 0U);
 }
 
 TEST_SUITE_END()

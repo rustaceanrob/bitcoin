@@ -33,7 +33,7 @@ TEST_CASE(txgraph_trim_zigzag)
     //    B     B     B     B     B     B     B     B     B     B     B     B     B    (49 B's)
     //
     /** The maximum cluster count used in this test. */
-    static constexpr int MAX_CLUSTER_COUNT = 50;
+    static constexpr uint32_t MAX_CLUSTER_COUNT = 50;
     /** The number of "bottom" transactions, which are in the mempool already. */
     static constexpr int NUM_BOTTOM_TX = 49;
     /** The number of "top" transactions, which come from disconnected blocks. These are re-added
@@ -41,7 +41,7 @@ TEST_CASE(txgraph_trim_zigzag)
      *   discover the resulting cluster is oversized. */
     static constexpr int NUM_TOP_TX = 50;
     /** The total number of transactions in the test. */
-    static constexpr int NUM_TOTAL_TX = NUM_BOTTOM_TX + NUM_TOP_TX;
+    static constexpr uint32_t NUM_TOTAL_TX = NUM_BOTTOM_TX + NUM_TOP_TX;
     static_assert(NUM_TOTAL_TX > MAX_CLUSTER_COUNT);
     /** Set a very large cluster size limit so that only the count limit is triggered. */
     static constexpr int32_t MAX_CLUSTER_SIZE = 100'000 * 100;
@@ -81,7 +81,7 @@ TEST_CASE(txgraph_trim_zigzag)
     CHECK(!graph->IsOversized(TxGraph::Level::TOP));
 
     // We only need to trim the middle bottom transaction to end up with 2 clusters each within cluster limits.
-    CHECK(removed_refs.size() == 1);
+    CHECK(removed_refs.size() == 1U);
     CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == MAX_CLUSTER_COUNT * 2 - 2);
     for (unsigned int i = 0; i < refs.size(); ++i) {
         CHECK(graph->Exists(refs[i], TxGraph::Level::TOP) == (i != (NUM_BOTTOM_TX / 2)));
@@ -100,7 +100,7 @@ TEST_CASE(txgraph_trim_flower)
     //                 B (1 B)
     //
     /** The maximum cluster count used in this test. */
-    static constexpr int MAX_CLUSTER_COUNT = 50;
+    static constexpr uint32_t MAX_CLUSTER_COUNT = 50;
     /** The number of "top" transactions, which come from disconnected blocks. These are re-added
      *  to the mempool and, connecting them to the already-in-mempool transactions, we discover the
      *  resulting cluster is oversized. */
@@ -139,7 +139,7 @@ TEST_CASE(txgraph_trim_flower)
     CHECK(!graph->IsOversized(TxGraph::Level::TOP));
 
     // Since only the bottom transaction connects these clusters, we only need to remove it.
-    CHECK(removed_refs.size() == 1);
+    CHECK(removed_refs.size() == 1U);
     CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == MAX_CLUSTER_COUNT * 2);
     CHECK(!graph->Exists(refs[0], TxGraph::Level::TOP));
     for (unsigned int i = 1; i < refs.size(); ++i) {
@@ -266,7 +266,7 @@ TEST_CASE(txgraph_trim_big_singletons)
     // Mempool consists of 100 singleton clusters; there are no dependencies. Some are oversized. Trim() should remove all of the oversized ones.
     static constexpr int MAX_CLUSTER_COUNT = 64;
     static constexpr int32_t MAX_CLUSTER_SIZE = 100'000;
-    static constexpr int NUM_TOTAL_TX = 100;
+    static constexpr uint32_t NUM_TOTAL_TX = 100;
 
     // Create a new graph for the test.
     auto graph = MakeTxGraph(MAX_CLUSTER_COUNT, MAX_CLUSTER_SIZE, HIGH_ACCEPTABLE_COST, PointerComparator);
@@ -344,24 +344,24 @@ TEST_CASE(txgraph_chunk_chain)
     // everytime adding a transaction, test the chunk status
     // [A]
     graph->AddTransaction(refs.emplace_back(), feerateA);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 1);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 1U);
     block_builder_checker({{&refs[0]}});
     // [A, B]
     graph->AddTransaction(refs.emplace_back(), feerateB);
     graph->AddDependency(/*parent=*/refs[0], /*child=*/refs[1]);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 2);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 2U);
     block_builder_checker({{&refs[0]}, {&refs[1]}});
 
     // [A, BC]
     graph->AddTransaction(refs.emplace_back(), feerateC);
     graph->AddDependency(/*parent=*/refs[1], /*child=*/refs[2]);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 3);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 3U);
     block_builder_checker({{&refs[0]}, {&refs[1], &refs[2]}});
 
     // [ABCD]
     graph->AddTransaction(refs.emplace_back(), feerateD);
     graph->AddDependency(/*parent=*/refs[2], /*child=*/refs[3]);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 4);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 4U);
     block_builder_checker({{&refs[0], &refs[1], &refs[2], &refs[3]}});
 
     graph->SanityCheck();
@@ -369,11 +369,11 @@ TEST_CASE(txgraph_chunk_chain)
     // D->C->A
     graph->RemoveTransaction(refs[1]);
     // txgraph is not responsible for removing the descendants or ancestors
-    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 3);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 3U);
     // only A remains there
     graph->RemoveTransaction(refs[2]);
     graph->RemoveTransaction(refs[3]);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 1);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 1U);
     block_builder_checker({{&refs[0]}});
 }
 
@@ -394,38 +394,38 @@ TEST_CASE(txgraph_staging)
     // [A]
     graph->AddTransaction(refs.emplace_back(), feerateA);
     CHECK(graph->HaveStaging() == false);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 1);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 1U);
 
     graph->StartStaging();
     CHECK(graph->HaveStaging() == true);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 1);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 1U);
 
     // [A, B]
     graph->AddTransaction(refs.emplace_back(), feerateB);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::MAIN) == 1);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 2);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::MAIN) == 1U);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 2U);
     CHECK(graph->Exists(refs[0], TxGraph::Level::TOP) == true);
     CHECK(graph->Exists(refs[1], TxGraph::Level::TOP) == true);
 
     graph->AddDependency(/*parent=*/refs[0], /*child=*/refs[1]);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::MAIN) == 1);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 2);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::MAIN) == 1U);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 2U);
 
     graph->CommitStaging();
     CHECK(graph->HaveStaging() == false);
 
-    CHECK(graph->GetTransactionCount(TxGraph::Level::MAIN) == 2);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::MAIN) == 2U);
 
     graph->StartStaging();
 
     // [A]
     graph->RemoveTransaction(refs[1]);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::MAIN) == 2);
-    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 1);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::MAIN) == 2U);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::TOP) == 1U);
 
     graph->CommitStaging();
 
-    CHECK(graph->GetTransactionCount(TxGraph::Level::MAIN) == 1);
+    CHECK(graph->GetTransactionCount(TxGraph::Level::MAIN) == 1U);
 
     graph->SanityCheck();
 }
