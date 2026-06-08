@@ -11,7 +11,7 @@
 #include <string>
 
 /**
- * BOOST_CHECK_EXCEPTION predicates to check the specific validation error.
+ * Predicate to check the specific validation error.
  * Use as
  * CHECK_EXCEPTION(code that throws, exception type, HasReason("foo"));
  */
@@ -26,7 +26,7 @@ private:
     const std::string m_reason;
 };
 
-// Make types usable in BOOST_CHECK_* @{
+// Make types usable in CHECK / REQUIRE @{
 namespace std {
 template <typename Clock, typename Duration>
 inline std::ostream& operator<<(std::ostream& os, const std::chrono::time_point<Clock, Duration>& tp)

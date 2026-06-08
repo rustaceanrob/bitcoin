@@ -373,7 +373,7 @@ void check_computeblockversion(VersionBitsCache& versionbitscache, const Consens
     }
 
     if (nTimeout != Consensus::BIP9Deployment::NO_TIMEOUT) {
-        // can reach any nTimeout other than NO_TIMEOUT due to earlier BOOST_REQUIRE
+        // can reach any nTimeout other than NO_TIMEOUT due to earlier REQUIRE
 
         nTime = nTimeout;
 

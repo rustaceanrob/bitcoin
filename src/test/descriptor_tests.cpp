@@ -283,10 +283,8 @@ void DoCheck(std::string prv, std::string pub, const std::string& norm_pub, int 
     CHECK(parse_priv->IsRange() == ((flags & RANGE) != 0));
 
     // Check that the highest key expression index matches the number of keys in the descriptor
-    /* BOOST_TEST_INFO("Pub desc: " + pub) */;
     uint32_t key_exprs = parse_pub->GetMaxKeyExpr();
     CHECK(key_exprs + 1 == parse_pub->GetKeyCount());
-    /* BOOST_TEST_INFO("Priv desc: " + prv) */;
     CHECK(key_exprs == parse_priv->GetMaxKeyExpr());
     CHECK(key_exprs + 1 == parse_priv->GetKeyCount());
 

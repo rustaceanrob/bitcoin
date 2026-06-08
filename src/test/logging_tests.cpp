@@ -395,14 +395,12 @@ void TestLogFromLocation(Location location, const std::string& message,
                          BCLog::LogRateLimiter::Status status, bool suppressions_active,
                          std::source_location source = std::source_location::current())
 {
-    /* BOOST_TEST_INFO_SCOPE("TestLogFromLocation called from " << source.file_name() << ":" << source.line()) */;
     using Status = BCLog::LogRateLimiter::Status;
     if (!suppressions_active) assert(status == Status::UNSUPPRESSED); // developer error
 
     std::ofstream ofs(LogInstance().m_file_path.std_path(), std::ios::out | std::ios::trunc); // clear debug log
     LogFromLocation(location, message);
     auto log_lines{ReadDebugLogLines()};
-    /* BOOST_TEST_INFO_SCOPE(log_lines.size() << " log_lines read: \n" << util::Join(log_lines, "\n")) */;
 
     if (status == Status::STILL_SUPPRESSED) {
         CHECK(log_lines.size() == 0U);

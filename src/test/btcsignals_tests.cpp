@@ -160,8 +160,8 @@ FIXTURE_TEST_CASE(thread_safety, BasicTestingSetup)
             sig0();
         }
         // Because these calls are purposely happening on both threads at the
-        // same time, these must be asserts rather than BOOST_CHECKs to prevent
-        // a race inside of BOOST_CHECK itself (writing to the log).
+        // same time, these must be asserts rather than CHECKs to prevent
+        // a race inside of CHECK itself (writing to the log).
         assert(!sig0.empty());
         assert(conn0.connected());
     });

@@ -195,8 +195,40 @@ pub fn lint_boost_assert() -> LintResult {
         .success();
     if found {
         Err(r#"
-BOOST_ASSERT must be replaced with Assert, BOOST_REQUIRE, or BOOST_CHECK to avoid an unnecessary
+BOOST_ASSERT must be replaced with Assert, REQUIRE, or CHECK to avoid an unnecessary
 include of the boost/assert.hpp dependency.
+            "#
+        .trim()
+        .to_string())
+    } else {
+        Ok(())
+    }
+}
+
+pub fn lint_boost_test() -> LintResult {
+    let found = git()
+        .args([
+            "grep",
+            "--line-number",
+            "--extended-regexp",
+            r"BOOST_(AUTO_TEST_|FIXTURE_TEST_|GLOBAL_FIXTURE|DATA_TEST_|CHECK|REQUIRE|TEST|WARN)",
+            "--",
+            "*.cpp",
+            "*.h",
+            // src/univalue is a subtree (not tracked in get_subtrees()); its tests use Boost.Test independently.
+            ":(exclude)src/univalue",
+        ])
+        .args(get_pathspecs_default_excludes())
+        .status()
+        .expect("command error")
+        .success();
+    if found {
+        Err(r#"
+Boost.Test macros (BOOST_CHECK*, BOOST_REQUIRE*, BOOST_AUTO_TEST_*, BOOST_FIXTURE_TEST_*,
+BOOST_TEST*, BOOST_WARN*, BOOST_GLOBAL_FIXTURE, BOOST_DATA_TEST_*) are no longer used.
+Replace with the equivalents from src/test/util/framework.hpp (CHECK, REQUIRE, TEST_CASE,
+FIXTURE_TEST_CASE, TEST_SUITE_BEGIN, CHECK_THROWS, CHECK_THROWS_AS, CHECK_EXCEPTION,
+TEST_MESSAGE, WARN_MESSAGE, etc.).
             "#
         .trim()
         .to_string())

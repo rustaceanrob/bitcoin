@@ -14,8 +14,8 @@ use std::fs;
 use std::process::{Command, ExitCode};
 
 use lint_cpp::{
-    lint_boost_assert, lint_includes_build_config, lint_remove_all, lint_rpc_assert,
-    lint_std_filesystem,
+    lint_boost_assert, lint_boost_test, lint_includes_build_config, lint_remove_all,
+    lint_rpc_assert, lint_std_filesystem,
 };
 use lint_docs::{lint_doc_args, lint_doc_release_note_snippets, lint_markdown};
 use lint_py::lint_py_lint;
@@ -72,6 +72,11 @@ fn get_linter_list() -> Vec<&'static Linter> {
             description: "Check that boost assertions are not used",
             name: "boost_assert",
             lint_fn: lint_boost_assert
+        },
+        &Linter {
+            description: "Check that Boost.Test macros are not used (use src/test/util/framework.hpp)",
+            name: "boost_test",
+            lint_fn: lint_boost_test
         },
         &Linter {
             description: "Check that release note snippets are in the right folder",

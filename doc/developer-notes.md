@@ -49,7 +49,7 @@ code.
     naming style](#internal-interface-naming-style) for an exception to this
     convention.
 
-  - Test suite naming convention: The Boost test suite in file
+  - Test suite naming convention: The test suite in file
     `src/test/foo_tests.cpp` should be named `foo_tests`. Test suite names
     must be unique.
 

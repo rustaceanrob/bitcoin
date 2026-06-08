@@ -25,8 +25,8 @@
  *  3. Results should be treated as a regression test, i.e., did the behavior
  *  change significantly from what was expected. This can be OK, depending on
  *  the nature of the change, but requires updating the tests to reflect the new
- *  expected behavior. For example improving the hit rate may cause some tests
- *  using BOOST_CHECK_CLOSE to fail.
+ *  expected behavior. For example improving the hit rate may cause some
+ *  tolerance-based checks to fail.
  *
  */
 TEST_SUITE_BEGIN(cuckoocache_tests);
