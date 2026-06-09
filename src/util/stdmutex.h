@@ -38,7 +38,7 @@ public:
 };
 
 // Provide STDLOCK(..) wrapper around StdMutex::Guard that checks the lock is not already held
-#define STDLOCK(cs) StdMutex::Guard UNIQUE_NAME(criticalblock){StdMutex::CheckNotHeld(cs)}
+#define STDLOCK(cs) StdMutex::Guard BITCOIN_UNIQUE_NAME(criticalblock){StdMutex::CheckNotHeld(cs)}
 
 using StdLockGuard = StdMutex::Guard; // TODO: remove, provided for backwards compat only
 
