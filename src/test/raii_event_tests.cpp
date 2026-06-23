@@ -11,9 +11,9 @@
 
 #include <test/util/setup_common.h>
 
-#include <boost/test/unit_test.hpp>
+#include <test/util/framework.h>
 
-BOOST_FIXTURE_TEST_SUITE(raii_event_tests, BasicTestingSetup)
+TEST_SUITE_BEGIN(raii_event_tests)
 
 #ifdef EVENT_SET_MEM_FUNCTIONS_IMPLEMENTED
 
@@ -35,7 +35,7 @@ static void tag_free(void* mem) {
     free(mem);
 }
 
-BOOST_AUTO_TEST_CASE(raii_event_creation)
+FIXTURE_TEST_CASE(raii_event_creation, BasicTestingSetup)
 {
     event_set_mem_functions(tag_malloc, realloc, tag_free);
 
@@ -43,9 +43,9 @@ BOOST_AUTO_TEST_CASE(raii_event_creation)
     {
         auto base = obtain_event_base();
         base_ptr = (void*)base.get();
-        BOOST_CHECK(tags[base_ptr] == 1);
+        CHECK(tags[base_ptr] == 1);
     }
-    BOOST_CHECK(tags[base_ptr] == 0);
+    CHECK(tags[base_ptr] == 0);
 
     void* event_ptr = nullptr;
     {
@@ -55,16 +55,16 @@ BOOST_AUTO_TEST_CASE(raii_event_creation)
         base_ptr = (void*)base.get();
         event_ptr = (void*)event.get();
 
-        BOOST_CHECK(tags[base_ptr] == 1);
-        BOOST_CHECK(tags[event_ptr] == 1);
+        CHECK(tags[base_ptr] == 1);
+        CHECK(tags[event_ptr] == 1);
     }
-    BOOST_CHECK(tags[base_ptr] == 0);
-    BOOST_CHECK(tags[event_ptr] == 0);
+    CHECK(tags[base_ptr] == 0);
+    CHECK(tags[event_ptr] == 0);
 
     event_set_mem_functions(malloc, realloc, free);
 }
 
-BOOST_AUTO_TEST_CASE(raii_event_order)
+FIXTURE_TEST_CASE(raii_event_order, BasicTestingSetup)
 {
     event_set_mem_functions(tag_malloc, realloc, tag_free);
 
@@ -78,14 +78,14 @@ BOOST_AUTO_TEST_CASE(raii_event_order)
         event_ptr = (void*)event.get();
 
         // base should have allocated before event
-        BOOST_CHECK(orders[base_ptr] < orders[event_ptr]);
+        CHECK(orders[base_ptr] < orders[event_ptr]);
     }
     // base should be freed after event
-    BOOST_CHECK(orders[base_ptr] > orders[event_ptr]);
+    CHECK(orders[base_ptr] > orders[event_ptr]);
 
     event_set_mem_functions(malloc, realloc, free);
 }
 
 #endif  // EVENT_SET_MEM_FUNCTIONS_IMPLEMENTED
 
-BOOST_AUTO_TEST_SUITE_END()
+TEST_SUITE_END()
