@@ -25,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-#include <boost/test/unit_test.hpp>
+#include <test/util/framework.h>
 
 using util::SplitString;
 using util::TrimString;
@@ -170,7 +170,7 @@ BOOST_FIXTURE_TEST_CASE(logging_LogPrintMacros_CategoryName, LogSetup)
         if (category & BCLog::LogFlags::ALL) {
             expected_category_names.emplace_back(category, trimmed_category_name);
         } else {
-            BOOST_CHECK(category & BCLog::LogFlags::DEPRECATED);
+            BOOST_CHECK((category & BCLog::LogFlags::DEPRECATED));
         }
     }
 

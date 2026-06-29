@@ -8,7 +8,7 @@
 #include <test/util/setup_common.h>
 #include <util/string.h>
 
-#include <boost/test/unit_test.hpp>
+#include <test/util/framework.h>
 
 using http_bitcoin::GetQueryParameterFromUri;
 using http_bitcoin::HTTPHeaders;

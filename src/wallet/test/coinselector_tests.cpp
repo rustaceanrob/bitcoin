@@ -18,7 +18,8 @@
 #include <wallet/wallet.h>
 
 #include <algorithm>
-#include <boost/test/unit_test.hpp>
+#include <test/util/framework.h>
+
 #include <random>
 
 namespace wallet {
