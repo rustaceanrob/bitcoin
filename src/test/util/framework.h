@@ -5,6 +5,8 @@
 #define BITCOIN_TEST_UTIL_FRAMEWORK_H
 #pragma once
 
+#include <crypto/hex_base.h>
+#include <test/util/common.h>
 #include <tinyformat.h>
 
 #include <algorithm>
@@ -113,16 +115,8 @@ inline void log(LogLevel level, const char* fmt, Args&&... args)
     }
 }
 
-/** Types that implement the `<<` operator. Pointers are excluded: operator<< for
- * char-like pointers calls strlen on the pointee, which is unsafe for raw memory. */
 template <typename T>
-concept streamable = !std::is_pointer_v<T> && requires(std::ostream& os, const T& value) { os << value; };
-
-/** Types that implement a `ToString()` member returning `std::string`. */
-template <typename T>
-concept has_to_string = requires(const T& value) {
-    { value.ToString() } -> std::same_as<std::string>;
-};
+concept streamable = requires(std::ostream& os, const T& value) { os << value; };
 
 template <typename T>
 concept is_cstring = std::is_same_v<std::decay_t<T>, const char*> || std::is_same_v<std::decay_t<T>, char*>;
@@ -130,14 +124,27 @@ concept is_cstring = std::is_same_v<std::decay_t<T>, const char*> || std::is_sam
 template <typename T>
 std::string stringify(const T& value)
 {
-    if constexpr (streamable<T>) {
+    if constexpr (pointer<T>) {
+        if (!value) return "nullptr";
+        std::ostringstream os;
+        os << static_cast<const void*>(value);
+        return os.str();
+    } else if constexpr (streamable<T>) {
         std::ostringstream os;
         os << value;
         return os.str();
-    } else if constexpr (has_to_string<T>) {
-        return value.ToString();
+    } else if constexpr (has_hex_str<T>) {
+        return HexStr(value);
+    } else if constexpr (has_serialize<T>) {
+        DataStream ds;
+        ds << value;
+        return HexStr(ds);
+    } else if constexpr (pair_like<T>) {
+        return "(" + stringify(value.first) + ", " + stringify(value.second) + ")";
+    } else if constexpr (is_variant<T>) {
+        return std::visit([](const auto& v) { return stringify(v); }, value);
     } else {
-        return typeid(T).name();
+        static_assert(sizeof(T) == 0, "No stringify() for this type.");
     }
 }
 
@@ -258,6 +265,10 @@ inline std::string current_test_full_name()
 }
 
 
+template <std::ranges::range R1, std::ranges::range R2>
+    requires std::equality_comparable_with<std::ranges::range_value_t<R1>, std::ranges::range_value_t<R2>>
+Result check_equal_ranges(const R1& r1, const R2& r2);
+
 /** A captured expression is used to stringify the result before evaluation.
  * When an expression evaluates to `false`, the string is reported to the user. */
 template <typename T>
@@ -280,16 +291,26 @@ struct CapturedExpression {
     template <typename U>                                                                                      \
     Result operator op(const U& rhs) const                                                                     \
     {                                                                                                          \
-        bool btc_test_result;                                                                                  \
-        if constexpr (is_cstring<T> && is_cstring<U>) {                                                        \
-            btc_test_result = (std::strcmp(lhs, rhs) op 0);                                                    \
-        } else if constexpr (std::is_integral_v<T> && std::is_integral_v<U> &&                                 \
-                             std::is_signed_v<T> != std::is_signed_v<U>) {                                     \
-            btc_test_result = cmp(lhs, rhs);                                                                   \
+        if constexpr (((#op)[0] == '=' || (#op)[0] == '!') &&                                                  \
+                      non_string_range<T> && non_string_range<U>) {                                            \
+            if constexpr ((#op)[0] == '=') {                                                                   \
+                return check_equal_ranges(lhs, rhs);                                                           \
+            } else {                                                                                           \
+                return Result::failed("!= on ranges is not supported");                                        \
+            }                                                                                                  \
         } else {                                                                                               \
-            btc_test_result = static_cast<bool>(lhs op rhs);                                                   \
+            bool btc_test_result;                                                                              \
+            if constexpr (is_cstring<T> && is_cstring<U>) {                                                    \
+                btc_test_result = (std::strcmp(lhs, rhs) op 0);                                                \
+            } else if constexpr (std::is_integral_v<T> && std::is_integral_v<U> &&                             \
+                                 std::is_signed_v<T> != std::is_signed_v<U>) {                                 \
+                btc_test_result = cmp(lhs, rhs);                                                               \
+            } else {                                                                                           \
+                btc_test_result = static_cast<bool>(lhs op rhs);                                               \
+            }                                                                                                  \
+            return btc_test_result ? Result::ok()                                                              \
+                                   : Result::failed(stringify(lhs) + " " #op " " + stringify(rhs));            \
         }                                                                                                      \
-        return btc_test_result ? Result::ok() : Result::failed(stringify(lhs) + " " #op " " + stringify(rhs)); \
     }
 
     DECOMPOSE_OP(==, std::cmp_equal)
@@ -802,16 +823,6 @@ using btc_suite_fixture = ::framework::EmptyFixture;
                                   #expr, __FILE__, __LINE__);                                                                                \
     } while (false)
 
-/** Passes if two ranges contain equal elements. Accepts any two types that
- * satisfy std::ranges::range with comparable element types. */
-#define CHECK_EQUAL_RANGES(a, b)                                                      \
-    do {                                                                              \
-        auto& btc_test_ctx_{::framework::test_context()};                             \
-        ::framework::Result btc_test_res_{::framework::check_equal_ranges((a), (b))}; \
-        ::framework::record_check(btc_test_ctx_, btc_test_res_, "CHECK_EQUAL_RANGES", \
-                                  #a " == " #b, __FILE__, __LINE__);                  \
-    } while (false)
-
 /** Unconditionally records a failure with `msg`. Does not abort the test. */
 #define RECORD_ERROR(msg)                                    \
     do {                                                     \
@@ -845,6 +856,22 @@ using btc_suite_fixture = ::framework::EmptyFixture;
         }                                                                  \
     } while (false)
 
+/** Like CHECK, but the expression is evaluated as a plain bool: no
+ * decomposition, no stringify of operands. On failure only the expression
+ * text is reported. Use when either operand of `==` / `!=` lacks a
+ * stringify path. */
+#define CHECK_NO_DISPLAY(expr, ...)                                                                        \
+    do {                                                                                                   \
+        auto& btc_test_ctx_{::framework::test_context()};                                                  \
+        ::framework::Result btc_test_res_{static_cast<bool>(expr) ? ::framework::Result::ok()              \
+                                                                  : ::framework::Result::failed({})};      \
+        std::ostringstream btc_test_os_;                                                                   \
+        __VA_OPT__(if (!btc_test_res_.is_ok()) btc_test_os_ << __VA_ARGS__;)                               \
+        ::framework::record_check(btc_test_ctx_, btc_test_res_, "CHECK_NO_DISPLAY", #expr, __FILE__,       \
+                                  __LINE__, btc_test_res_.is_ok() ? std::string{} : btc_test_os_.str());   \
+    } while (false)
+
+#define BOOST_CHECK_NO_DISPLAY(expr) CHECK_NO_DISPLAY(expr)
 #define BOOST_CHECK(expr) CHECK(expr)
 #define BOOST_REQUIRE(expr) REQUIRE(expr)
 #define BOOST_TEST(expr) CHECK(expr)
@@ -871,7 +898,7 @@ using btc_suite_fixture = ::framework::EmptyFixture;
 #define BOOST_TEST_MESSAGE(msg) TEST_MESSAGE(msg)
 #define BOOST_WARN_MESSAGE(expr, msg) WARN_MESSAGE(expr, msg)
 #define BOOST_CHECK_EQUAL_COLLECTIONS(ab, ae, bb, be) \
-    CHECK_EQUAL_RANGES(std::ranges::subrange((ab), (ae)), std::ranges::subrange((bb), (be)))
+    CHECK(std::ranges::subrange((ab), (ae)) == std::ranges::subrange((bb), (be)))
 #define BOOST_AUTO_TEST_CASE(name) FIXTURE_TEST_CASE(name, btc_suite_fixture)
 #define BOOST_FIXTURE_TEST_CASE(name, F) \
     using name = F;                      \

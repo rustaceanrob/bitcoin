@@ -5,10 +5,19 @@
 #ifndef BITCOIN_TEST_UTIL_COMMON_H
 #define BITCOIN_TEST_UTIL_COMMON_H
 
+#include <crypto/hex_base.h>
+#include <key.h>
+#include <netaddress.h>
+#include <protocol.h>
+#include <pubkey.h>
+#include <streams.h>
+
 #include <chrono>
 #include <optional>
 #include <ostream>
+#include <ranges>
 #include <string>
+#include <variant>
 
 /**
  * BOOST_CHECK_EXCEPTION predicates to check the specific validation error.
@@ -49,12 +58,61 @@ inline std::ostream& operator<<(std::ostream& os, const std::optional<T>& v)
 } // namespace std
 
 template <typename T>
-concept HasToString = requires(const T& t) { t.ToString(); };
+concept has_to_string = requires(const T& t) { t.ToString(); };
 
-template <HasToString T>
+template <has_to_string T>
 inline std::ostream& operator<<(std::ostream& os, const T& obj)
 {
     return os << obj.ToString();
+}
+
+template <typename T>
+concept has_hex_str = requires(const T& v) { { HexStr(v) } -> std::same_as<std::string>; };
+
+template <typename T>
+concept has_serialize = requires(const T& v, DataStream& s) { v.Serialize(s); };
+
+template <typename T>
+concept pointer =
+    std::is_pointer_v<T> &&
+    !std::same_as<std::decay_t<T>, char*> &&
+    !std::same_as<std::decay_t<T>, const char*>;
+
+template <typename T>
+concept pair_like = requires(const T& v) {
+    v.first;
+    v.second;
+};
+
+template <typename T>
+concept non_string_range = std::ranges::range<T> && !std::is_convertible_v<T, std::string_view>;
+
+template <typename T>
+concept is_variant = requires { std::variant_size<T>::value; };
+
+
+inline std::ostream& operator<<(std::ostream& os, const CService& s)
+{
+    return os << s.ToStringAddrPort();
+}
+
+inline std::ostream& operator<<(std::ostream& os, const CAddress& a)
+{
+    return os << a.ToStringAddrPort();
+}
+
+inline std::ostream& operator<<(std::ostream& os, const CExtKey& k)
+{
+    unsigned char code[BIP32_EXTKEY_SIZE];
+    k.Encode(code);
+    return os << HexStr(code);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const CExtPubKey& k)
+{
+    unsigned char code[BIP32_EXTKEY_SIZE];
+    k.Encode(code);
+    return os << HexStr(code);
 }
 
 // @}
