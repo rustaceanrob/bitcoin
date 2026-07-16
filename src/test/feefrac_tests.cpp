@@ -3,9 +3,16 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <util/feefrac.h>
+#include <string>
 #include <random.h>
 
 #include <test/util/framework.h>
+
+template <std::derived_from<FeeFrac> T>
+std::string stringify(const ByRatioNegSize<T>& b)
+{
+    return "ByRatioNegSize{" + framework::stringify(static_cast<const T&>(b)) + "}";
+}
 
 BOOST_AUTO_TEST_SUITE(feefrac_tests)
 

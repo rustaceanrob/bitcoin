@@ -27,6 +27,19 @@ using namespace std::literals;
 using node::NodeContext;
 using util::ToString;
 
+static std::string stringify(const AddressPosition& p)
+{
+    return "AddressPosition{tried=" + ToString(p.tried) +
+           ", multiplicity=" + ToString(p.multiplicity) +
+           ", bucket=" + ToString(p.bucket) +
+           ", position=" + ToString(p.position) + "}";
+}
+
+static std::string stringify(const CAddress& v)
+{
+    return v.ToStringAddrPort();
+}
+
 static auto EMPTY_NETGROUPMAN{NetGroupManager::NoAsmap()};
 static const bool DETERMINISTIC{true};
 

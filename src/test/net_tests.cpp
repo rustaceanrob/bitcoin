@@ -39,6 +39,11 @@ using namespace std::literals;
 using namespace util::hex_literals;
 using util::ToString;
 
+static std::string stringify(const CAddress& v)
+{
+    return v.ToStringAddrPort();
+}
+
 BOOST_FIXTURE_TEST_SUITE(net_tests, RegTestingSetup)
 
 BOOST_AUTO_TEST_CASE(cnode_listen_port)
