@@ -492,7 +492,9 @@ BOOST_AUTO_TEST_CASE(bip341_spk_test_vectors)
         }
         BOOST_CHECK_EQUAL(spend_data.scripts.size(), scriptposes.size());
         for (const auto& scriptpos : scriptposes) {
-            CHECK_NO_DISPLAY(spend_data.scripts[scriptpos.first] == control_set{ParseHex(vec["expected"]["scriptPathControlBlocks"][scriptpos.second].get_str())});
+            const auto& actual_control_set{spend_data.scripts[scriptpos.first]};
+            const control_set expected_control_set{ParseHex(vec["expected"]["scriptPathControlBlocks"][scriptpos.second].get_str())};
+            BOOST_CHECK_EQUAL_COLLECTIONS(actual_control_set.begin(), actual_control_set.end(), expected_control_set.begin(), expected_control_set.end());
         }
     }
 }

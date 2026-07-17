@@ -319,9 +319,11 @@ void DoCheck(std::string prv, std::string pub, const std::string& norm_pub, int 
 
             // Try to expand again using cached data, and compare.
             BOOST_CHECK(parse_pub->ExpandFromCache(i, desc_cache, spks_cached, script_provider_cached));
-            CHECK_NO_DISPLAY(spks == spks_cached);
-            CHECK_NO_DISPLAY(GetKeyData(script_provider, flags) == GetKeyData(script_provider_cached, flags));
-            CHECK_NO_DISPLAY(script_provider.scripts == script_provider_cached.scripts);
+            const auto keydata{GetKeyData(script_provider, flags)};
+            const auto keydata_cached{GetKeyData(script_provider_cached, flags)};
+            BOOST_CHECK_EQUAL_COLLECTIONS(spks.begin(), spks.end(), spks_cached.begin(), spks_cached.end());
+            BOOST_CHECK_EQUAL_COLLECTIONS(keydata.begin(), keydata.end(), keydata_cached.begin(), keydata_cached.end());
+            BOOST_CHECK_EQUAL_COLLECTIONS(script_provider.scripts.begin(), script_provider.scripts.end(), script_provider_cached.scripts.begin(), script_provider_cached.scripts.end());
             CHECK_NO_DISPLAY(GetKeyOriginData(script_provider, flags) == GetKeyOriginData(script_provider_cached, flags));
 
             // Check whether keys are in the cache
@@ -426,9 +428,11 @@ void DoCheck(std::string prv, std::string pub, const std::string& norm_pub, int 
 
                 // Try again but use the cache from expanding i. That cache won't have the pubkeys for i + 1, but will have the parent xpub for derivation.
                 BOOST_CHECK(parse_pub->ExpandFromCache(i + 1, desc_cache, spk1_from_cache, script_provider_cached1));
-                CHECK_NO_DISPLAY(spks1 == spk1_from_cache);
-                CHECK_NO_DISPLAY(GetKeyData(script_provider1, flags) == GetKeyData(script_provider_cached1, flags));
-                CHECK_NO_DISPLAY(script_provider1.scripts == script_provider_cached1.scripts);
+                const auto keydata1{GetKeyData(script_provider1, flags)};
+                const auto keydata1_cached{GetKeyData(script_provider_cached1, flags)};
+                BOOST_CHECK_EQUAL_COLLECTIONS(spks1.begin(), spks1.end(), spk1_from_cache.begin(), spk1_from_cache.end());
+                BOOST_CHECK_EQUAL_COLLECTIONS(keydata1.begin(), keydata1.end(), keydata1_cached.begin(), keydata1_cached.end());
+                BOOST_CHECK_EQUAL_COLLECTIONS(script_provider1.scripts.begin(), script_provider1.scripts.end(), script_provider_cached1.scripts.begin(), script_provider_cached1.scripts.end());
                 CHECK_NO_DISPLAY(GetKeyOriginData(script_provider1, flags) == GetKeyOriginData(script_provider_cached1, flags));
             }
 

@@ -330,7 +330,7 @@ BOOST_AUTO_TEST_CASE(txgraph_chunk_chain)
         // The last chunk returned by the BlockBuilder must match GetWorstMainChunk, in reverse.
         std::reverse(last_chunk.begin(), last_chunk.end());
         auto [worst_chunk, worst_chunk_feerate] = graph->GetWorstMainChunk();
-        CHECK_NO_DISPLAY(last_chunk == worst_chunk);
+        BOOST_CHECK_EQUAL_COLLECTIONS(last_chunk.begin(), last_chunk.end(), worst_chunk.begin(), worst_chunk.end());
         CHECK_NO_DISPLAY(last_chunk_feerate == worst_chunk_feerate);
     };
 

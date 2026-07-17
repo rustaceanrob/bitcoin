@@ -88,7 +88,7 @@ void TestBIP324PacketVector(
     // Verify ciphertext. Note that the test vectors specify either out_ciphertext (for short
     // messages) or out_ciphertext_endswith (for long messages), so only check the relevant one.
     if (!out_ciphertext.empty()) {
-        BOOST_CHECK(out_ciphertext == ciphertext);
+        BOOST_CHECK_EQUAL_COLLECTIONS(out_ciphertext.begin(), out_ciphertext.end(), ciphertext.begin(), ciphertext.end());
     } else {
         BOOST_CHECK(ciphertext.size() >= out_ciphertext_endswith.size());
         BOOST_CHECK(std::ranges::equal(out_ciphertext_endswith, std::span{ciphertext}.last(out_ciphertext_endswith.size())));

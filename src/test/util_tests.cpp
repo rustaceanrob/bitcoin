@@ -1378,14 +1378,17 @@ BOOST_AUTO_TEST_CASE(test_SplitString)
     // multiple split characters
     {
         using V = std::vector<std::string>;
-        CHECK_NO_DISPLAY(SplitString("a,b.c:d;e", ",;") == V({"a", "b.c:d", "e"}));
-        CHECK_NO_DISPLAY(SplitString("a,b.c:d;e", ",;:.") == V({"a", "b", "c", "d", "e"}));
-        CHECK_NO_DISPLAY(SplitString("a,b.c:d;e", "") == V({"a,b.c:d;e"}));
-        CHECK_NO_DISPLAY(SplitString("aaa", "bcdefg") == V({"aaa"}));
-        CHECK_NO_DISPLAY(SplitString("x\0a,b"s, "\0"s) == V({"x", "a,b"}));
-        CHECK_NO_DISPLAY(SplitString("x\0a,b"s, '\0') == V({"x", "a,b"}));
-        CHECK_NO_DISPLAY(SplitString("x\0a,b"s, "\0,"s) == V({"x", "a", "b"}));
-        CHECK_NO_DISPLAY(SplitString("abcdefg", "bcd") == V({"a", "", "", "efg"}));
+        auto check_split{[](V actual, V expected) {
+            BOOST_CHECK_EQUAL_COLLECTIONS(actual.begin(), actual.end(), expected.begin(), expected.end());
+        }};
+        check_split(SplitString("a,b.c:d;e", ",;"), V({"a", "b.c:d", "e"}));
+        check_split(SplitString("a,b.c:d;e", ",;:."), V({"a", "b", "c", "d", "e"}));
+        check_split(SplitString("a,b.c:d;e", ""), V({"a,b.c:d;e"}));
+        check_split(SplitString("aaa", "bcdefg"), V({"aaa"}));
+        check_split(SplitString("x\0a,b"s, "\0"s), V({"x", "a,b"}));
+        check_split(SplitString("x\0a,b"s, '\0'), V({"x", "a,b"}));
+        check_split(SplitString("x\0a,b"s, "\0,"s), V({"x", "a", "b"}));
+        check_split(SplitString("abcdefg", "bcd"), V({"a", "", "", "efg"}));
     }
 }
 

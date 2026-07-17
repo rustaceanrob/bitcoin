@@ -859,8 +859,10 @@ BOOST_AUTO_TEST_CASE(package_witness_swap_tests)
             CHECK_NO_DISPLAY(it_parent3->second.m_effective_feerate.value() == expected_feerate);
             CHECK_NO_DISPLAY(it_child->second.m_effective_feerate.value() == expected_feerate);
             std::vector<Wtxid> expected_wtxids({ptx_parent3->GetWitnessHash(), ptx_mixed_child->GetWitnessHash()});
-            CHECK_NO_DISPLAY(it_parent3->second.m_wtxids_fee_calculations.value() == expected_wtxids);
-            CHECK_NO_DISPLAY(it_child->second.m_wtxids_fee_calculations.value() == expected_wtxids);
+            const auto& parent3_wtxids{it_parent3->second.m_wtxids_fee_calculations.value()};
+            const auto& mixed_child_wtxids{it_child->second.m_wtxids_fee_calculations.value()};
+            BOOST_CHECK_EQUAL_COLLECTIONS(parent3_wtxids.begin(), parent3_wtxids.end(), expected_wtxids.begin(), expected_wtxids.end());
+            BOOST_CHECK_EQUAL_COLLECTIONS(mixed_child_wtxids.begin(), mixed_child_wtxids.end(), expected_wtxids.begin(), expected_wtxids.end());
         }
     }
 }
@@ -941,8 +943,10 @@ BOOST_AUTO_TEST_CASE(package_cpfp_tests)
             CHECK_NO_DISPLAY(it_parent->second.m_effective_feerate.value() == expected_feerate);
             CHECK_NO_DISPLAY(it_child->second.m_effective_feerate.value() == expected_feerate);
             std::vector<Wtxid> expected_wtxids({tx_parent->GetWitnessHash(), tx_child->GetWitnessHash()});
-            CHECK_NO_DISPLAY(it_parent->second.m_wtxids_fee_calculations.value() == expected_wtxids);
-            CHECK_NO_DISPLAY(it_child->second.m_wtxids_fee_calculations.value() == expected_wtxids);
+            const auto& parent_wtxids{it_parent->second.m_wtxids_fee_calculations.value()};
+            const auto& child_wtxids{it_child->second.m_wtxids_fee_calculations.value()};
+            BOOST_CHECK_EQUAL_COLLECTIONS(parent_wtxids.begin(), parent_wtxids.end(), expected_wtxids.begin(), expected_wtxids.end());
+            BOOST_CHECK_EQUAL_COLLECTIONS(child_wtxids.begin(), child_wtxids.end(), expected_wtxids.begin(), expected_wtxids.end());
             BOOST_CHECK(expected_feerate.GetFeePerK() > 1000);
         }
         expected_pool_size += 2;
@@ -1019,8 +1023,10 @@ BOOST_AUTO_TEST_CASE(package_cpfp_tests)
             BOOST_CHECK(it_child->second.m_base_fees.value() == child_fee);
             CHECK_NO_DISPLAY(it_child->second.m_effective_feerate.value() == expected_feerate);
             std::vector<Wtxid> expected_wtxids({tx_parent_cheap->GetWitnessHash(), tx_child_cheap->GetWitnessHash()});
-            CHECK_NO_DISPLAY(it_parent->second.m_wtxids_fee_calculations.value() == expected_wtxids);
-            CHECK_NO_DISPLAY(it_child->second.m_wtxids_fee_calculations.value() == expected_wtxids);
+            const auto& cheap_parent_wtxids{it_parent->second.m_wtxids_fee_calculations.value()};
+            const auto& cheap_child_wtxids{it_child->second.m_wtxids_fee_calculations.value()};
+            BOOST_CHECK_EQUAL_COLLECTIONS(cheap_parent_wtxids.begin(), cheap_parent_wtxids.end(), expected_wtxids.begin(), expected_wtxids.end());
+            BOOST_CHECK_EQUAL_COLLECTIONS(cheap_child_wtxids.begin(), cheap_child_wtxids.end(), expected_wtxids.begin(), expected_wtxids.end());
         }
         expected_pool_size += 2;
         BOOST_CHECK_EQUAL(m_node.mempool->size(), expected_pool_size);
@@ -1210,8 +1216,10 @@ BOOST_AUTO_TEST_CASE(package_rbf_tests)
 
         std::vector<Wtxid> expected_package3_wtxids({tx_parent_3->GetWitnessHash(), tx_child_3->GetWitnessHash()});
         const auto package3_total_vsize{GetVirtualTransactionSize(*tx_parent_3) + GetVirtualTransactionSize(*tx_child_3)};
-        CHECK_NO_DISPLAY(it_parent_3->second.m_wtxids_fee_calculations.value() == expected_package3_wtxids);
-        CHECK_NO_DISPLAY(it_child_3->second.m_wtxids_fee_calculations.value() == expected_package3_wtxids);
+        const auto& parent_3_wtxids{it_parent_3->second.m_wtxids_fee_calculations.value()};
+        const auto& child_3_wtxids{it_child_3->second.m_wtxids_fee_calculations.value()};
+        BOOST_CHECK_EQUAL_COLLECTIONS(parent_3_wtxids.begin(), parent_3_wtxids.end(), expected_package3_wtxids.begin(), expected_package3_wtxids.end());
+        BOOST_CHECK_EQUAL_COLLECTIONS(child_3_wtxids.begin(), child_3_wtxids.end(), expected_package3_wtxids.begin(), expected_package3_wtxids.end());
         BOOST_CHECK_EQUAL(it_parent_3->second.m_effective_feerate.value().GetFee(package3_total_vsize), 199 + 1300);
         BOOST_CHECK_EQUAL(it_child_3->second.m_effective_feerate.value().GetFee(package3_total_vsize), 199 + 1300);
 

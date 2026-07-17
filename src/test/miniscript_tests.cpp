@@ -382,7 +382,7 @@ void TestSatisfy(const KeyConverter& converter, const Node& node)
                 BOOST_CHECK(witness_nonmal.stack.size() <= max_stack_size);
                 // If a non-malleable satisfaction exists, the malleable one must also exist, and be identical to it.
                 BOOST_CHECK(mal_success);
-                CHECK_NO_DISPLAY(witness_nonmal.stack == witness_mal.stack);
+                BOOST_CHECK_EQUAL_COLLECTIONS(witness_nonmal.stack.begin(), witness_nonmal.stack.end(), witness_mal.stack.begin(), witness_mal.stack.end());
                 assert(wit_size <= *node.GetWitnessSize());
 
                 // Test non-malleable satisfaction.

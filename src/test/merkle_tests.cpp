@@ -138,7 +138,7 @@ BOOST_AUTO_TEST_CASE(merkle_test)
                     }
                     std::vector<uint256> newBranch = TransactionMerklePath(block, mtx);
                     std::vector<uint256> oldBranch = BlockGetMerkleBranch(block, merkleTree, mtx);
-                    CHECK_NO_DISPLAY(oldBranch == newBranch);
+                    BOOST_CHECK_EQUAL_COLLECTIONS(oldBranch.begin(), oldBranch.end(), newBranch.begin(), newBranch.end());
                     BOOST_CHECK(ComputeMerkleRootFromBranch(block.vtx[mtx]->GetHash().ToUint256(), newBranch, mtx) == oldRoot);
                 }
             }
