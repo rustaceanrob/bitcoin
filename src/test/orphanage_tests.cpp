@@ -166,7 +166,7 @@ BOOST_AUTO_TEST_CASE(peer_dos_limits)
 
         // Make child0 ready to reconsider
         const std::vector<std::pair<Wtxid, NodeId>> expected_set_c0{std::make_pair(children.at(0)->GetWitnessHash(), peer)};
-        BOOST_CHECK(orphanage->AddChildrenToWorkSet(*parents.at(0), det_rand) == expected_set_c0);
+        CHECK_NO_DISPLAY(orphanage->AddChildrenToWorkSet(*parents.at(0), det_rand) == expected_set_c0);
         BOOST_CHECK(orphanage->HaveTxToReconsider(peer));
 
         // Add 1 more orphan, causing the orphanage to be oversize. child1 is evicted.
@@ -186,9 +186,9 @@ BOOST_AUTO_TEST_CASE(peer_dos_limits)
 
         // Eviction order is FIFO within the orphans that are read
         const std::vector<std::pair<Wtxid, NodeId>> expected_set_c4{std::make_pair(children.at(4)->GetWitnessHash(), peer)};
-        BOOST_CHECK(orphanage->AddChildrenToWorkSet(*parents.at(4), det_rand) == expected_set_c4);
+        CHECK_NO_DISPLAY(orphanage->AddChildrenToWorkSet(*parents.at(4), det_rand) == expected_set_c4);
         const std::vector<std::pair<Wtxid, NodeId>> expected_set_c3{std::make_pair(children.at(3)->GetWitnessHash(), peer)};
-        BOOST_CHECK(orphanage->AddChildrenToWorkSet(*parents.at(3), det_rand) == expected_set_c3);
+        CHECK_NO_DISPLAY(orphanage->AddChildrenToWorkSet(*parents.at(3), det_rand) == expected_set_c3);
 
         // child5 is evicted immediately because it is the only non-reconsiderable orphan.
         orphanage->AddTx(children.at(5), peer);
@@ -602,8 +602,8 @@ BOOST_AUTO_TEST_CASE(get_children)
         std::vector<CTransactionRef> expected_parent1_children{child_p1n0_p2n0, child_p1n0_p1n1, child_p1n0};
         std::vector<CTransactionRef> expected_parent2_children{child_p1n0_p2n0, child_p2n1};
 
-        BOOST_CHECK(expected_parent1_children == orphanage->GetChildrenFromSamePeer(parent1, node1));
-        BOOST_CHECK(expected_parent2_children == orphanage->GetChildrenFromSamePeer(parent2, node1));
+        CHECK_NO_DISPLAY(expected_parent1_children == orphanage->GetChildrenFromSamePeer(parent1, node1));
+        CHECK_NO_DISPLAY(expected_parent2_children == orphanage->GetChildrenFromSamePeer(parent2, node1));
 
         // The peer must match
         BOOST_CHECK(orphanage->GetChildrenFromSamePeer(parent1, node2).empty());
@@ -650,7 +650,7 @@ BOOST_AUTO_TEST_CASE(get_children)
             std::vector<CTransactionRef> expected_parent1_node2{child_p1n0_p2n0, child_p1n0_p1n1};
             BOOST_CHECK(orphanage->HaveTxFromPeer(child_p1n0_p1n1->GetWitnessHash(), node2));
             BOOST_CHECK(orphanage->HaveTxFromPeer(child_p1n0_p2n0->GetWitnessHash(), node2));
-            BOOST_CHECK(expected_parent1_node2 == orphanage->GetChildrenFromSamePeer(parent1, node2));
+            CHECK_NO_DISPLAY(expected_parent1_node2 == orphanage->GetChildrenFromSamePeer(parent1, node2));
         }
 
         // Children of parent2 from node2:

@@ -21,7 +21,7 @@ BOOST_AUTO_TEST_CASE(fsbridge_pathtostring)
     BOOST_CHECK_EQUAL(fs::PathToString(fs::PathFromString(u8_str)), u8_str);
     BOOST_CHECK_EQUAL(fs::u8path(u8_str).utf8string(), u8_str);
     BOOST_CHECK_EQUAL(fs::path(str8).utf8string(), u8_str);
-    BOOST_CHECK(fs::path(str8).u8string() == str8);
+    CHECK_NO_DISPLAY(fs::path(str8).u8string() == str8);
     BOOST_CHECK_EQUAL(fs::PathFromString(u8_str).utf8string(), u8_str);
     BOOST_CHECK_EQUAL(fs::PathToString(fs::u8path(u8_str)), u8_str);
 #ifndef WIN32

@@ -221,7 +221,7 @@ BOOST_FIXTURE_TEST_CASE(logging_Conf, LogSetup)
         BOOST_REQUIRE(args.ParseParameters(2, argv_test, err));
 
         auto result = init::SetLoggingLevel(args);
-        BOOST_REQUIRE(result);
+        REQUIRE_NO_DISPLAY(result);
         BOOST_CHECK_EQUAL(LogInstance().LogLevel(), BCLog::Level::Debug);
     }
 
@@ -235,12 +235,12 @@ BOOST_FIXTURE_TEST_CASE(logging_Conf, LogSetup)
         BOOST_REQUIRE(args.ParseParameters(2, argv_test, err));
 
         auto result = init::SetLoggingLevel(args);
-        BOOST_REQUIRE(result);
+        REQUIRE_NO_DISPLAY(result);
         BOOST_CHECK_EQUAL(LogInstance().LogLevel(), BCLog::DEFAULT_LOG_LEVEL);
 
         const auto& category_levels{LogInstance().CategoryLevels()};
         const auto net_it{category_levels.find(BCLog::LogFlags::NET)};
-        BOOST_REQUIRE(net_it != category_levels.end());
+        REQUIRE_NO_DISPLAY(net_it != category_levels.end());
         BOOST_CHECK_EQUAL(net_it->second, BCLog::Level::Trace);
     }
 
@@ -254,18 +254,18 @@ BOOST_FIXTURE_TEST_CASE(logging_Conf, LogSetup)
         BOOST_REQUIRE(args.ParseParameters(4, argv_test, err));
 
         auto result = init::SetLoggingLevel(args);
-        BOOST_REQUIRE(result);
+        REQUIRE_NO_DISPLAY(result);
         BOOST_CHECK_EQUAL(LogInstance().LogLevel(), BCLog::Level::Debug);
 
         const auto& category_levels{LogInstance().CategoryLevels()};
         BOOST_CHECK_EQUAL(category_levels.size(), 2);
 
         const auto net_it{category_levels.find(BCLog::LogFlags::NET)};
-        BOOST_CHECK(net_it != category_levels.end());
+        CHECK_NO_DISPLAY(net_it != category_levels.end());
         BOOST_CHECK_EQUAL(net_it->second, BCLog::Level::Trace);
 
         const auto http_it{category_levels.find(BCLog::LogFlags::HTTP)};
-        BOOST_CHECK(http_it != category_levels.end());
+        CHECK_NO_DISPLAY(http_it != category_levels.end());
         BOOST_CHECK_EQUAL(http_it->second, BCLog::Level::Info);
     }
 

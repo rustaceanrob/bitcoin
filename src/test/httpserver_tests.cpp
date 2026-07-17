@@ -537,7 +537,7 @@ BOOST_AUTO_TEST_CASE(http_server_socket_tests)
     // Init state
     BOOST_REQUIRE_EQUAL(server.GetListeningSocketCount(), 0);
     // Bind to mock Listening Socket
-    BOOST_REQUIRE(server.BindAndStartListening(addr_bind));
+    REQUIRE_NO_DISPLAY(server.BindAndStartListening(addr_bind));
     // We are bound and listening
     BOOST_REQUIRE_EQUAL(server.GetListeningSocketCount(), 1);
 
@@ -693,7 +693,7 @@ BOOST_AUTO_TEST_CASE(http_socket_error_tests)
 
     // Simpler server startup than the last test
     CService addr_bind{Lookup("0.0.0.0", /*portDefault=*/0, /*fAllowLookup=*/false).value()};
-    BOOST_REQUIRE(server.BindAndStartListening(addr_bind));
+    REQUIRE_NO_DISPLAY(server.BindAndStartListening(addr_bind));
     server.StartSocketsThreads();
 
     // Prepare initial requests

@@ -94,7 +94,7 @@ BOOST_AUTO_TEST_CASE(pmt_test1)
             BOOST_CHECK(!merkleRoot2.IsNull());
 
             // check that it contains the matched transactions (in the same order!)
-            BOOST_CHECK(vMatchTxid1 == vMatchTxid2);
+            CHECK_NO_DISPLAY(vMatchTxid1 == vMatchTxid2);
 
             // check that random bit flips break the authentication
             for (int j=0; j<4; j++) {

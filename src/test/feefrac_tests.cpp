@@ -55,32 +55,32 @@ BOOST_AUTO_TEST_CASE(feefrac_operators)
     BOOST_CHECK_EQUAL(neg.EvaluateFeeUp(100000001), -1001000010);
     BOOST_CHECK_EQUAL(neg.EvaluateFeeUp(0x7fffffff), -21496311306);
 
-    BOOST_CHECK(empty == FeeFrac{}); // same as no-args
+    CHECK_NO_DISPLAY(empty == FeeFrac{}); // same as no-args
 
-    BOOST_CHECK(p1 == p1);
-    BOOST_CHECK(p1 + p2 == sum);
-    BOOST_CHECK(p1 - p2 == diff);
+    CHECK_NO_DISPLAY(p1 == p1);
+    CHECK_NO_DISPLAY(p1 + p2 == sum);
+    CHECK_NO_DISPLAY(p1 - p2 == diff);
 
     FeeFrac p3{2000, 200};
-    BOOST_CHECK(p1 != p3); // feefracs only equal if both fee and size are same
-    BOOST_CHECK(p2 != p3);
+    CHECK_NO_DISPLAY(p1 != p3); // feefracs only equal if both fee and size are same
+    CHECK_NO_DISPLAY(p2 != p3);
 
     FeeFrac p4{3000, 300};
-    BOOST_CHECK(p1 == p4-p3);
-    BOOST_CHECK(p1 + p3 == p4);
+    CHECK_NO_DISPLAY(p1 == p4-p3);
+    CHECK_NO_DISPLAY(p1 + p3 == p4);
 
     // Fee-rate comparison
-    BOOST_CHECK(ByRatioNegSize{p1} > ByRatioNegSize{p2});
-    BOOST_CHECK(ByRatioNegSize{p1} >= ByRatioNegSize{p2});
-    BOOST_CHECK(ByRatioNegSize{p1} >= ByRatioNegSize{p4-p3});
+    CHECK_NO_DISPLAY(ByRatioNegSize{p1} > ByRatioNegSize{p2});
+    CHECK_NO_DISPLAY(ByRatioNegSize{p1} >= ByRatioNegSize{p2});
+    CHECK_NO_DISPLAY(ByRatioNegSize{p1} >= ByRatioNegSize{p4-p3});
     BOOST_CHECK(!(ByRatio{p1} > ByRatio{p3})); // not strictly better
-    BOOST_CHECK(ByRatio{p1} > ByRatio{p2}); // strictly greater feerate
+    CHECK_NO_DISPLAY(ByRatio{p1} > ByRatio{p2}); // strictly greater feerate
 
-    BOOST_CHECK(ByRatioNegSize{p2} < ByRatioNegSize{p1});
-    BOOST_CHECK(ByRatioNegSize{p2} <= ByRatioNegSize{p1});
-    BOOST_CHECK(ByRatioNegSize{p1} <= ByRatioNegSize{p4-p3});
+    CHECK_NO_DISPLAY(ByRatioNegSize{p2} < ByRatioNegSize{p1});
+    CHECK_NO_DISPLAY(ByRatioNegSize{p2} <= ByRatioNegSize{p1});
+    CHECK_NO_DISPLAY(ByRatioNegSize{p1} <= ByRatioNegSize{p4-p3});
     BOOST_CHECK(!(ByRatio{p3} < ByRatio{p1})); // not strictly worse
-    BOOST_CHECK(ByRatio{p2} < ByRatio{p1}); // strictly lower feerate
+    CHECK_NO_DISPLAY(ByRatio{p2} < ByRatio{p1}); // strictly lower feerate
 
     // "empty" comparisons
     BOOST_CHECK(!(ByRatio{p1} > ByRatio{empty})); // << will always result in false
@@ -89,21 +89,21 @@ BOOST_AUTO_TEST_CASE(feefrac_operators)
     BOOST_CHECK(!(ByRatio{empty} < ByRatio{empty}));
 
     // empty is always bigger than everything else
-    BOOST_CHECK(ByRatioNegSize{empty} > ByRatioNegSize{p1});
-    BOOST_CHECK(ByRatioNegSize{empty} > ByRatioNegSize{p2});
-    BOOST_CHECK(ByRatioNegSize{empty} > ByRatioNegSize{p3});
-    BOOST_CHECK(ByRatioNegSize{empty} >= ByRatioNegSize{p1});
-    BOOST_CHECK(ByRatioNegSize{empty} >= ByRatioNegSize{p2});
-    BOOST_CHECK(ByRatioNegSize{empty} >= ByRatioNegSize{p3});
+    CHECK_NO_DISPLAY(ByRatioNegSize{empty} > ByRatioNegSize{p1});
+    CHECK_NO_DISPLAY(ByRatioNegSize{empty} > ByRatioNegSize{p2});
+    CHECK_NO_DISPLAY(ByRatioNegSize{empty} > ByRatioNegSize{p3});
+    CHECK_NO_DISPLAY(ByRatioNegSize{empty} >= ByRatioNegSize{p1});
+    CHECK_NO_DISPLAY(ByRatioNegSize{empty} >= ByRatioNegSize{p2});
+    CHECK_NO_DISPLAY(ByRatioNegSize{empty} >= ByRatioNegSize{p3});
 
     // check "max" values for comparison
     FeeFrac oversized_1{4611686000000, 4000000};
     FeeFrac oversized_2{184467440000000, 100000};
 
-    BOOST_CHECK(ByRatioNegSize{oversized_1} < ByRatioNegSize{oversized_2});
-    BOOST_CHECK(ByRatioNegSize{oversized_1} <= ByRatioNegSize{oversized_2});
-    BOOST_CHECK(ByRatio{oversized_1} < ByRatio{oversized_2});
-    BOOST_CHECK(ByRatioNegSize{oversized_1} != ByRatioNegSize{oversized_2});
+    CHECK_NO_DISPLAY(ByRatioNegSize{oversized_1} < ByRatioNegSize{oversized_2});
+    CHECK_NO_DISPLAY(ByRatioNegSize{oversized_1} <= ByRatioNegSize{oversized_2});
+    CHECK_NO_DISPLAY(ByRatio{oversized_1} < ByRatio{oversized_2});
+    CHECK_NO_DISPLAY(ByRatioNegSize{oversized_1} != ByRatioNegSize{oversized_2});
 
     BOOST_CHECK_EQUAL(oversized_1.EvaluateFeeDown(0), 0);
     BOOST_CHECK_EQUAL(oversized_1.EvaluateFeeDown(1), 1152921);
@@ -129,8 +129,8 @@ BOOST_AUTO_TEST_CASE(feefrac_operators)
     FeeFrac max_fee{2100000000000000, INT32_MAX};
     BOOST_CHECK(!(ByRatioNegSize{max_fee} < ByRatioNegSize{max_fee}));
     BOOST_CHECK(!(ByRatioNegSize{max_fee} > ByRatioNegSize{max_fee}));
-    BOOST_CHECK(ByRatioNegSize{max_fee} <= ByRatioNegSize{max_fee});
-    BOOST_CHECK(ByRatioNegSize{max_fee} >= ByRatioNegSize{max_fee});
+    CHECK_NO_DISPLAY(ByRatioNegSize{max_fee} <= ByRatioNegSize{max_fee});
+    CHECK_NO_DISPLAY(ByRatioNegSize{max_fee} >= ByRatioNegSize{max_fee});
 
     BOOST_CHECK_EQUAL(max_fee.EvaluateFeeDown(0), 0);
     BOOST_CHECK_EQUAL(max_fee.EvaluateFeeDown(1), 977888);
@@ -146,7 +146,7 @@ BOOST_AUTO_TEST_CASE(feefrac_operators)
     BOOST_CHECK_EQUAL(max_fee.EvaluateFeeUp(INT32_MAX), 2100000000000000);
 
     FeeFrac max_fee2{1, 1};
-    BOOST_CHECK(ByRatioNegSize{max_fee} >= ByRatioNegSize{max_fee2});
+    CHECK_NO_DISPLAY(ByRatioNegSize{max_fee} >= ByRatioNegSize{max_fee2});
 
     // Test for integer overflow issue (https://github.com/bitcoin/bitcoin/issues/32294)
     BOOST_CHECK_EQUAL((FeeFrac{0x7ffffffdfffffffb, 0x7ffffffd}.EvaluateFeeDown(0x7fffffff)), 0x7fffffffffffffff);

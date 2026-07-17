@@ -171,7 +171,7 @@ std::string stringify(const T& value)
     } else if constexpr (is_variant<T>) {
         return std::visit([](const auto& v) { return stringify(v); }, value);
     } else {
-        return typeid(T).name();
+        static_assert(sizeof(T) == 0, "No stringify overload found for this type. Try adding `ToString` or `<<`");
     }
 }
 
@@ -729,8 +729,8 @@ using btc_suite_fixture = ::framework::EmptyFixture;
         auto& btc_test_ctx_{::framework::test_context()};                                           \
         auto btc_test_bool_ = static_cast<bool>(expr);                                              \
         auto btc_test_res_ = btc_test_bool_ ?                                                       \
-                                 Result::ok() :                                                     \
-                                 Result::failed(                                                    \
+                                 ::framework::Result::ok() :                                        \
+                                 ::framework::Result::failed(                                       \
                                      "Unable to produce an expression."                             \
                                      "If you are unable to use CHECK, try implementing `<<`");      \
         std::ostringstream btc_test_os_;                                                            \
@@ -776,8 +776,8 @@ using btc_suite_fixture = ::framework::EmptyFixture;
         } else {                                                                                           \
             auto btc_test_bool_ = static_cast<bool>(expr);                                                 \
             auto btc_test_res_ = btc_test_bool_ ?                                                          \
-                                     Result::ok() :                                                        \
-                                     Result::failed(                                                       \
+                                     ::framework::Result::ok() :                                           \
+                                     ::framework::Result::failed(                                          \
                                          "Unable to produce an expression."                                \
                                          "If you are unable to use REQUIRE, try implementing `<<`");       \
             std::ostringstream btc_test_os_;                                                               \

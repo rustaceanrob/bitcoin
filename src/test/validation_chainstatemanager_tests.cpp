@@ -968,7 +968,7 @@ BOOST_FIXTURE_TEST_CASE(chainstatemanager_args, BasicTestingSetup)
     //! Like get_opts, but requires the provided args to be valid and unwraps the result
     auto get_valid_opts = [&](const std::vector<const char*>& args) {
         const auto result{get_opts(args)};
-        BOOST_REQUIRE_MESSAGE(result, util::ErrorString(result).original);
+        REQUIRE_NO_DISPLAY(result, util::ErrorString(result).original);
         return *result;
     };
 

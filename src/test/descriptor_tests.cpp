@@ -319,10 +319,10 @@ void DoCheck(std::string prv, std::string pub, const std::string& norm_pub, int 
 
             // Try to expand again using cached data, and compare.
             BOOST_CHECK(parse_pub->ExpandFromCache(i, desc_cache, spks_cached, script_provider_cached));
-            BOOST_CHECK(spks == spks_cached);
-            BOOST_CHECK(GetKeyData(script_provider, flags) == GetKeyData(script_provider_cached, flags));
-            BOOST_CHECK(script_provider.scripts == script_provider_cached.scripts);
-            BOOST_CHECK(GetKeyOriginData(script_provider, flags) == GetKeyOriginData(script_provider_cached, flags));
+            CHECK_NO_DISPLAY(spks == spks_cached);
+            CHECK_NO_DISPLAY(GetKeyData(script_provider, flags) == GetKeyData(script_provider_cached, flags));
+            CHECK_NO_DISPLAY(script_provider.scripts == script_provider_cached.scripts);
+            CHECK_NO_DISPLAY(GetKeyOriginData(script_provider, flags) == GetKeyOriginData(script_provider_cached, flags));
 
             // Check whether keys are in the cache
             const auto& der_xpub_cache = desc_cache.GetCachedDerivedExtPubKeys();
@@ -426,10 +426,10 @@ void DoCheck(std::string prv, std::string pub, const std::string& norm_pub, int 
 
                 // Try again but use the cache from expanding i. That cache won't have the pubkeys for i + 1, but will have the parent xpub for derivation.
                 BOOST_CHECK(parse_pub->ExpandFromCache(i + 1, desc_cache, spk1_from_cache, script_provider_cached1));
-                BOOST_CHECK(spks1 == spk1_from_cache);
-                BOOST_CHECK(GetKeyData(script_provider1, flags) == GetKeyData(script_provider_cached1, flags));
-                BOOST_CHECK(script_provider1.scripts == script_provider_cached1.scripts);
-                BOOST_CHECK(GetKeyOriginData(script_provider1, flags) == GetKeyOriginData(script_provider_cached1, flags));
+                CHECK_NO_DISPLAY(spks1 == spk1_from_cache);
+                CHECK_NO_DISPLAY(GetKeyData(script_provider1, flags) == GetKeyData(script_provider_cached1, flags));
+                CHECK_NO_DISPLAY(script_provider1.scripts == script_provider_cached1.scripts);
+                CHECK_NO_DISPLAY(GetKeyOriginData(script_provider1, flags) == GetKeyOriginData(script_provider_cached1, flags));
             }
 
             // For each of the produced scripts, verify solvability, and when possible, try to sign a transaction spending it.
@@ -465,7 +465,7 @@ void DoCheck(std::string prv, std::string pub, const std::string& norm_pub, int 
                 BOOST_CHECK_EQUAL(spks_inferred.size(), 1U);
                 BOOST_CHECK(spks_inferred[0] == spks[n]);
                 BOOST_CHECK_EQUAL(InferDescriptor(spks_inferred[0], provider_inferred)->IsSolvable(), !(flags & UNSOLVABLE));
-                BOOST_CHECK(GetKeyOriginData(provider_inferred, flags) == GetKeyOriginData(script_provider, flags));
+                CHECK_NO_DISPLAY(GetKeyOriginData(provider_inferred, flags) == GetKeyOriginData(script_provider, flags));
             }
 
             // Test whether the observed key path is present in the 'paths' variable (which contains expected, unobserved paths),

@@ -166,7 +166,7 @@ void SimulationTest(CCoinsView* base, bool fake_best_block)
             // former just delegates to the latter and returns the first unspent in a txn.
             const Coin& entry = (m_rng.randrange(500) == 0) ?
                 AccessByTxid(*stack.back(), txid) : stack.back()->AccessCoin(COutPoint(txid, 0));
-            BOOST_CHECK(coin == entry);
+            CHECK_NO_DISPLAY(coin == entry);
 
             if (test_havecoin_before) {
                 BOOST_CHECK(result_havecoin == !entry.IsSpent());
@@ -220,7 +220,7 @@ void SimulationTest(CCoinsView* base, bool fake_best_block)
                 bool have = stack.back()->HaveCoin(entry.first);
                 const Coin& coin = stack.back()->AccessCoin(entry.first);
                 BOOST_CHECK(have == !coin.IsSpent());
-                BOOST_CHECK(coin == entry.second);
+                CHECK_NO_DISPLAY(coin == entry.second);
                 if (coin.IsSpent()) {
                     missed_an_entry = true;
                 } else {
@@ -479,7 +479,7 @@ BOOST_FIXTURE_TEST_CASE(updatecoins_simulation_test, UpdateTest)
                 bool have = stack.back()->HaveCoin(entry.first);
                 const Coin& coin = stack.back()->AccessCoin(entry.first);
                 BOOST_CHECK(have == !coin.IsSpent());
-                BOOST_CHECK(coin == entry.second);
+                CHECK_NO_DISPLAY(coin == entry.second);
             }
         }
 
@@ -1081,7 +1081,7 @@ BOOST_FIXTURE_TEST_CASE(coins_db_leveldb_layout, FlushTest)
     WITH_LOCK(::cs_main, return base.CompactFullAsync()).wait();
     BOOST_CHECK_EQUAL(level2_files(base), 1);
 
-    BOOST_CHECK(*Assert(base.GetCoin(outpoint)) == coin);
+    CHECK_NO_DISPLAY(*Assert(base.GetCoin(outpoint)) == coin);
     BOOST_CHECK_EQUAL(base.GetBestBlock(), block_hash);
 }
 
@@ -1124,7 +1124,7 @@ BOOST_AUTO_TEST_CASE(ccoins_addcoin_exception_keeps_usage_balanced)
     BOOST_CHECK_THROW(cache.AddCoin(outpoint, Coin{coin2}, /*possible_overwrite=*/false), std::logic_error);
     cache.SelfTest();
 
-    BOOST_CHECK(cache.AccessCoin(outpoint) == coin1);
+    CHECK_NO_DISPLAY(cache.AccessCoin(outpoint) == coin1);
 }
 
 BOOST_AUTO_TEST_CASE(ccoins_emplace_duplicate_keeps_usage_balanced)
@@ -1141,7 +1141,7 @@ BOOST_AUTO_TEST_CASE(ccoins_emplace_duplicate_keeps_usage_balanced)
     cache.EmplaceCoinInternalDANGER(COutPoint{outpoint}, Coin{coin2});
     cache.SelfTest();
 
-    BOOST_CHECK(cache.AccessCoin(outpoint) == coin1);
+    CHECK_NO_DISPLAY(cache.AccessCoin(outpoint) == coin1);
 }
 
 BOOST_AUTO_TEST_CASE(ccoins_reset_guard)
@@ -1165,7 +1165,7 @@ BOOST_AUTO_TEST_CASE(ccoins_reset_guard)
 
     {
         const auto reset_guard{cache.CreateResetGuard()};
-        BOOST_CHECK(cache.AccessCoin(outpoint) == coin);
+        CHECK_NO_DISPLAY(cache.AccessCoin(outpoint) == coin);
         BOOST_CHECK(!cache.AccessCoin(outpoint).IsSpent());
         BOOST_CHECK_EQUAL(cache.GetCacheSize(), 1);
         BOOST_CHECK_EQUAL(cache.GetDirtyCount(), 1);
@@ -1212,7 +1212,7 @@ BOOST_AUTO_TEST_CASE(ccoins_peekcoin)
     CCoinsViewCacheTest main_cache{&base};
     const auto fetched{main_cache.PeekCoin(outpoint)};
     BOOST_CHECK(fetched.has_value());
-    BOOST_CHECK(*fetched == coin);
+    CHECK_NO_DISPLAY(*fetched == coin);
     BOOST_CHECK(!main_cache.HaveCoinInCache(outpoint));
 }
 

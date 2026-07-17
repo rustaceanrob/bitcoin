@@ -66,7 +66,7 @@ BOOST_AUTO_TEST_CASE(basic)
     BOOST_CHECK_EQUAL(pb.Add(tx2), PrivateBroadcast::AddResult::Added);
     const auto find_tx_info{[](auto& infos, const CTransactionRef& tx) -> const PrivateBroadcast::TxBroadcastInfo& {
         const auto it{std::ranges::find(infos, tx->GetWitnessHash(), [](const auto& info) { return info.tx->GetWitnessHash(); })};
-        BOOST_REQUIRE(it != infos.end());
+        REQUIRE_NO_DISPLAY(it != infos.end());
         return *it;
     }};
     const auto check_peer_counts{[&](size_t tx1_peer_count, size_t tx2_peer_count) {

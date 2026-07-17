@@ -99,7 +99,7 @@ BOOST_AUTO_TEST_CASE(bech32_testvectors_invalid)
         BOOST_CHECK(dec.encoding == bech32::Encoding::INVALID);
         auto [error, error_locations] = bech32::LocateErrors(str);
         BOOST_CHECK_EQUAL(err.first, error);
-        BOOST_CHECK(err.second == error_locations);
+        CHECK_NO_DISPLAY(err.second == error_locations);
         i++;
     }
 }
@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(bech32m_testvectors_invalid)
         BOOST_CHECK(dec.encoding == bech32::Encoding::INVALID);
         auto [error, error_locations] = bech32::LocateErrors(str);
         BOOST_CHECK_EQUAL(err.first, error);
-        BOOST_CHECK(err.second == error_locations);
+        CHECK_NO_DISPLAY(err.second == error_locations);
         i++;
     }
 }

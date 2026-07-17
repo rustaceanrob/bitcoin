@@ -364,9 +364,9 @@ BOOST_FIXTURE_TEST_CASE(calc_feerate_diagram_rbf, TestChain100Setup)
         const auto replace_one{changeset->CalculateChunksForRBF()};
         BOOST_CHECK(replace_one.has_value());
         std::vector<FeeFrac> expected_old_chunks{{low_fee, low_size}};
-        BOOST_CHECK(replace_one->first == expected_old_chunks);
+        CHECK_NO_DISPLAY(replace_one->first == expected_old_chunks);
         std::vector<FeeFrac> expected_new_chunks{{0, entry_replacement.GetAdjustedWeight()}};
-        BOOST_CHECK(replace_one->second == expected_new_chunks);
+        CHECK_NO_DISPLAY(replace_one->second == expected_new_chunks);
     }
 
     // Non-zero replacement fee/size
@@ -377,9 +377,9 @@ BOOST_FIXTURE_TEST_CASE(calc_feerate_diagram_rbf, TestChain100Setup)
         const auto replace_one_fee{changeset->CalculateChunksForRBF()};
         BOOST_CHECK(replace_one_fee.has_value());
         std::vector<FeeFrac> expected_old_diagram{{low_fee, low_size}};
-        BOOST_CHECK(replace_one_fee->first == expected_old_diagram);
+        CHECK_NO_DISPLAY(replace_one_fee->first == expected_old_diagram);
         std::vector<FeeFrac> expected_new_diagram{{high_fee, entry_replacement.GetAdjustedWeight()}};
-        BOOST_CHECK(replace_one_fee->second == expected_new_diagram);
+        CHECK_NO_DISPLAY(replace_one_fee->second == expected_new_diagram);
     }
 
     // Add a second transaction to the cluster that will make a single chunk, to be evicted in the RBF
@@ -396,9 +396,9 @@ BOOST_FIXTURE_TEST_CASE(calc_feerate_diagram_rbf, TestChain100Setup)
         const auto replace_single_chunk{changeset->CalculateChunksForRBF()};
         BOOST_CHECK(replace_single_chunk.has_value());
         std::vector<FeeFrac> expected_old_chunks{{low_fee + high_fee, low_size + high_size}};
-        BOOST_CHECK(replace_single_chunk->first == expected_old_chunks);
+        CHECK_NO_DISPLAY(replace_single_chunk->first == expected_old_chunks);
         std::vector<FeeFrac> expected_new_chunks{{high_fee, entry_replacement.GetAdjustedWeight()}};
-        BOOST_CHECK(replace_single_chunk->second == expected_new_chunks);
+        CHECK_NO_DISPLAY(replace_single_chunk->second == expected_new_chunks);
     }
 
     // Conflict with the 2nd tx, resulting in new diagram with three entries
@@ -409,9 +409,9 @@ BOOST_FIXTURE_TEST_CASE(calc_feerate_diagram_rbf, TestChain100Setup)
         const auto replace_cpfp_child{changeset->CalculateChunksForRBF()};
         BOOST_CHECK(replace_cpfp_child.has_value());
         std::vector<FeeFrac> expected_old_chunks{{low_fee + high_fee, low_size + high_size}};
-        BOOST_CHECK(replace_cpfp_child->first == expected_old_chunks);
+        CHECK_NO_DISPLAY(replace_cpfp_child->first == expected_old_chunks);
         std::vector<FeeFrac> expected_new_chunks{{high_fee, entry_replacement.GetAdjustedWeight()}, {low_fee, low_size}};
-        BOOST_CHECK(replace_cpfp_child->second == expected_new_chunks);
+        CHECK_NO_DISPLAY(replace_cpfp_child->second == expected_new_chunks);
     }
 
     // Make a size 2 cluster that is itself two chunks; evict both txns
@@ -433,9 +433,9 @@ BOOST_FIXTURE_TEST_CASE(calc_feerate_diagram_rbf, TestChain100Setup)
         const auto replace_two_chunks_single_cluster{changeset->CalculateChunksForRBF()};
         BOOST_CHECK(replace_two_chunks_single_cluster.has_value());
         std::vector<FeeFrac> expected_old_chunks{{high_fee, high_size_2}, {low_fee, low_size_2}};
-        BOOST_CHECK(replace_two_chunks_single_cluster->first == expected_old_chunks);
+        CHECK_NO_DISPLAY(replace_two_chunks_single_cluster->first == expected_old_chunks);
         std::vector<FeeFrac> expected_new_chunks{{high_fee, low_size_2}};
-        BOOST_CHECK(replace_two_chunks_single_cluster->second == expected_new_chunks);
+        CHECK_NO_DISPLAY(replace_two_chunks_single_cluster->second == expected_new_chunks);
     }
 
     // You can have more than two direct conflicts
@@ -498,8 +498,8 @@ BOOST_AUTO_TEST_CASE(feerate_chunks_utilities)
     old_chunks = {{950, 300}, {100, 100}};
     new_chunks = {{1000, 300}, {0, 100}};
 
-    BOOST_CHECK(CompareChunks(old_chunks, new_chunks) == std::partial_ordering::unordered);
-    BOOST_CHECK(CompareChunks(new_chunks, old_chunks) == std::partial_ordering::unordered);
+    CHECK_NO_DISPLAY(CompareChunks(old_chunks, new_chunks) == std::partial_ordering::unordered);
+    CHECK_NO_DISPLAY(CompareChunks(new_chunks, old_chunks) == std::partial_ordering::unordered);
 
     // Strictly better but smaller size.
     old_chunks = {{950, 300}, {100, 100}};
@@ -520,8 +520,8 @@ BOOST_AUTO_TEST_CASE(feerate_chunks_utilities)
     old_chunks = {{950, 300}, {100, 100}};
     new_chunks = {{750, 100}, {249, 250}, {151, 650}};
 
-    BOOST_CHECK(CompareChunks(old_chunks, new_chunks) == std::partial_ordering::unordered);
-    BOOST_CHECK(CompareChunks(new_chunks, old_chunks) == std::partial_ordering::unordered);
+    CHECK_NO_DISPLAY(CompareChunks(old_chunks, new_chunks) == std::partial_ordering::unordered);
+    CHECK_NO_DISPLAY(CompareChunks(new_chunks, old_chunks) == std::partial_ordering::unordered);
 
     // If we make the second chunk slightly better, the new diagram now wins.
     old_chunks = {{950, 300}, {100, 100}};
@@ -554,8 +554,8 @@ BOOST_AUTO_TEST_CASE(feerate_chunks_utilities)
 
     // Multiple tail fee check steps, unordered result
     new_chunks = {{950, 300}, {100, 100}, {0, 1}, {0, 1}, {1, 1}};
-    BOOST_CHECK(CompareChunks(old_chunks, new_chunks) == std::partial_ordering::unordered);
-    BOOST_CHECK(CompareChunks(new_chunks, old_chunks) == std::partial_ordering::unordered);
+    CHECK_NO_DISPLAY(CompareChunks(old_chunks, new_chunks) == std::partial_ordering::unordered);
+    CHECK_NO_DISPLAY(CompareChunks(new_chunks, old_chunks) == std::partial_ordering::unordered);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

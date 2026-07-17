@@ -315,23 +315,23 @@ BOOST_AUTO_TEST_CASE(txgraph_chunk_chain)
             for (TxGraph::Ref* ref : chunk->first) {
                 // The reported chunk feerate must match the chunk feerate obtained by asking
                 // it for each of the chunk's transactions individually.
-                BOOST_CHECK(graph->GetMainChunkFeerate(*ref) == chunk->second);
+                CHECK_NO_DISPLAY(graph->GetMainChunkFeerate(*ref) == chunk->second);
                 // Verify the chunk feerate matches the sum of the reported individual feerates.
                 sum += graph->GetIndividualFeerate(*ref);
             }
-            BOOST_CHECK(sum == chunk->second);
+            CHECK_NO_DISPLAY(sum == chunk->second);
             chunks.push_back(std::move(chunk->first));
             last_chunk_feerate = chunk->second;
             builder->Include();
         }
 
-        BOOST_CHECK(chunks == expected_chunks);
+        CHECK_NO_DISPLAY(chunks == expected_chunks);
         auto& last_chunk = chunks.back();
         // The last chunk returned by the BlockBuilder must match GetWorstMainChunk, in reverse.
         std::reverse(last_chunk.begin(), last_chunk.end());
         auto [worst_chunk, worst_chunk_feerate] = graph->GetWorstMainChunk();
-        BOOST_CHECK(last_chunk == worst_chunk);
-        BOOST_CHECK(last_chunk_feerate == worst_chunk_feerate);
+        CHECK_NO_DISPLAY(last_chunk == worst_chunk);
+        CHECK_NO_DISPLAY(last_chunk_feerate == worst_chunk_feerate);
     };
 
     std::vector<TxGraph::Ref> refs;

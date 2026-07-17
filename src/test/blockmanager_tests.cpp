@@ -163,12 +163,12 @@ BOOST_FIXTURE_TEST_CASE(blockmanager_block_data_part, TestChain100Setup)
     const FlatFilePos tip_block_pos{tip.GetBlockPos()};
 
     auto block{blockman.ReadRawBlock(tip_block_pos)};
-    BOOST_REQUIRE(block);
+    REQUIRE_NO_DISPLAY(block);
     BOOST_REQUIRE_GE(block->size(), 200);
 
     const auto expect_part{[&](size_t offset, size_t size) {
         auto res{blockman.ReadRawBlock(tip_block_pos, std::pair{offset, size})};
-        BOOST_CHECK(res);
+        CHECK_NO_DISPLAY(res);
         const auto& part{res.value()};
         BOOST_CHECK_EQUAL_COLLECTIONS(part.begin(), part.end(), block->begin() + offset, block->begin() + offset + size);
     }};
@@ -191,7 +191,7 @@ BOOST_FIXTURE_TEST_CASE(blockmanager_block_data_part_error, TestChain100Setup)
     const FlatFilePos tip_block_pos{tip.GetBlockPos()};
 
     auto block{blockman.ReadRawBlock(tip_block_pos)};
-    BOOST_REQUIRE(block);
+    REQUIRE_NO_DISPLAY(block);
     BOOST_REQUIRE_GE(block->size(), 200);
 
     const auto expect_part_error{[&](size_t offset, size_t size) {

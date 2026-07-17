@@ -68,7 +68,7 @@ template <typename Key, typename Value>
 Value Find(const std::map<Key, Value>& map, const Key& key)
 {
     auto it = map.find(key);
-    BOOST_CHECK_MESSAGE(it != map.end(), strprintf("Cannot find %s", key.ToString()));
+    CHECK_NO_DISPLAY(it != map.end(), strprintf("Cannot find %s", key.ToString()));
     return it->second;
 }
 
@@ -201,7 +201,7 @@ BOOST_FIXTURE_TEST_CASE(miniminer_1p1c, TestChain100Setup)
         BOOST_CHECK(bump_fees.size() == nonexistent_outpoints.size());
         for (const auto& outpoint: nonexistent_outpoints) {
             auto it = bump_fees.find(outpoint);
-            BOOST_CHECK(it != bump_fees.end());
+            CHECK_NO_DISPLAY(it != bump_fees.end());
             BOOST_CHECK_EQUAL(it->second, 0);
         }
     }
@@ -478,18 +478,18 @@ BOOST_FIXTURE_TEST_CASE(miniminer_overlap, TestChain100Setup)
         BOOST_CHECK(!mini_miner.IsReadyToCalculate());
         BOOST_CHECK(sanity_check(all_transactions, bump_fees));
         const auto tx0_bumpfee = bump_fees.find(COutPoint{tx0->GetHash(), 1});
-        BOOST_CHECK(tx0_bumpfee != bump_fees.end());
+        CHECK_NO_DISPLAY(tx0_bumpfee != bump_fees.end());
         BOOST_CHECK_EQUAL(tx0_bumpfee->second, very_high_feerate.GetFee(tx_vsizes[0]) - low_fee);
         const auto tx3_bumpfee = bump_fees.find(COutPoint{tx3->GetHash(), 0});
-        BOOST_CHECK(tx3_bumpfee != bump_fees.end());
+        CHECK_NO_DISPLAY(tx3_bumpfee != bump_fees.end());
         BOOST_CHECK_EQUAL(tx3_bumpfee->second,
             very_high_feerate.GetFee(tx_vsizes[0] + tx_vsizes[1] + tx_vsizes[2] + tx_vsizes[3]) - (low_fee + med_fee + high_fee + high_fee));
         const auto tx6_bumpfee = bump_fees.find(COutPoint{tx6->GetHash(), 0});
-        BOOST_CHECK(tx6_bumpfee != bump_fees.end());
+        CHECK_NO_DISPLAY(tx6_bumpfee != bump_fees.end());
         BOOST_CHECK_EQUAL(tx6_bumpfee->second,
             very_high_feerate.GetFee(tx_vsizes[4] + tx_vsizes[5] + tx_vsizes[6]) - (high_fee + low_fee + med_fee));
         const auto tx7_bumpfee = bump_fees.find(COutPoint{tx7->GetHash(), 0});
-        BOOST_CHECK(tx7_bumpfee != bump_fees.end());
+        CHECK_NO_DISPLAY(tx7_bumpfee != bump_fees.end());
         BOOST_CHECK_EQUAL(tx7_bumpfee->second,
             very_high_feerate.GetFee(tx_vsizes[4] + tx_vsizes[5] + tx_vsizes[7]) - (high_fee + low_fee + high_fee));
         // Total fees: if spending multiple outputs from tx3 don't double-count fees.
@@ -519,10 +519,10 @@ BOOST_FIXTURE_TEST_CASE(miniminer_overlap, TestChain100Setup)
         BOOST_CHECK_EQUAL(bump_fees.size(), all_unspent_outpoints.size());
         BOOST_CHECK(sanity_check(all_transactions, bump_fees));
         const auto tx6_bumpfee = bump_fees.find(COutPoint{tx6->GetHash(), 0});
-        BOOST_CHECK(tx6_bumpfee != bump_fees.end());
+        CHECK_NO_DISPLAY(tx6_bumpfee != bump_fees.end());
         BOOST_CHECK_EQUAL(tx6_bumpfee->second, just_below_tx4.GetFee(tx_vsizes[5] + tx_vsizes[6]) - (low_fee + med_fee));
         const auto tx7_bumpfee = bump_fees.find(COutPoint{tx7->GetHash(), 0});
-        BOOST_CHECK(tx7_bumpfee != bump_fees.end());
+        CHECK_NO_DISPLAY(tx7_bumpfee != bump_fees.end());
         BOOST_CHECK_EQUAL(tx7_bumpfee->second, just_below_tx4.GetFee(tx_vsizes[5] + tx_vsizes[7]) - (low_fee + high_fee));
         // Total fees: if spending both tx6 and tx7, don't double-count fees.
         node::MiniMiner mini_miner_tx6_tx7(pool, {COutPoint{tx6->GetHash(), 0}, COutPoint{tx7->GetHash(), 0}});
@@ -543,10 +543,10 @@ BOOST_FIXTURE_TEST_CASE(miniminer_overlap, TestChain100Setup)
         BOOST_CHECK_EQUAL(bump_fees.size(), all_unspent_outpoints.size());
         BOOST_CHECK(sanity_check(all_transactions, bump_fees));
         const auto tx6_bumpfee = bump_fees.find(COutPoint{tx6->GetHash(), 0});
-        BOOST_CHECK(tx6_bumpfee != bump_fees.end());
+        CHECK_NO_DISPLAY(tx6_bumpfee != bump_fees.end());
         BOOST_CHECK_EQUAL(tx6_bumpfee->second, just_above_tx6.GetFee(tx_vsizes[6]) - (med_fee));
         const auto tx7_bumpfee = bump_fees.find(COutPoint{tx7->GetHash(), 0});
-        BOOST_CHECK(tx7_bumpfee != bump_fees.end());
+        CHECK_NO_DISPLAY(tx7_bumpfee != bump_fees.end());
         BOOST_CHECK_EQUAL(tx7_bumpfee->second, 0);
     }
     // Check linearization order

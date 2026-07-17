@@ -22,7 +22,7 @@ static PSBTProprietary MakeProprietary(uint64_t subtype, uint8_t key_data, uint8
 void CheckTimeLock(const std::string& base64_psbt, std::optional<uint32_t> timelock)
 {
     util::Result<PartiallySignedTransaction> psbt = DecodeBase64PSBT(base64_psbt);
-    BOOST_CHECK(psbt);
+    CHECK_NO_DISPLAY(psbt);
 
     std::optional<uint32_t> computed_timelock = psbt->ComputeTimeLock();
     std::optional<CMutableTransaction> tx = psbt->GetUnsignedTx();
@@ -204,15 +204,15 @@ BOOST_AUTO_TEST_CASE(merge_proprietary_fields)
     BOOST_REQUIRE_EQUAL(left.outputs[0].m_proprietary.size(), 2U);
 
     const auto global_it = left.m_proprietary.find(right_prop);
-    BOOST_REQUIRE(global_it != left.m_proprietary.end());
+    REQUIRE_NO_DISPLAY(global_it != left.m_proprietary.end());
     BOOST_CHECK(global_it->value == right_prop.value);
 
     const auto input_it = left.inputs[0].m_proprietary.find(right_prop);
-    BOOST_REQUIRE(input_it != left.inputs[0].m_proprietary.end());
+    REQUIRE_NO_DISPLAY(input_it != left.inputs[0].m_proprietary.end());
     BOOST_CHECK(input_it->value == right_prop.value);
 
     const auto output_it = left.outputs[0].m_proprietary.find(right_prop);
-    BOOST_REQUIRE(output_it != left.outputs[0].m_proprietary.end());
+    REQUIRE_NO_DISPLAY(output_it != left.outputs[0].m_proprietary.end());
     BOOST_CHECK(output_it->value == right_prop.value);
 }
 

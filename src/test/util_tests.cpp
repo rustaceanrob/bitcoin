@@ -1378,14 +1378,14 @@ BOOST_AUTO_TEST_CASE(test_SplitString)
     // multiple split characters
     {
         using V = std::vector<std::string>;
-        BOOST_TEST(SplitString("a,b.c:d;e", ",;") == V({"a", "b.c:d", "e"}));
-        BOOST_TEST(SplitString("a,b.c:d;e", ",;:.") == V({"a", "b", "c", "d", "e"}));
-        BOOST_TEST(SplitString("a,b.c:d;e", "") == V({"a,b.c:d;e"}));
-        BOOST_TEST(SplitString("aaa", "bcdefg") == V({"aaa"}));
-        BOOST_TEST(SplitString("x\0a,b"s, "\0"s) == V({"x", "a,b"}));
-        BOOST_TEST(SplitString("x\0a,b"s, '\0') == V({"x", "a,b"}));
-        BOOST_TEST(SplitString("x\0a,b"s, "\0,"s) == V({"x", "a", "b"}));
-        BOOST_TEST(SplitString("abcdefg", "bcd") == V({"a", "", "", "efg"}));
+        CHECK_NO_DISPLAY(SplitString("a,b.c:d;e", ",;") == V({"a", "b.c:d", "e"}));
+        CHECK_NO_DISPLAY(SplitString("a,b.c:d;e", ",;:.") == V({"a", "b", "c", "d", "e"}));
+        CHECK_NO_DISPLAY(SplitString("a,b.c:d;e", "") == V({"a,b.c:d;e"}));
+        CHECK_NO_DISPLAY(SplitString("aaa", "bcdefg") == V({"aaa"}));
+        CHECK_NO_DISPLAY(SplitString("x\0a,b"s, "\0"s) == V({"x", "a,b"}));
+        CHECK_NO_DISPLAY(SplitString("x\0a,b"s, '\0') == V({"x", "a,b"}));
+        CHECK_NO_DISPLAY(SplitString("x\0a,b"s, "\0,"s) == V({"x", "a", "b"}));
+        CHECK_NO_DISPLAY(SplitString("abcdefg", "bcd") == V({"a", "", "", "efg"}));
     }
 }
 

@@ -183,7 +183,7 @@ public:
             BOOST_CHECK_MESSAGE(real_total == total, strprintf("[%s] total %i (%i expected)", comment, real_total, total));
             BOOST_CHECK_MESSAGE(real_inflight == inflight, strprintf("[%s] inflight %i (%i expected)", comment, real_inflight, inflight));
             BOOST_CHECK_MESSAGE(real_candidates == candidates, strprintf("[%s] candidates %i (%i expected)", comment, real_candidates, candidates));
-            BOOST_CHECK_MESSAGE(ret == expected, strprintf("[%s] mismatching requestables", comment));
+            CHECK_NO_DISPLAY(ret == expected, strprintf("[%s] mismatching requestables", comment));
         });
     }
 
@@ -197,7 +197,7 @@ public:
         auto& runner = m_runner;
         runner.actions.emplace_back(m_now, [=, &runner]() {
             auto it = runner.expired.find(std::pair<NodeId, GenTxid>{peer, gtxid});
-            BOOST_CHECK_MESSAGE(it != runner.expired.end(), "[" + testname + "] missing expiration");
+            CHECK_NO_DISPLAY(it != runner.expired.end(), "[" + testname + "] missing expiration");
             if (it != runner.expired.end()) runner.expired.erase(it);
         });
     }
