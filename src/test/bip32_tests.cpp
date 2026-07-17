@@ -14,6 +14,20 @@
 #include <string>
 #include <vector>
 
+static std::ostream& operator<<(std::ostream& os, const CExtKey& k)
+{
+    unsigned char code[BIP32_EXTKEY_SIZE];
+    k.Encode(code);
+    return os << "CExtKey{" << HexStr(code) << "}";
+}
+
+static std::ostream& operator<<(std::ostream& os, const CExtPubKey& k)
+{
+    unsigned char code[BIP32_EXTKEY_SIZE];
+    k.Encode(code);
+    return os << "CExtPubKey{" << HexStr(code) << "}";
+}
+
 namespace {
 
 struct TestDerivation {
@@ -134,11 +148,11 @@ void RunTest(const TestVector& test)
 
         // Test private key
         BOOST_CHECK(EncodeExtKey(key) == derive.prv);
-        CHECK_NO_DISPLAY(DecodeExtKey(derive.prv) == key); //ensure a base58 decoded key also matches
+        BOOST_CHECK(DecodeExtKey(derive.prv) == key); //ensure a base58 decoded key also matches
 
         // Test public key
         BOOST_CHECK(EncodeExtPubKey(pubkey) == derive.pub);
-        CHECK_NO_DISPLAY(DecodeExtPubKey(derive.pub) == pubkey); //ensure a base58 decoded pubkey also matches
+        BOOST_CHECK(DecodeExtPubKey(derive.pub) == pubkey); //ensure a base58 decoded pubkey also matches
 
         // Derive new keys
         CExtKey keyNew;
@@ -148,7 +162,7 @@ void RunTest(const TestVector& test)
             // Compare with public derivation
             CExtPubKey pubkeyNew2;
             BOOST_CHECK(pubkey.Derive(pubkeyNew2, derive.nChild));
-            CHECK_NO_DISPLAY(pubkeyNew == pubkeyNew2);
+            BOOST_CHECK(pubkeyNew == pubkeyNew2);
         }
         key = keyNew;
         pubkey = pubkeyNew;

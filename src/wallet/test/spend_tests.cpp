@@ -54,7 +54,7 @@ BOOST_FIXTURE_TEST_CASE(SubtractFee, TestChain100Setup)
             coin_control.m_change_type = OutputType::LEGACY;
             return CreateTransaction(*wallet, {recipient}, /*change_pos=*/std::nullopt, coin_control);
         }();
-        BOOST_CHECK(res);
+        CHECK_NO_DISPLAY(res);
         const auto& txr = *res;
         BOOST_CHECK_EQUAL(txr.tx->vout.size(), 1);
         BOOST_CHECK_EQUAL(txr.tx->vout[0].nValue, nAmount + leftover_input_amount - txr.fee);

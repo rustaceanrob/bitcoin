@@ -473,13 +473,13 @@ BOOST_AUTO_TEST_CASE(netpermissions_test)
 
     const auto strings = NetPermissions::ToStrings(NetPermissionFlags::All);
     BOOST_CHECK_EQUAL(strings.size(), 7U);
-    CHECK_NO_DISPLAY(std::find(strings.begin(), strings.end(), "bloomfilter") != strings.end());
-    CHECK_NO_DISPLAY(std::find(strings.begin(), strings.end(), "forcerelay") != strings.end());
-    CHECK_NO_DISPLAY(std::find(strings.begin(), strings.end(), "relay") != strings.end());
-    CHECK_NO_DISPLAY(std::find(strings.begin(), strings.end(), "noban") != strings.end());
-    CHECK_NO_DISPLAY(std::find(strings.begin(), strings.end(), "mempool") != strings.end());
-    CHECK_NO_DISPLAY(std::find(strings.begin(), strings.end(), "download") != strings.end());
-    CHECK_NO_DISPLAY(std::find(strings.begin(), strings.end(), "addr") != strings.end());
+    BOOST_CHECK(std::find(strings.begin(), strings.end(), "bloomfilter") != strings.end());
+    BOOST_CHECK(std::find(strings.begin(), strings.end(), "forcerelay") != strings.end());
+    BOOST_CHECK(std::find(strings.begin(), strings.end(), "relay") != strings.end());
+    BOOST_CHECK(std::find(strings.begin(), strings.end(), "noban") != strings.end());
+    BOOST_CHECK(std::find(strings.begin(), strings.end(), "mempool") != strings.end());
+    BOOST_CHECK(std::find(strings.begin(), strings.end(), "download") != strings.end());
+    BOOST_CHECK(std::find(strings.begin(), strings.end(), "addr") != strings.end());
 }
 
 BOOST_AUTO_TEST_CASE(netbase_dont_resolve_strings_with_embedded_nul_characters)
@@ -579,7 +579,7 @@ BOOST_AUTO_TEST_CASE(caddress_unserialize_v1)
     std::vector<CAddress> addresses_unserialized;
 
     SpanReader{ParseHex(stream_addrv1_hex)} >> CAddress::V1_NETWORK(addresses_unserialized);
-    CHECK_NO_DISPLAY(fixture_addresses == addresses_unserialized);
+    BOOST_CHECK_EQUAL_COLLECTIONS(fixture_addresses.begin(), fixture_addresses.end(), addresses_unserialized.begin(), addresses_unserialized.end());
 }
 
 BOOST_AUTO_TEST_CASE(caddress_serialize_v2)
@@ -595,7 +595,7 @@ BOOST_AUTO_TEST_CASE(caddress_unserialize_v2)
     std::vector<CAddress> addresses_unserialized;
 
     SpanReader{ParseHex(stream_addrv2_hex)} >> CAddress::V2_NETWORK(addresses_unserialized);
-    CHECK_NO_DISPLAY(fixture_addresses == addresses_unserialized);
+    BOOST_CHECK_EQUAL_COLLECTIONS(fixture_addresses.begin(), fixture_addresses.end(), addresses_unserialized.begin(), addresses_unserialized.end());
 }
 
 BOOST_AUTO_TEST_CASE(isbadport)

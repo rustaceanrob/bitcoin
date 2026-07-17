@@ -10,10 +10,14 @@
 #include <streams.h>
 #include <test/util/common.h>
 #include <tinyformat.h>
+#include <util/expected.h>
+#include <util/feefrac.h>
+#include <util/result.h>
 
 #include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <compare>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -152,6 +156,11 @@ concept is_variant = requires { std::variant_size<T>::value; };
 template <typename T>
 concept is_non_char_pointer = std::is_pointer_v<T> && !std::same_as<std::decay<T>, char&> && !std::same_as<std::decay_t<T>, const char*>;
 
+/** Match any non-pointer input iterator (map/set/vector iterators, wrapper iterators, etc.).
+ *  We can't safely dereference (may be `end()`), so the representation is just the type name. */
+template <typename T>
+concept is_iterator = !std::is_pointer_v<T> && std::input_iterator<T>;
+
 template <typename T>
 std::string stringify(const T& value)
 {
@@ -170,6 +179,8 @@ std::string stringify(const T& value)
         return "(" + stringify(value.first) + ", " + stringify(value.second) + ")";
     } else if constexpr (is_variant<T>) {
         return std::visit([](const auto& v) { return stringify(v); }, value);
+    } else if constexpr (is_iterator<T>) {
+        return std::string{"iterator<"} + typeid(typename std::iterator_traits<T>::value_type).name() + ">";
     } else {
         static_assert(sizeof(T) == 0, "No stringify overload found for this type. Try adding `ToString` or `<<`");
     }
@@ -182,12 +193,39 @@ inline std::string stringify(const char* s)
 {
     return s ? std::string("\"") + s + "\"" : std::string("nullptr");
 }
+inline std::string stringify(std::partial_ordering v)
+{
+    if (v == std::partial_ordering::less) return "less";
+    if (v == std::partial_ordering::equivalent) return "equivalent";
+    if (v == std::partial_ordering::greater) return "greater";
+    return "unordered";
+}
 
 /** `CHECK(opt)` checks the optional holds a value. */
 template <typename T>
 std::string stringify(const std::optional<T>& v)
 {
     return v.has_value() ? std::string{"optional<"} + typeid(T).name() + ">" : "std::nullopt";
+}
+
+/** `CHECK(result)` checks the Result holds a value; on failure, the error string is reported. */
+template <typename T>
+std::string stringify(const util::Result<T>& r)
+{
+    return r ? "OK" : "error: " + util::ErrorString(r).original;
+}
+
+/** `CHECK(expected)` checks the Expected holds a value; on failure, the error is stringified. */
+template <typename T, typename E>
+std::string stringify(const util::Expected<T, E>& r)
+{
+    return r ? "OK" : "error: " + stringify(r.error());
+}
+
+template <std::derived_from<FeeFrac> T>
+std::string stringify(const T& f)
+{
+    return "FeeFrac{fee=" + std::to_string(f.fee) + ", size=" + std::to_string(f.size) + "}";
 }
 
 struct Result {

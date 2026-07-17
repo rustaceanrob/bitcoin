@@ -197,7 +197,7 @@ public:
         auto& runner = m_runner;
         runner.actions.emplace_back(m_now, [=, &runner]() {
             auto it = runner.expired.find(std::pair<NodeId, GenTxid>{peer, gtxid});
-            CHECK_NO_DISPLAY(it != runner.expired.end(), "[" + testname + "] missing expiration");
+            BOOST_CHECK_MESSAGE(it != runner.expired.end(), "[" + testname + "] missing expiration");
             if (it != runner.expired.end()) runner.expired.erase(it);
         });
     }

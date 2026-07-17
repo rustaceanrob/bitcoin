@@ -27,6 +27,25 @@
 
 using namespace btck;
 
+namespace btck {
+template <typename Derived>
+std::ostream& operator<<(std::ostream& os, const BlockHashApi<Derived>& h)
+{
+    return os << "BlockHash{" << HexStr(h.ToBytes()) << "}";
+}
+
+template <typename Derived>
+std::ostream& operator<<(std::ostream& os, const TxidApi<Derived>& t)
+{
+    return os << "Txid{" << HexStr(t.ToBytes()) << "}";
+}
+
+inline std::ostream& operator<<(std::ostream& os, const BlockTreeEntry& e)
+{
+    return os << "BlockTreeEntry{height=" << e.GetHeight() << ", hash=" << HexStr(e.GetHash().ToBytes()) << "}";
+}
+} // namespace btck
+
 std::string random_string(uint32_t length)
 {
     const std::string chars = "0123456789"
@@ -327,10 +346,10 @@ void CheckRange(const RangeType& range, size_t expected_size)
     BOOST_REQUIRE(range.size() > 0); // Some checks below assume a non-empty range
     BOOST_REQUIRE(!range.empty());
 
-    CHECK_NO_DISPLAY(range.begin() != range.end());
+    BOOST_CHECK(range.begin() != range.end());
     BOOST_CHECK_EQUAL(std::distance(range.begin(), range.end()), static_cast<std::ptrdiff_t>(expected_size));
-    CHECK_NO_DISPLAY(range.cbegin() == range.begin());
-    CHECK_NO_DISPLAY(range.cend() == range.end());
+    BOOST_CHECK(range.cbegin() == range.begin());
+    BOOST_CHECK(range.cend() == range.end());
 
     for (size_t i = 0; i < range.size(); ++i) {
         BOOST_CHECK_EQUAL(range[i].get(), (*(range.begin() + i)).get());
@@ -344,28 +363,28 @@ void CheckRange(const RangeType& range, size_t expected_size)
     auto it = range.begin();
     auto it_copy = it;
     ++it;
-    CHECK_NO_DISPLAY(it != it_copy);
+    BOOST_CHECK(it != it_copy);
     --it;
-    CHECK_NO_DISPLAY(it == it_copy);
+    BOOST_CHECK(it == it_copy);
     it = range.begin();
     auto old_it = it++;
-    CHECK_NO_DISPLAY(old_it == range.begin());
-    CHECK_NO_DISPLAY(it == range.begin() + 1);
+    BOOST_CHECK(old_it == range.begin());
+    BOOST_CHECK(it == range.begin() + 1);
     old_it = it--;
-    CHECK_NO_DISPLAY(old_it == range.begin() + 1);
-    CHECK_NO_DISPLAY(it == range.begin());
+    BOOST_CHECK(old_it == range.begin() + 1);
+    BOOST_CHECK(it == range.begin());
 
     it = range.begin();
     it += 2;
-    CHECK_NO_DISPLAY(it == range.begin() + 2);
+    BOOST_CHECK(it == range.begin() + 2);
     it -= 2;
-    CHECK_NO_DISPLAY(it == range.begin());
+    BOOST_CHECK(it == range.begin());
 
-    CHECK_NO_DISPLAY(range.begin() < range.end());
-    CHECK_NO_DISPLAY(range.begin() <= range.end());
-    CHECK_NO_DISPLAY(range.end() > range.begin());
-    CHECK_NO_DISPLAY(range.end() >= range.begin());
-    CHECK_NO_DISPLAY(range.begin() == range.begin());
+    BOOST_CHECK(range.begin() < range.end());
+    BOOST_CHECK(range.begin() <= range.end());
+    BOOST_CHECK(range.end() > range.begin());
+    BOOST_CHECK(range.end() >= range.begin());
+    BOOST_CHECK(range.begin() == range.begin());
 
     BOOST_CHECK_EQUAL(range.begin()[0].get(), range[0].get());
 
@@ -386,7 +405,7 @@ void CheckRange(const RangeType& range, size_t expected_size)
 
     it = range.begin();
     auto it2 = 1 + it;
-    CHECK_NO_DISPLAY(it2 == it + 1);
+    BOOST_CHECK(it2 == it + 1);
 }
 
 BOOST_AUTO_TEST_CASE(btck_transaction_tests)
@@ -1005,8 +1024,8 @@ BOOST_AUTO_TEST_CASE(btck_block_hash_tests)
     }
     BlockHash block_hash{test_hash};
     BlockHash block_hash_2{test_hash_2};
-    CHECK_NO_DISPLAY(block_hash != block_hash_2);
-    CHECK_NO_DISPLAY(block_hash == block_hash);
+    BOOST_CHECK(block_hash != block_hash_2);
+    BOOST_CHECK(block_hash == block_hash);
     CheckHandle(block_hash, block_hash_2);
 }
 
@@ -1037,24 +1056,24 @@ BOOST_AUTO_TEST_CASE(btck_block_tree_entry_tests)
     auto entry_2{chain.GetByHeight(2)};
 
     // Test inequality
-    CHECK_NO_DISPLAY(entry_0 != entry_1);
-    CHECK_NO_DISPLAY(entry_1 != entry_2);
-    CHECK_NO_DISPLAY(entry_0 != entry_2);
+    BOOST_CHECK(entry_0 != entry_1);
+    BOOST_CHECK(entry_1 != entry_2);
+    BOOST_CHECK(entry_0 != entry_2);
 
     // Test equality with same entry
-    CHECK_NO_DISPLAY(entry_0 == chain.GetByHeight(0));
-    CHECK_NO_DISPLAY(entry_0 == BlockTreeEntry{entry_0});
-    CHECK_NO_DISPLAY(entry_1 == entry_1);
+    BOOST_CHECK(entry_0 == chain.GetByHeight(0));
+    BOOST_CHECK(entry_0 == BlockTreeEntry{entry_0});
+    BOOST_CHECK(entry_1 == entry_1);
 
     // Test GetPrevious
     auto prev{entry_1.GetPrevious()};
     BOOST_CHECK(prev.has_value());
-    CHECK_NO_DISPLAY(prev.value() == entry_0);
+    BOOST_CHECK(prev.value() == entry_0);
 
     // Test GetAncestor
-    CHECK_NO_DISPLAY(entry_2.GetAncestor(2) == entry_2);
-    CHECK_NO_DISPLAY(entry_2.GetAncestor(1) == entry_1);
-    CHECK_NO_DISPLAY(entry_2.GetAncestor(0) == entry_0);
+    BOOST_CHECK(entry_2.GetAncestor(2) == entry_2);
+    BOOST_CHECK(entry_2.GetAncestor(1) == entry_1);
+    BOOST_CHECK(entry_2.GetAncestor(0) == entry_0);
 }
 
 BOOST_AUTO_TEST_CASE(btck_chainman_in_memory_tests)
@@ -1102,7 +1121,7 @@ BOOST_AUTO_TEST_CASE(btck_chainman_regtest_tests)
             BOOST_CHECK(!chainman->GetChain().Contains(entry));
             BlockTreeEntry best_entry{chainman->GetBestEntry()};
             BlockHash hash{entry.GetHash()};
-            CHECK_NO_DISPLAY(hash == best_entry.GetHeader().Hash());
+            BOOST_CHECK(hash == best_entry.GetHeader().Hash());
         }
     }
 
@@ -1145,8 +1164,8 @@ BOOST_AUTO_TEST_CASE(btck_chainman_regtest_tests)
 
     Txid txid = read_block.Transactions()[0].Txid();
     Txid txid_2 = read_block_2.Transactions()[0].Txid();
-    CHECK_NO_DISPLAY(txid != txid_2);
-    CHECK_NO_DISPLAY(txid == txid);
+    BOOST_CHECK(txid != txid_2);
+    BOOST_CHECK(txid == txid);
     CheckHandle(txid, txid_2);
 
     auto find_transaction = [&chainman](const TxidView& target_txid) -> std::optional<Transaction> {
@@ -1173,10 +1192,10 @@ BOOST_AUTO_TEST_CASE(btck_chainman_regtest_tests)
                     continue;
                 }
                 inputs.emplace_back(input);
-                CHECK_NO_DISPLAY(point.Txid() != transaction.Txid());
+                BOOST_CHECK(point.Txid() != transaction.Txid());
                 std::optional<Transaction> tx = find_transaction(point.Txid());
                 BOOST_CHECK(tx.has_value());
-                CHECK_NO_DISPLAY(point.Txid() == tx->Txid());
+                BOOST_CHECK(point.Txid() == tx->Txid());
                 spent_outputs.emplace_back(tx->GetOutput(point.index()));
             }
             BOOST_CHECK(inputs.size() == spent_outputs.size());

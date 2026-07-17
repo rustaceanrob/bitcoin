@@ -84,9 +84,9 @@ BOOST_FIXTURE_TEST_CASE(update_non_range_descriptor, TestingSetup)
         auto descs{Parse(desc_str, provider, error, /* require_checksum=*/ false)};
         auto& desc{descs.at(0)};
         WalletDescriptor w_desc{std::move(desc), 0, 0, 0, 0};
-        BOOST_CHECK(wallet.AddWalletDescriptor(w_desc, provider, "", false));
+        CHECK_NO_DISPLAY(wallet.AddWalletDescriptor(w_desc, provider, "", false));
         // Wallet should update the non-range descriptor successfully
-        BOOST_CHECK(wallet.AddWalletDescriptor(w_desc, provider, "", false));
+        CHECK_NO_DISPLAY(wallet.AddWalletDescriptor(w_desc, provider, "", false));
     }
 }
 
@@ -401,7 +401,7 @@ public:
         CCoinControl dummy;
         {
             auto res = CreateTransaction(*wallet, {recipient}, /*change_pos=*/std::nullopt, dummy);
-            BOOST_CHECK(res);
+            CHECK_NO_DISPLAY(res);
             tx = res->tx;
         }
         wallet->CommitTransaction(tx, {}, {});
@@ -416,7 +416,7 @@ public:
         LOCK(Assert(m_node.chainman)->GetMutex());
         wallet->SetLastBlockProcessed(wallet->GetLastBlockHeight() + 1, m_node.chainman->ActiveChain().Tip()->GetBlockHash());
         auto it = wallet->mapWallet.find(tx->GetHash());
-        BOOST_CHECK(it != wallet->mapWallet.end());
+        CHECK_NO_DISPLAY(it != wallet->mapWallet.end());
         it->second.m_state = TxStateConfirmed{m_node.chainman->ActiveChain().Tip()->GetBlockHash(), m_node.chainman->ActiveChain().Height(), /*index=*/1};
         return it->second;
     }
@@ -746,7 +746,7 @@ BOOST_FIXTURE_TEST_CASE(RemoveTxs, TestChain100Setup)
         BOOST_CHECK(wallet->mapWallet.contains(block_hash));
 
         std::vector<Txid> vHashIn{ block_hash };
-        BOOST_CHECK(wallet->RemoveTxs(vHashIn));
+        CHECK_NO_DISPLAY(wallet->RemoveTxs(vHashIn));
 
         BOOST_CHECK(!wallet->HasWalletSpend(prev_tx));
         BOOST_CHECK(!wallet->mapWallet.contains(block_hash));

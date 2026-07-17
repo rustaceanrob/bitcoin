@@ -4,6 +4,7 @@
 
 #include <key.h>
 
+#include <addresstype.h>
 #include <common/system.h>
 #include <key_io.h>
 #include <span.h>
@@ -23,6 +24,21 @@
 
 using namespace util::hex_literals;
 using util::ToString;
+
+static std::ostream& operator<<(std::ostream& os, const CNoDestination& d)
+{
+    return os << "CNoDestination{" << HexStr(d.GetScript()) << "}";
+}
+
+static std::ostream& operator<<(std::ostream& os, const PubKeyDestination& d)
+{
+    return os << "PubKeyDestination{" << HexStr(d.GetPubKey()) << "}";
+}
+
+static std::ostream& operator<<(std::ostream& os, const WitnessUnknown& w)
+{
+    return os << "WitnessUnknown{version=" << w.GetWitnessVersion() << ", program=" << HexStr(w.GetWitnessProgram()) << "}";
+}
 
 static const std::string strSecret1 = "5HxWvvfubhXpYYpS3tJkw6fq9jE9j18THftkZjHHfmFiWtmAbrj";
 static const std::string strSecret2 = "5KC4ejrDjv152FGwP386VD1i2NYc5KkfSMyv1nGy1VGDxGHqVY3";
@@ -80,10 +96,10 @@ BOOST_AUTO_TEST_CASE(key_test1)
     BOOST_CHECK(!key2C.VerifyPubKey(pubkey2));
     BOOST_CHECK(key2C.VerifyPubKey(pubkey2C));
 
-    CHECK_NO_DISPLAY(DecodeDestination(addr1)  == CTxDestination(PKHash(pubkey1)));
-    CHECK_NO_DISPLAY(DecodeDestination(addr2)  == CTxDestination(PKHash(pubkey2)));
-    CHECK_NO_DISPLAY(DecodeDestination(addr1C) == CTxDestination(PKHash(pubkey1C)));
-    CHECK_NO_DISPLAY(DecodeDestination(addr2C) == CTxDestination(PKHash(pubkey2C)));
+    BOOST_CHECK(DecodeDestination(addr1)  == CTxDestination(PKHash(pubkey1)));
+    BOOST_CHECK(DecodeDestination(addr2)  == CTxDestination(PKHash(pubkey2)));
+    BOOST_CHECK(DecodeDestination(addr1C) == CTxDestination(PKHash(pubkey1C)));
+    BOOST_CHECK(DecodeDestination(addr2C) == CTxDestination(PKHash(pubkey2C)));
 
     for (int n=0; n<16; n++)
     {

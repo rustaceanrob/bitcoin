@@ -5,6 +5,8 @@
 #ifndef BITCOIN_TEST_UTIL_COMMON_H
 #define BITCOIN_TEST_UTIL_COMMON_H
 
+#include <netaddress.h>
+
 #include <chrono>
 #include <optional>
 #include <ostream>
@@ -55,6 +57,11 @@ template <HasToString T>
 inline std::ostream& operator<<(std::ostream& os, const T& obj)
 {
     return os << obj.ToString();
+}
+
+inline std::ostream& operator<<(std::ostream& os, const CService& s)
+{
+    return os << s.ToStringAddrPort();
 }
 
 // @}

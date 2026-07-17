@@ -455,12 +455,12 @@ BOOST_AUTO_TEST_CASE(package_submission_tests)
         BOOST_CHECK_EQUAL(submit_parent_child.m_tx_results.size(), package_parent_child.size());
         auto it_parent = submit_parent_child.m_tx_results.find(tx_parent->GetWitnessHash());
         auto it_child = submit_parent_child.m_tx_results.find(tx_child->GetWitnessHash());
-        CHECK_NO_DISPLAY(it_parent != submit_parent_child.m_tx_results.end());
+        BOOST_CHECK(it_parent != submit_parent_child.m_tx_results.end());
         BOOST_CHECK(it_parent->second.m_state.IsValid());
-        CHECK_NO_DISPLAY(it_parent->second.m_effective_feerate == CFeeRate(1 * COIN, GetVirtualTransactionSize(*tx_parent)));
+        BOOST_CHECK(it_parent->second.m_effective_feerate == CFeeRate(1 * COIN, GetVirtualTransactionSize(*tx_parent)));
         BOOST_CHECK_EQUAL(it_parent->second.m_wtxids_fee_calculations.value().size(), 1);
         BOOST_CHECK_EQUAL(it_parent->second.m_wtxids_fee_calculations.value().front(), tx_parent->GetWitnessHash());
-        CHECK_NO_DISPLAY(it_child->second.m_effective_feerate == CFeeRate(1 * COIN, GetVirtualTransactionSize(*tx_child)));
+        BOOST_CHECK(it_child->second.m_effective_feerate == CFeeRate(1 * COIN, GetVirtualTransactionSize(*tx_child)));
         BOOST_CHECK_EQUAL(it_child->second.m_wtxids_fee_calculations.value().size(), 1);
         BOOST_CHECK_EQUAL(it_child->second.m_wtxids_fee_calculations.value().front(), tx_child->GetWitnessHash());
 
@@ -856,8 +856,8 @@ BOOST_AUTO_TEST_CASE(package_witness_swap_tests)
 
             // package feerate should include parent3 and child. It should not include parent1 or parent2_v1.
             const CFeeRate expected_feerate(1 * COIN, GetVirtualTransactionSize(*ptx_parent3) + GetVirtualTransactionSize(*ptx_mixed_child));
-            CHECK_NO_DISPLAY(it_parent3->second.m_effective_feerate.value() == expected_feerate);
-            CHECK_NO_DISPLAY(it_child->second.m_effective_feerate.value() == expected_feerate);
+            BOOST_CHECK(it_parent3->second.m_effective_feerate.value() == expected_feerate);
+            BOOST_CHECK(it_child->second.m_effective_feerate.value() == expected_feerate);
             std::vector<Wtxid> expected_wtxids({ptx_parent3->GetWitnessHash(), ptx_mixed_child->GetWitnessHash()});
             const auto& parent3_wtxids{it_parent3->second.m_wtxids_fee_calculations.value()};
             const auto& mixed_child_wtxids{it_child->second.m_wtxids_fee_calculations.value()};
@@ -940,8 +940,8 @@ BOOST_AUTO_TEST_CASE(package_cpfp_tests)
 
             const CFeeRate expected_feerate(coinbase_value - child_value,
                                             GetVirtualTransactionSize(*tx_parent) + GetVirtualTransactionSize(*tx_child));
-            CHECK_NO_DISPLAY(it_parent->second.m_effective_feerate.value() == expected_feerate);
-            CHECK_NO_DISPLAY(it_child->second.m_effective_feerate.value() == expected_feerate);
+            BOOST_CHECK(it_parent->second.m_effective_feerate.value() == expected_feerate);
+            BOOST_CHECK(it_child->second.m_effective_feerate.value() == expected_feerate);
             std::vector<Wtxid> expected_wtxids({tx_parent->GetWitnessHash(), tx_child->GetWitnessHash()});
             const auto& parent_wtxids{it_parent->second.m_wtxids_fee_calculations.value()};
             const auto& child_wtxids{it_child->second.m_wtxids_fee_calculations.value()};
@@ -1018,10 +1018,10 @@ BOOST_AUTO_TEST_CASE(package_cpfp_tests)
             auto it_child = submit_prioritised_package.m_tx_results.find(tx_child_cheap->GetWitnessHash());
             BOOST_CHECK(it_parent->second.m_result_type == MempoolAcceptResult::ResultType::VALID);
             BOOST_CHECK(it_parent->second.m_base_fees.value() == parent_fee);
-            CHECK_NO_DISPLAY(it_parent->second.m_effective_feerate.value() == expected_feerate);
+            BOOST_CHECK(it_parent->second.m_effective_feerate.value() == expected_feerate);
             BOOST_CHECK(it_child->second.m_result_type == MempoolAcceptResult::ResultType::VALID);
             BOOST_CHECK(it_child->second.m_base_fees.value() == child_fee);
-            CHECK_NO_DISPLAY(it_child->second.m_effective_feerate.value() == expected_feerate);
+            BOOST_CHECK(it_child->second.m_effective_feerate.value() == expected_feerate);
             std::vector<Wtxid> expected_wtxids({tx_parent_cheap->GetWitnessHash(), tx_child_cheap->GetWitnessHash()});
             const auto& cheap_parent_wtxids{it_parent->second.m_wtxids_fee_calculations.value()};
             const auto& cheap_child_wtxids{it_child->second.m_wtxids_fee_calculations.value()};
