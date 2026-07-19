@@ -107,7 +107,7 @@ std::string EncodeBase64(std::span<const unsigned char> input)
 
 std::optional<std::vector<unsigned char>> DecodeBase64(std::string_view str)
 {
-    static const int8_t decode64_table[256]{
+    static constexpr int8_t decode64_table[256]{
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         -1, -1, -1, 62, -1, -1, -1, 63, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, -1, -1,
@@ -162,7 +162,7 @@ std::string EncodeBase32(std::string_view str, bool pad)
 
 std::optional<std::vector<unsigned char>> DecodeBase32(std::string_view str)
 {
-    static const int8_t decode32_table[256]{
+    static constexpr int8_t decode32_table[256]{
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 26, 27, 28, 29, 30, 31, -1, -1, -1, -1,
@@ -248,7 +248,7 @@ std::string FormatParagraph(std::string_view in, size_t width, size_t indent)
  *  9223372036854775807  (1<<63)-1  (max int64_t)
  *  9999999999999999999  1^19-1     (would overflow)
  */
-static const int64_t UPPER_BOUND = 1000000000000000000LL - 1LL;
+static constexpr int64_t UPPER_BOUND = 1000000000000000000LL - 1LL;
 
 /** Helper function for ParseFixedPoint */
 static inline bool ProcessMantissaDigit(char ch, int64_t &mantissa, int &mantissa_tzeros)

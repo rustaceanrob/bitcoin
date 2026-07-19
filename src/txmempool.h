@@ -47,7 +47,7 @@ class ValidationSignals;
 struct bilingual_str;
 
 /** Fake height value used in Coin to signify they are only in the memory pool (since 0.8) */
-static const uint32_t MEMPOOL_HEIGHT = 0x7FFFFFFF;
+static constexpr uint32_t MEMPOOL_HEIGHT = 0x7FFFFFFF;
 
 /** How much linearization cost required for TxGraph clusters to have
  * "acceptable" quality, if they cannot be optimally linearized with less cost. */
@@ -209,7 +209,7 @@ protected:
 
 public:
 
-    static const int ROLLING_FEE_HALFLIFE = 60 * 60 * 12; // public only for testing
+    static constexpr int ROLLING_FEE_HALFLIFE = 60 * 60 * 12; // public only for testing
 
     using indexed_transaction_set = boost::multi_index_container<
         CTxMemPoolEntry,

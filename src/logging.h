@@ -27,11 +27,11 @@
 #include <unordered_map>
 #include <vector>
 
-static const bool DEFAULT_LOGTIMEMICROS = false;
-static const bool DEFAULT_LOGIPS        = false;
-static const bool DEFAULT_LOGTIMESTAMPS = true;
-static const bool DEFAULT_LOGTHREADNAMES = false;
-static const bool DEFAULT_LOGSOURCELOCATIONS = false;
+static constexpr bool DEFAULT_LOGTIMEMICROS = false;
+static constexpr bool DEFAULT_LOGIPS        = false;
+static constexpr bool DEFAULT_LOGTIMESTAMPS = true;
+static constexpr bool DEFAULT_LOGTHREADNAMES = false;
+static constexpr bool DEFAULT_LOGSOURCELOCATIONS = false;
 static constexpr bool DEFAULT_LOGLEVELALWAYS = false;
 extern const char * const DEFAULT_DEBUGLOGFILE;
 

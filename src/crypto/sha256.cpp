@@ -442,7 +442,7 @@ template<TransformType tr>
 void TransformD64Wrapper(unsigned char* out, const unsigned char* in)
 {
     uint32_t s[8];
-    static const unsigned char padding1[64] = {
+    static constexpr unsigned char padding1[64] = {
         0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0,    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0,    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -485,11 +485,11 @@ TransformD64Type TransformD64_8way = nullptr;
 
 bool SelfTest() {
     // Input state (equal to the initial SHA256 state)
-    static const uint32_t init[8] = {
+    static constexpr uint32_t init[8] = {
         0x6a09e667ul, 0xbb67ae85ul, 0x3c6ef372ul, 0xa54ff53aul, 0x510e527ful, 0x9b05688cul, 0x1f83d9abul, 0x5be0cd19ul
     };
     // Some random input data to test with
-    static const unsigned char data[641] = "-" // Intentionally not aligned
+    static constexpr unsigned char data[641] = "-" // Intentionally not aligned
         "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do "
         "eiusmod tempor incididunt ut labore et dolore magna aliqua. Et m"
         "olestie ac feugiat sed lectus vestibulum mattis ullamcorper. Mor"
@@ -499,7 +499,7 @@ bool SelfTest() {
         " id velit. Telus in metus vulputate eu scelerisque felis. Mi tem"
         "pus imperdiet nulla malesuada pellentesque. Tristique magna sit.";
     // Expected output state for hashing the i*64 first input bytes above (excluding SHA256 padding).
-    static const uint32_t result[9][8] = {
+    static constexpr uint32_t result[9][8] = {
         {0x6a09e667ul, 0xbb67ae85ul, 0x3c6ef372ul, 0xa54ff53aul, 0x510e527ful, 0x9b05688cul, 0x1f83d9abul, 0x5be0cd19ul},
         {0x91f8ec6bul, 0x4da10fe3ul, 0x1c9c292cul, 0x45e18185ul, 0x435cc111ul, 0x3ca26f09ul, 0xeb954caeul, 0x402a7069ul},
         {0xcabea5acul, 0x374fb97cul, 0x182ad996ul, 0x7bd69cbful, 0x450ff900ul, 0xc1d2be8aul, 0x6a41d505ul, 0xe6212dc3ul},
@@ -511,7 +511,7 @@ bool SelfTest() {
         {0xfe2fa9ddul, 0x69d0862bul, 0x1ae0db23ul, 0x471f9244ul, 0xf55c0145ul, 0xc30f9c3bul, 0x40a84ea0ul, 0x5b8a266cul},
     };
     // Expected output for each of the individual 8 64-byte messages under full double SHA256 (including padding).
-    static const unsigned char result_d64[256] = {
+    static constexpr unsigned char result_d64[256] = {
         0x09, 0x3a, 0xc4, 0xd0, 0x0f, 0xf7, 0x57, 0xe1, 0x72, 0x85, 0x79, 0x42, 0xfe, 0xe7, 0xe0, 0xa0,
         0xfc, 0x52, 0xd7, 0xdb, 0x07, 0x63, 0x45, 0xfb, 0x53, 0x14, 0x7d, 0x17, 0x22, 0x86, 0xf0, 0x52,
         0x48, 0xb6, 0x11, 0x9e, 0x6e, 0x48, 0x81, 0x6d, 0xcc, 0x57, 0x1f, 0xb2, 0x97, 0xa8, 0xd5, 0x25,
@@ -724,7 +724,7 @@ CSHA256& CSHA256::Write(const unsigned char* data, size_t len)
 
 void CSHA256::Finalize(unsigned char hash[OUTPUT_SIZE])
 {
-    static const unsigned char pad[64] = {0x80};
+    static constexpr unsigned char pad[64] = {0x80};
     unsigned char sizedesc[8];
     WriteBE64(sizedesc, bytes << 3);
     Write(pad, 1 + ((119 - (bytes % 64)) % 64));

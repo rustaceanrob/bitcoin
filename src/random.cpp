@@ -48,7 +48,7 @@ namespace {
  * sure that the underlying OS APIs for all platforms support the number.
  * (many cap out at 256 bytes).
  */
-static const int NUM_OS_RANDOM_BYTES = 32;
+static constexpr int NUM_OS_RANDOM_BYTES = 32;
 
 
 [[noreturn]] void RandFailure()

@@ -184,7 +184,7 @@ CSHA512& CSHA512::Write(const unsigned char* data, size_t len)
 
 void CSHA512::Finalize(unsigned char hash[OUTPUT_SIZE])
 {
-    static const unsigned char pad[128] = {0x80};
+    static constexpr unsigned char pad[128] = {0x80};
     unsigned char sizedesc[16] = {0x00};
     WriteBE64(sizedesc + 8, bytes << 3);
     Write(pad, 1 + ((239 - (bytes % 128)) % 128));

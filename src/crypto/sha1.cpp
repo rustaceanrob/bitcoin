@@ -179,7 +179,7 @@ CSHA1& CSHA1::Write(const unsigned char* data, size_t len)
 
 void CSHA1::Finalize(unsigned char hash[OUTPUT_SIZE])
 {
-    static const unsigned char pad[64] = {0x80};
+    static constexpr unsigned char pad[64] = {0x80};
     unsigned char sizedesc[8];
     WriteBE64(sizedesc, bytes << 3);
     Write(pad, 1 + ((119 - (bytes % 64)) % 64));

@@ -37,8 +37,8 @@ using fsbridge::FopenFn;
 
 namespace node {
 
-static const uint64_t MEMPOOL_DUMP_VERSION_NO_XOR_KEY{1};
-static const uint64_t MEMPOOL_DUMP_VERSION{2};
+static constexpr uint64_t MEMPOOL_DUMP_VERSION_NO_XOR_KEY{1};
+static constexpr uint64_t MEMPOOL_DUMP_VERSION{2};
 
 bool LoadMempool(CTxMemPool& pool, const fs::path& load_path, Chainstate& active_chainstate, ImportMempoolOptions&& opts)
 {

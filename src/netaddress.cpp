@@ -185,13 +185,13 @@ bool CNetAddr::SetInternal(const std::string &name)
 namespace torv3 {
 // https://gitlab.torproject.org/tpo/core/torspec/-/tree/main/spec/rend-spec
 static constexpr size_t CHECKSUM_LEN = 2;
-static const unsigned char VERSION[] = {3};
+static constexpr unsigned char VERSION[] = {3};
 static constexpr size_t TOTAL_LEN = ADDR_TORV3_SIZE + CHECKSUM_LEN + sizeof(VERSION);
 
 static void Checksum(std::span<const uint8_t> addr_pubkey, uint8_t (&checksum)[CHECKSUM_LEN])
 {
     // TORv3 CHECKSUM = H(".onion checksum" | PUBKEY | VERSION)[:2]
-    static const unsigned char prefix[] = ".onion checksum";
+    static constexpr unsigned char prefix[] = ".onion checksum";
     static constexpr size_t prefix_len = 15;
 
     SHA3_256 hasher;
@@ -403,7 +403,7 @@ bool CNetAddr::IsLocal() const
     }
 
     // IPv6 loopback (::1/128)
-    static const unsigned char pchLocal[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
+    static constexpr unsigned char pchLocal[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
     if (IsIPv6() && memcmp(m_addr.data(), pchLocal, sizeof(pchLocal)) == 0) {
         return true;
     }
@@ -701,7 +701,7 @@ std::vector<unsigned char> CNetAddr::GetAddrBytes() const
 
 // private extensions to enum Network, only returned by GetExtNetwork,
 // and only used in GetReachabilityFrom
-static const int NET_TEREDO = NET_MAX;
+static constexpr int NET_TEREDO = NET_MAX;
 int static GetExtNetwork(const CNetAddr& addr)
 {
     if (addr.IsRFC4380())

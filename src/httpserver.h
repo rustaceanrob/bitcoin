@@ -32,15 +32,15 @@ class SignalInterrupt;
 /**
  * The default value for `-rpcthreads`. This number of threads will be created at startup.
  */
-static const int DEFAULT_HTTP_THREADS=16;
+static constexpr int DEFAULT_HTTP_THREADS=16;
 
 /**
  * The default value for `-rpcworkqueue`. This is the maximum depth of the work queue,
  * we don't allocate this number of work queue items upfront.
  */
-static const int DEFAULT_HTTP_WORKQUEUE=64;
+static constexpr int DEFAULT_HTTP_WORKQUEUE=64;
 
-static const int DEFAULT_HTTP_SERVER_TIMEOUT=30;
+static constexpr int DEFAULT_HTTP_SERVER_TIMEOUT=30;
 
 enum class HTTPRequestMethod {
     UNKNOWN,
