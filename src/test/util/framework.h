@@ -5,14 +5,12 @@
 #define BITCOIN_TEST_UTIL_FRAMEWORK_H
 #pragma once
 
-#include <netaddress.h>
 #include <serialize.h>
 #include <span.h>
 #include <streams.h>
 #include <test/util/common.h>
 #include <tinyformat.h>
 #include <util/expected.h>
-#include <util/feefrac.h>
 #include <util/result.h>
 #include <util/string.h>
 
@@ -233,16 +231,6 @@ inline std::string stringify(std::partial_ordering v)
     return "unordered";
 }
 
-template <std::derived_from<FeeFrac> T>
-std::string stringify(const T& f)
-{
-    return "FeeFrac{fee=" + util::ToString(f.fee) + ", size=" + util::ToString(f.size) + "}";
-}
-
-inline std::string stringify(const CService& v)
-{
-    return v.ToStringAddrPort();
-}
 /** End of stringify implementations. */
 
 /** Result after evaluating a test expression. */

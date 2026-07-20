@@ -18,6 +18,7 @@
 #include <util/string.h>
 
 #include <test/util/framework.h>
+#include <test/util/stringify.h>
 
 #include <cstdint>
 #include <optional>
@@ -33,11 +34,6 @@ static std::string stringify(const AddressPosition& p)
            ", multiplicity=" + ToString(p.multiplicity) +
            ", bucket=" + ToString(p.bucket) +
            ", position=" + ToString(p.position) + "}";
-}
-
-static std::string stringify(const CAddress& v)
-{
-    return v.ToStringAddrPort();
 }
 
 static auto EMPTY_NETGROUPMAN{NetGroupManager::NoAsmap()};

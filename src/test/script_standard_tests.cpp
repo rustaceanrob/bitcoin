@@ -16,27 +16,11 @@
 #include <util/string.h>
 
 #include <test/util/framework.h>
+#include <test/util/stringify.h>
 
 #include <univalue.h>
 
 using namespace util::hex_literals;
-
-static std::string stringify(const PubKeyDestination& d)
-{
-    return "PubKeyDestination{" + HexStr(d.GetPubKey()) + "}";
-}
-
-static std::string stringify(const WitnessUnknown& w)
-{
-    return "WitnessUnknown{version=" + util::ToString(w.GetWitnessVersion()) +
-           ", program=" + HexStr(w.GetWitnessProgram()) + "}";
-}
-
-static std::string stringify(const PayToAnchor& a)
-{
-    return "PayToAnchor{version=" + util::ToString(a.GetWitnessVersion()) +
-           ", program=" + HexStr(a.GetWitnessProgram()) + "}";
-}
 
 BOOST_FIXTURE_TEST_SUITE(script_standard_tests, BasicTestingSetup)
 

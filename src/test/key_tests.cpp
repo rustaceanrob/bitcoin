@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <test/util/framework.h>
+#include <test/util/stringify.h>
 
 using namespace util::hex_literals;
 using util::ToString;
@@ -27,23 +28,6 @@ using util::ToString;
 static std::string stringify(const CNoDestination& d)
 {
     return "CNoDestination{" + HexStr(d.GetScript()) + "}";
-}
-
-static std::string stringify(const PubKeyDestination& d)
-{
-    return "PubKeyDestination{" + HexStr(d.GetPubKey()) + "}";
-}
-
-static std::string stringify(const WitnessUnknown& w)
-{
-    return "WitnessUnknown{version=" + ToString(w.GetWitnessVersion()) +
-           ", program=" + HexStr(w.GetWitnessProgram()) + "}";
-}
-
-static std::string stringify(const PayToAnchor& a)
-{
-    return "PayToAnchor{version=" + ToString(a.GetWitnessVersion()) +
-           ", program=" + HexStr(a.GetWitnessProgram()) + "}";
 }
 
 static const std::string strSecret1 = "5HxWvvfubhXpYYpS3tJkw6fq9jE9j18THftkZjHHfmFiWtmAbrj";
