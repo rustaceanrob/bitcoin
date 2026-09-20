@@ -45,6 +45,7 @@ BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
             std::vector<COutPoint> outpoints;
             std::vector<CKey> keys;
             std::vector<KeyPair> taproot_keys;
+            std::vector<std::string> extracted_pubkeys;
             for (const auto& input : given["vin"].getValues()) {
                 COutPoint outpoint{Txid::FromHex(input["txid"].get_str()).value(), input["vout"].getInt<uint32_t>()};
                 outpoints.push_back(outpoint);
@@ -71,7 +72,17 @@ BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
                     } else {
                         keys.emplace_back(ParseHexToCKey(input["private_key"].get_str()));
                     }
+                    extracted_pubkeys.push_back(std::visit([](auto&& k) -> std::string {
+                        using T = std::decay_t<decltype(k)>;
+                        if constexpr (std::is_same_v<T, XOnlyPubKey>) return "02" + HexStr(k);
+                        else return HexStr(k);
+                    }, *pubkey));
                 }
+            }
+            if (!expected["input_pub_keys"].isNull()) {
+                std::vector<std::string> want;
+                for (const auto& v : expected["input_pub_keys"].getValues()) want.push_back(v.get_str());
+                BOOST_CHECK(extracted_pubkeys == want);
             }
             if (taproot_keys.empty() && keys.empty()) {
                 BOOST_CHECK(expected["outputs"].getValues()[0].empty());
@@ -85,6 +96,10 @@ BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
             for (size_t i = 0; i < silent_payments_addresses.size(); ++i) {
                 auto sp = DecodeSilentPaymentsAddress(silent_payments_addresses[i]["address"].get_str(), Params());
                 BOOST_REQUIRE(sp.has_value());
+                if (!silent_payments_addresses[i]["scan_pub_key"].isNull()) {
+                    BOOST_CHECK_EQUAL(HexStr(sp->GetScanPubKey()), silent_payments_addresses[i]["scan_pub_key"].get_str());
+                    BOOST_CHECK_EQUAL(HexStr(sp->GetSpendPubKey()), silent_payments_addresses[i]["spend_pub_key"].get_str());
+                }
                 size_t count = silent_payments_addresses[i]["count"].isNull() ? 1 : (size_t)silent_payments_addresses[i]["count"].getInt<int>();
                 for (size_t j = 0; j < count; ++j) {
                     sp_dests.emplace(sp_index++, *sp);
