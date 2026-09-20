@@ -55,88 +55,75 @@ BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
                 const auto& script_sig_bytes = ParseHex(input["scriptSig"].get_str());
                 CScript script_sig = CScript(script_sig_bytes.begin(), script_sig_bytes.end());
                 CTxIn txin{outpoint, script_sig};
-                CScriptWitness witness;
-                // read the field txWitness as a stream and write txWitness >> witness.stack;
-                auto witness_str = ParseHex(input["txinwitness"].get_str());
+                const auto witness_str = ParseHex(input["txinwitness"].get_str());
                 if (!witness_str.empty()) {
-                    SpanReader(witness_str) >> witness.stack;
-                    txin.scriptWitness = witness;
+                    SpanReader(witness_str) >> txin.scriptWitness.stack;
                 }
 
                 // check if this is a silent payments input by trying to extract the public key
-                const auto& pubkey = bip352::GetPubKeyFromInput(txin, spk);
-                if (pubkey.has_value()) {
-                    std::vector<std::vector<unsigned char>> solutions;
-                    TxoutType type = Solver(spk, solutions);
-                    if (type == TxoutType::WITNESS_V1_TAPROOT) {
-                        taproot_keys.emplace_back(ParseHexToCKey(input["private_key"].get_str()).ComputeKeyPair(nullptr));
-                    } else {
-                        keys.emplace_back(ParseHexToCKey(input["private_key"].get_str()));
-                    }
-                    extracted_pubkeys.push_back(std::visit([](auto&& k) -> std::string {
-                        using T = std::decay_t<decltype(k)>;
-                        if constexpr (std::is_same_v<T, XOnlyPubKey>) return "02" + HexStr(k);
-                        else return HexStr(k);
-                    }, *pubkey));
+                const auto pubkey = bip352::GetPubKeyFromInput(txin, spk);
+                if (!pubkey.has_value()) continue;
+
+                // GetPubKeyFromInput returns XOnlyPubKey exactly for taproot inputs.
+                if (std::holds_alternative<XOnlyPubKey>(*pubkey)) {
+                    taproot_keys.emplace_back(ParseHexToCKey(input["private_key"].get_str()).ComputeKeyPair(nullptr));
+                } else {
+                    keys.emplace_back(ParseHexToCKey(input["private_key"].get_str()));
                 }
+                extracted_pubkeys.push_back(std::visit([](auto&& k) -> std::string {
+                    using T = std::decay_t<decltype(k)>;
+                    if constexpr (std::is_same_v<T, XOnlyPubKey>) return "02" + HexStr(k);
+                    else return HexStr(k);
+                }, *pubkey));
             }
             if (!expected["input_pub_keys"].isNull()) {
                 std::vector<std::string> want;
-                for (const auto& v : expected["input_pub_keys"].getValues()) want.push_back(v.get_str());
-                BOOST_CHECK(extracted_pubkeys == want);
+                for (const auto& key : expected["input_pub_keys"].getValues()) want.push_back(key.get_str());
+                BOOST_CHECK_EQUAL_COLLECTIONS(extracted_pubkeys.begin(), extracted_pubkeys.end(), want.begin(), want.end());
             }
             if (taproot_keys.empty() && keys.empty()) {
-                const auto& expected_outputs = expected["outputs"].getValues();
-                BOOST_REQUIRE(!expected_outputs.empty());
-                BOOST_CHECK(expected_outputs[0].empty());
+                const auto& no_outputs = expected["outputs"].getValues();
+                BOOST_REQUIRE_EQUAL(no_outputs.size(), 1u);
+                BOOST_CHECK(no_outputs[0].empty());
                 continue;
             }
             // silent payments logic
             auto smallest_outpoint = std::min_element(outpoints.begin(), outpoints.end(), bip352::BIP352Comparator());
             std::map<size_t, SilentPaymentsDestination> sp_dests;
-            const std::vector<UniValue>& silent_payments_addresses = given["recipients"].getValues();
-            size_t sp_index = 0;
-            for (size_t i = 0; i < silent_payments_addresses.size(); ++i) {
-                auto sp = DecodeSilentPaymentsAddress(silent_payments_addresses[i]["address"].get_str(), Params());
-                BOOST_REQUIRE(sp.has_value());
-                if (!silent_payments_addresses[i]["scan_pub_key"].isNull()) {
-                    BOOST_CHECK_EQUAL(HexStr(sp->GetScanPubKey()), silent_payments_addresses[i]["scan_pub_key"].get_str());
-                    BOOST_CHECK_EQUAL(HexStr(sp->GetSpendPubKey()), silent_payments_addresses[i]["spend_pub_key"].get_str());
+            size_t output_index = 0;
+            for (const auto& recipient : given["recipients"].getValues()) {
+                auto dest = DecodeSilentPaymentsAddress(recipient["address"].get_str(), Params());
+                BOOST_REQUIRE(dest.has_value());
+                if (!recipient["scan_pub_key"].isNull()) {
+                    BOOST_CHECK_EQUAL(HexStr(dest->GetScanPubKey()), recipient["scan_pub_key"].get_str());
+                    BOOST_CHECK_EQUAL(HexStr(dest->GetSpendPubKey()), recipient["spend_pub_key"].get_str());
                 }
-                size_t count = silent_payments_addresses[i]["count"].isNull() ? 1 : (size_t)silent_payments_addresses[i]["count"].getInt<int>();
-                for (size_t j = 0; j < count; ++j) {
-                    sp_dests.emplace(sp_index++, *sp);
+                const size_t count = recipient["count"].isNull() ? 1 : recipient["count"].getInt<size_t>();
+                for (size_t i = 0; i < count; ++i) {
+                    sp_dests.emplace(output_index++, *dest);
                 }
             }
             auto sp_tr_dests = bip352::GenerateSilentPaymentsTaprootDestinations(sp_dests, keys, taproot_keys, *smallest_outpoint);
             // This means the inputs summed to zero, which realistically would only happen maliciously. In this case, just move on
             if (!sp_tr_dests.has_value()) {
                 // Check that we actually expect zero outputs to be generated for this test
-                const auto& expected_outputs = expected["outputs"].getValues();
-                BOOST_REQUIRE(!expected_outputs.empty());
-                BOOST_CHECK(expected_outputs[0].empty());
+                const auto& no_outputs = expected["outputs"].getValues();
+                BOOST_REQUIRE_EQUAL(no_outputs.size(), 1u);
+                BOOST_CHECK(no_outputs[0].empty());
                 continue;
             }
+            // "outputs" lists every acceptable output set; generated outputs must match one of them.
             bool match = false;
-            for (const auto& candidate_set : expected["outputs"].getValues()) {
-                BOOST_CHECK(sp_tr_dests->size() == candidate_set.size());
+            for (const auto& candidate : expected["outputs"].getValues()) {
                 std::vector<WitnessV1Taproot> expected_spks;
-                for (const auto& output : candidate_set.getValues()) {
-                    const WitnessV1Taproot tap{XOnlyPubKey(ParseHex(output.get_str()))};
-                    expected_spks.push_back(tap);
+                for (const auto& output : candidate.getValues()) {
+                    expected_spks.emplace_back(XOnlyPubKey{ParseHex(output.get_str())});
                 }
-                match = true;
-                for (const auto& [_, spk]: *sp_tr_dests) {
-                    if (std::find(expected_spks.begin(), expected_spks.end(), spk) == expected_spks.end()) {
-                        match = false;
-                        break;
-                    }
-                }
-                if (!match) {
-                    continue;
-                } else {
-                    break;
-                }
+                if (expected_spks.size() != sp_tr_dests->size()) continue;
+                match = std::all_of(sp_tr_dests->begin(), sp_tr_dests->end(), [&](const auto& entry) {
+                    return std::find(expected_spks.begin(), expected_spks.end(), entry.second) != expected_spks.end();
+                });
+                if (match) break;
             }
             BOOST_CHECK(match);
         }
@@ -156,12 +143,9 @@ BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
                 const auto& script_sig_bytes = ParseHex(input["scriptSig"].get_str());
                 CScript script_sig = CScript(script_sig_bytes.begin(), script_sig_bytes.end());
                 CTxIn txin{outpoint, script_sig};
-                CScriptWitness witness;
-                // read the field txWitness as a stream and write txWitness >> witness.stack;
-                auto witness_str = ParseHex(input["txinwitness"].get_str());
+                const auto witness_str = ParseHex(input["txinwitness"].get_str());
                 if (!witness_str.empty()) {
-                    SpanReader(witness_str) >> witness.stack;
-                    txin.scriptWitness = witness;
+                    SpanReader(witness_str) >> txin.scriptWitness.stack;
                 }
                 vin.push_back(txin);
                 coins[outpoint] = Coin{CTxOut{{}, spk}, 0, false};
@@ -179,21 +163,19 @@ BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
                 output_pub_keys.emplace_back(ParseHex(pubkey.get_str()));
             }
 
-            CKey scan_priv_key = ParseHexToCKey(given["key_material"]["scan_priv_key"].get_str());
-            CKey spend_priv_key = ParseHexToCKey(given["key_material"]["spend_priv_key"].get_str());
-            SilentPaymentsDestination sp_address{SilentPaymentsDestination::From(scan_priv_key.GetPubKey(), spend_priv_key.GetPubKey()).value()};
+            const CKey scan_priv_key = ParseHexToCKey(given["key_material"]["scan_priv_key"].get_str());
+            const CKey spend_priv_key = ParseHexToCKey(given["key_material"]["spend_priv_key"].get_str());
 
             // The change label is registered automatically; only non-change labels need registering.
-            bip352::SilentPaymentsReceiver receiver{scan_priv_key, sp_address.GetSpendPubKey()};
+            bip352::SilentPaymentsReceiver receiver{scan_priv_key, spend_priv_key.GetPubKey()};
             const auto& given_labels{given["labels"].getValues()};
-            for (size_t i = 0; i < given_labels.size(); i++) {
-                const uint32_t m = given_labels[i].getInt<uint32_t>();
-                const SilentPaymentsDestination labeled_addr = (m == 0) ? receiver.GetChangeDestination() : receiver.GenerateLabeledAddress(m);
-                // expected["addresses"] contains the base silent payments address (at index 0)
-                // followed by the labeled addresses
-                auto sp = DecodeSilentPaymentsAddress(expected["addresses"][i+1].get_str(), Params());
-                BOOST_REQUIRE(sp.has_value());
-                BOOST_CHECK(labeled_addr == *sp);
+            size_t address_index = 1; // expected["addresses"][0] is the base silent payments address
+            for (const auto& label : given_labels) {
+                const uint32_t m = label.getInt<uint32_t>();
+                const SilentPaymentsDestination got = (m == 0) ? receiver.GetChangeDestination() : receiver.GenerateLabeledAddress(m);
+                auto want = DecodeSilentPaymentsAddress(expected["addresses"][address_index++].get_str(), Params());
+                BOOST_REQUIRE(want.has_value());
+                BOOST_CHECK(got == *want);
             }
 
             // Scanning
@@ -214,7 +196,6 @@ BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
                         XOnlyPubKey{ParseHex(output["pub_key"].get_str())},
                         uint256{ParseHex(output["priv_key_tweak"].get_str())});
                 }
-                BOOST_TEST_MESSAGE(found_outputs->size());
                 BOOST_REQUIRE_EQUAL(found_outputs->size(), expected_outputs.size());
                 for (const auto& output : *found_outputs) {
                     const auto expected_output = expected_outputs.find(output.output);
