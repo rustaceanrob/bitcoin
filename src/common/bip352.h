@@ -45,7 +45,7 @@ private:
         uint8_t version,
         const CPubKey& scan_pubkey,
         const CPubKey& spend_pubkey,
-        const std::span<unsigned char>& extension_data = {}
+        std::span<const unsigned char> extension_data = {}
     ) : m_version(version), m_scan_pubkey(scan_pubkey),
         m_spend_pubkey(spend_pubkey),
         m_extension_data(extension_data.begin(), extension_data.end()) {};
@@ -54,7 +54,7 @@ public:
         const CPubKey& scan_pubkey,
         const CPubKey& spend_pubkey,
         uint8_t version = 0,
-        const std::span<unsigned char>& extension_data = {}
+        std::span<const unsigned char> extension_data = {}
     );
 
     uint8_t GetVersion() const { return m_version; }

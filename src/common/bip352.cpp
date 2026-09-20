@@ -25,6 +25,7 @@
 #include <streams.h>
 #include <tinyformat.h>
 #include <uint256.h>
+#include <util/check.h>
 #include <util/strencodings.h>
 
 #include <algorithm>
@@ -38,7 +39,7 @@ std::optional<SilentPaymentsDestination> SilentPaymentsDestination::From(
     const CPubKey& scan_pubkey,
     const CPubKey& spend_pubkey,
     uint8_t version,
-    const std::span<unsigned char>& extension_data
+    std::span<const unsigned char> extension_data
 ) {
     if (version >= 31) return std::nullopt;
     if (version == 0 && !extension_data.empty()) {
@@ -164,6 +165,7 @@ std::optional<PubKey> GetPubKeyFromInput(const CTxIn& txin, const CScript& spk)
             }
         }
 
+        Assume(solutions.size() == 1);
         XOnlyPubKey key{solutions[0]};
         if (!key.IsFullyValid()) return std::nullopt;
         return PubKey{key};
@@ -241,12 +243,11 @@ std::optional<PrevoutsSummary> CreateInputPubkeysTweak(
         taproot_pubkey_ptrs.push_back(&taproot_pubkey_objs.back());
     }
 
-    std::vector<unsigned char> smallest_outpoint_ser;
-    VectorWriter stream{smallest_outpoint_ser, 0};
-    stream << smallest_outpoint;
+    std::array<std::byte, 36> smallest_outpoint_ser;
+    SpanWriter{smallest_outpoint_ser} << smallest_outpoint;
     bool ret = secp256k1_silentpayments_recipient_prevouts_summary_create(secp256k1_context_static,
         prevouts_summary.Get(),
-        smallest_outpoint_ser.data(),
+        UCharCast(smallest_outpoint_ser.data()),
         taproot_pubkey_ptrs.data(), taproot_pubkey_ptrs.size(),
         plain_pubkey_ptrs.data(), plain_pubkey_ptrs.size()
     );
@@ -338,14 +339,13 @@ std::optional<std::vector<secp256k1_xonly_pubkey>> CreateOutputs(
     }
 
     // Serialize the outpoint
-    std::vector<unsigned char> smallest_outpoint_ser;
-    VectorWriter stream{smallest_outpoint_ser, 0};
-    stream << smallest_outpoint;
+    std::array<std::byte, 36> smallest_outpoint_ser;
+    SpanWriter{smallest_outpoint_ser} << smallest_outpoint;
 
     ret = secp256k1_silentpayments_sender_create_outputs(GetSecp256k1SignContext(),
         generated_output_ptrs.data(),
         recipient_ptrs.data(), recipient_ptrs.size(),
-        smallest_outpoint_ser.data(),
+        UCharCast(smallest_outpoint_ser.data()),
         taproot_keypair_ptrs.data(), taproot_keypair_ptrs.size(),
         plain_key_ptrs.data(), plain_key_ptrs.size()
     );
@@ -408,7 +408,7 @@ CPubKey CreateLabeledSpendPubKey(const CPubKey& spend_pubkey, const SilentPaymen
     assert(ret);
     size_t pubkeylen = CPubKey::COMPRESSED_SIZE;
     CPubKey labeled_spend_pubkey;
-    ret = secp256k1_ec_pubkey_serialize(secp256k1_context_static, (unsigned char*)labeled_spend_pubkey.begin(), &pubkeylen, &labeled_spend_obj, SECP256K1_EC_COMPRESSED);
+    ret = secp256k1_ec_pubkey_serialize(secp256k1_context_static, const_cast<unsigned char*>(labeled_spend_pubkey.begin()), &pubkeylen, &labeled_spend_obj, SECP256K1_EC_COMPRESSED);
     assert(ret);
     return labeled_spend_pubkey;
 }
