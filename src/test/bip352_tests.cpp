@@ -22,12 +22,13 @@
 namespace wallet {
 BOOST_FIXTURE_TEST_SUITE(bip352_tests, BasicTestingSetup)
 
-CKey ParseHexToCKey(std::string hex) {
+static CKey ParseHexToCKey(std::string_view hex)
+{
     CKey output;
     std::vector<unsigned char> hex_data = ParseHex(hex);
     output.Set(hex_data.begin(), hex_data.end(), true);
     return output;
-};
+}
 
 BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
 {
@@ -85,7 +86,9 @@ BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
                 BOOST_CHECK(extracted_pubkeys == want);
             }
             if (taproot_keys.empty() && keys.empty()) {
-                BOOST_CHECK(expected["outputs"].getValues()[0].empty());
+                const auto& expected_outputs = expected["outputs"].getValues();
+                BOOST_REQUIRE(!expected_outputs.empty());
+                BOOST_CHECK(expected_outputs[0].empty());
                 continue;
             }
             // silent payments logic
@@ -109,7 +112,9 @@ BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
             // This means the inputs summed to zero, which realistically would only happen maliciously. In this case, just move on
             if (!sp_tr_dests.has_value()) {
                 // Check that we actually expect zero outputs to be generated for this test
-                BOOST_CHECK(expected["outputs"].getValues()[0].empty());
+                const auto& expected_outputs = expected["outputs"].getValues();
+                BOOST_REQUIRE(!expected_outputs.empty());
+                BOOST_CHECK(expected_outputs[0].empty());
                 continue;
             }
             bool match = false;
@@ -180,7 +185,7 @@ BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
 
             // The change label is registered automatically; only non-change labels need registering.
             bip352::SilentPaymentsReceiver receiver{scan_priv_key, sp_address.GetSpendPubKey()};
-            auto given_labels{given["labels"].getValues()};
+            const auto& given_labels{given["labels"].getValues()};
             for (size_t i = 0; i < given_labels.size(); i++) {
                 const uint32_t m = given_labels[i].getInt<uint32_t>();
                 const SilentPaymentsDestination labeled_addr = (m == 0) ? receiver.GetChangeDestination() : receiver.GenerateLabeledAddress(m);
@@ -342,10 +347,7 @@ BOOST_AUTO_TEST_CASE(bip352_decode_address)
         BOOST_CHECK_EQUAL(HexStr(sp->GetExtensionData()), vec.extension_data);
 
         // Bech32(m) is case-insensitive as a whole; an all-uppercase address must decode identically.
-        std::string flipped = vec.address;
-        for (char& c : flipped) {
-            if (c >= 'a' && c <= 'z') c = (c - 'a') + 'A';
-        }
+        std::string flipped = ToUpper(vec.address);
         auto sp_flipped = DecodeSilentPaymentsAddress(flipped, Params());
         BOOST_REQUIRE_MESSAGE(sp_flipped.has_value(), flipped);
         BOOST_CHECK(*sp_flipped == *sp);
