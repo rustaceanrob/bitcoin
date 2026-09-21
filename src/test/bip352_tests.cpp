@@ -5,6 +5,9 @@
 #include <addresstype.h>
 #include <policy/policy.h>
 #include <script/solver.h>
+#include <secp256k1.h>
+#include <secp256k1_extrakeys.h>
+#include <secp256k1_schnorrsig.h>
 #include <secp256k1_silentpayments.h>
 #include <test/data/bip352_send_and_receive_vectors.json.h>
 
@@ -28,6 +31,35 @@ static CKey ParseHexToCKey(std::string_view hex)
     std::vector<unsigned char> hex_data = ParseHex(hex);
     output.Set(hex_data.begin(), hex_data.end(), true);
     return output;
+}
+
+// The BIP352 vectors sign a fixed message with the output's private key
+// (spend key + tweak). Re-derive that key and reproduce the signature to confirm
+// the scanned output is actually spendable.
+static void CheckVectorSignature(const CKey& spend_priv_key, const uint256& tweak, std::span<const unsigned char> expected_signature)
+{
+    // sha256("message") / sha256("random auxiliary data"), as used by the reference vectors.
+    static constexpr std::array<unsigned char, 32> MSG32{
+        0xab, 0x53, 0x0a, 0x13, 0xe4, 0x59, 0x14, 0x98,
+        0x2b, 0x79, 0xf9, 0xb7, 0xe3, 0xfb, 0xa9, 0x94,
+        0xcf, 0xd1, 0xf3, 0xfb, 0x22, 0xf7, 0x1c, 0xea,
+        0x1a, 0xfb, 0xf0, 0x2b, 0x46, 0x0c, 0x6d, 0x1d};
+    static constexpr std::array<unsigned char, 32> AUX32{
+        0x0b, 0x3f, 0xdd, 0xfd, 0x67, 0xbf, 0x76, 0xae,
+        0x76, 0x39, 0xee, 0x73, 0x5b, 0x70, 0xff, 0x15,
+        0x83, 0xfd, 0x92, 0x48, 0xc0, 0x57, 0xd2, 0x86,
+        0x07, 0xa2, 0x15, 0xf4, 0x0b, 0x0a, 0x3e, 0xcc};
+
+    std::array<unsigned char, 32> full_seckey;
+    std::copy(UCharCast(spend_priv_key.begin()), UCharCast(spend_priv_key.end()), full_seckey.begin());
+    BOOST_REQUIRE(secp256k1_ec_seckey_tweak_add(GetSecp256k1SignContext(), full_seckey.data(), tweak.begin()));
+
+    secp256k1_keypair keypair;
+    BOOST_REQUIRE(secp256k1_keypair_create(GetSecp256k1SignContext(), &keypair, full_seckey.data()));
+
+    std::array<unsigned char, 64> signature;
+    BOOST_REQUIRE(secp256k1_schnorrsig_sign32(GetSecp256k1SignContext(), signature.data(), MSG32.data(), &keypair, AUX32.data()));
+    BOOST_CHECK_EQUAL(HexStr(signature), HexStr(expected_signature));
 }
 
 BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
@@ -190,17 +222,22 @@ BOOST_AUTO_TEST_CASE(bip352_send_and_receive_test_vectors)
             if (!expected["n_outputs"].isNull()) {
                 BOOST_CHECK(found_outputs->size() == (size_t)expected["n_outputs"].getInt<int>());
             } else {
-                std::map<XOnlyPubKey, uint256> expected_outputs;
+                struct ExpectedOutput {
+                    uint256 tweak;
+                    std::vector<unsigned char> signature;
+                };
+                std::map<XOnlyPubKey, ExpectedOutput> expected_outputs;
                 for (const auto& output : expected["outputs"].getValues()) {
                     expected_outputs.emplace(
                         XOnlyPubKey{ParseHex(output["pub_key"].get_str())},
-                        uint256{ParseHex(output["priv_key_tweak"].get_str())});
+                        ExpectedOutput{uint256{ParseHex(output["priv_key_tweak"].get_str())}, ParseHex(output["signature"].get_str())});
                 }
                 BOOST_REQUIRE_EQUAL(found_outputs->size(), expected_outputs.size());
                 for (const auto& output : *found_outputs) {
                     const auto expected_output = expected_outputs.find(output.output);
                     BOOST_REQUIRE(expected_output != expected_outputs.end());
-                    BOOST_CHECK(output.tweak == expected_output->second);
+                    BOOST_CHECK(output.tweak == expected_output->second.tweak);
+                    CheckVectorSignature(spend_priv_key, output.tweak, expected_output->second.signature);
                 }
             }
         }
