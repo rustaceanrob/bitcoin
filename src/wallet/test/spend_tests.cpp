@@ -3,8 +3,10 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <consensus/amount.h>
+#include <coins.h>
 #include <key.h>
 #include <script/solver.h>
+#include <util/check.h>
 #include <validation.h>
 #include <wallet/coincontrol.h>
 #include <wallet/spend.h>
@@ -118,6 +120,69 @@ BOOST_FIXTURE_TEST_CASE(wallet_duplicated_preset_inputs_test, TestChain100Setup)
     // Second case, don't use 'subtract_fee_from_outputs'.
     recipients[0].fSubtractFeeFromAmount = false;
     BOOST_CHECK(!CreateTransaction(*wallet, recipients, /*change_pos=*/std::nullopt, coin_control));
+}
+
+BOOST_FIXTURE_TEST_CASE(silent_payments_send, TestChain100Setup)
+{
+    CreateAndProcessBlock({}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+    auto wallet = CreateSyncedWallet(*m_node.chain, WITH_LOCK(Assert(m_node.chainman)->GetMutex(), return m_node.chainman->ActiveChain()), coinbaseKey);
+
+    // Create and confirm a wallet-owned P2WPKH output, giving us a BIP352-eligible input.
+    {
+        auto dest = Assert(wallet->GetNewDestination(OutputType::BECH32, "sp"));
+        CRecipient self{*dest, 10 * COIN, /*fSubtractFeeFromAmount=*/false};
+        CCoinControl cc;
+        auto self_res = CreateTransaction(*wallet, {self}, /*change_pos=*/std::nullopt, cc);
+        BOOST_REQUIRE(self_res);
+        wallet->CommitTransaction(self_res->tx);
+        CreateAndProcessBlock({CMutableTransaction(*self_res->tx)}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+        LOCK(wallet->cs_wallet);
+        LOCK(Assert(m_node.chainman)->GetMutex());
+        wallet->SetLastBlockProcessed(wallet->GetLastBlockHeight() + 1, m_node.chainman->ActiveChain().Tip()->GetBlockHash());
+        auto it = wallet->mapWallet.find(self_res->tx->GetHash());
+        BOOST_REQUIRE(it != wallet->mapWallet.end());
+        it->second.m_state = TxStateConfirmed{m_node.chainman->ActiveChain().Tip()->GetBlockHash(), m_node.chainman->ActiveChain().Height(), /*index=*/1};
+    }
+
+    const CKey scan_key{GenerateRandomKey()};
+    const CKey spend_key{GenerateRandomKey()};
+    auto sp_dest = SilentPaymentsDestination::From(scan_key.GetPubKey(), spend_key.GetPubKey());
+    BOOST_REQUIRE(sp_dest);
+
+    CRecipient recipient{WitnessV1Taproot{}, 1 * COIN, /*fSubtractFeeFromAmount=*/false, *sp_dest};
+    CCoinControl coin_control;
+    coin_control.m_silent_payments = true;
+    auto res = CreateTransaction(*wallet, {recipient}, /*change_pos=*/std::nullopt, coin_control);
+    BOOST_REQUIRE(res);
+
+    // Independently verify the recipient can find the payment using the BIP352 scanning logic.
+    std::map<COutPoint, Coin> coins;
+    {
+        LOCK(wallet->cs_wallet);
+        for (const CTxIn& txin : res->tx->vin) {
+            const CWalletTx* wtx = wallet->GetWalletTx(txin.prevout.hash);
+            BOOST_REQUIRE(wtx);
+            coins[txin.prevout] = Coin{wtx->GetTx()->vout[txin.prevout.n], /*depth=*/1, /*coinbase=*/false};
+        }
+    }
+    auto summary = bip352::GetSilentPaymentsPrevoutsSummary(res->tx->vin, coins);
+    BOOST_REQUIRE(summary.has_value());
+
+    std::vector<XOnlyPubKey> output_pubkeys;
+    for (const CTxOut& txout : res->tx->vout) {
+        CTxDestination dest;
+        if (ExtractDestination(txout.scriptPubKey, dest)) {
+            if (const auto* tap = std::get_if<WitnessV1Taproot>(&dest)) {
+                output_pubkeys.emplace_back(*tap);
+            }
+        }
+    }
+
+    bip352::SilentPaymentsReceiver receiver{scan_key, spend_key.GetPubKey()};
+    const auto found = receiver.Scan(*summary, output_pubkeys);
+    BOOST_REQUIRE(found.has_value());
+    BOOST_REQUIRE_EQUAL(found->size(), 1U);
+    BOOST_CHECK(std::find(output_pubkeys.begin(), output_pubkeys.end(), found->front().output) != output_pubkeys.end());
 }
 
 BOOST_AUTO_TEST_SUITE_END()

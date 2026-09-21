@@ -6,8 +6,10 @@
 #define BITCOIN_WALLET_TRANSACTION_H
 
 #include <attributes.h>
+#include <common/bip352.h>
 #include <consensus/amount.h>
 #include <primitives/transaction.h>
+#include <streams.h>
 #include <tinyformat.h>
 #include <uint256.h>
 #include <util/check.h>
@@ -207,6 +209,8 @@ public:
     std::vector<std::string> m_messages;
     // BIP 70 Payment Request (deprecated, field kept to preserve metadata from old wallets)
     std::vector<std::string> m_payment_requests;
+    //! Original silent payments recipients, used to recompute outputs when replacing the tx via RBF.
+    std::vector<SilentPaymentsDestination> m_sprecipients;
     unsigned int nTimeReceived; //!< time received by this node
     /**
      * Stable timestamp that never changes, and reflects the order a transaction
@@ -284,6 +288,11 @@ public:
         string_values["fromaccount"] = "";
         if (nOrderPos != -1) string_values["n"] = util::ToString(nOrderPos);
         if (nTimeSmart) string_values["timesmart"] = strprintf("%u", nTimeSmart);
+        if (!m_sprecipients.empty()) {
+            DataStream ss;
+            ss << m_sprecipients;
+            string_values["sprecipients"] = HexStr(ss);
+        }
 
         std::vector<std::pair<std::string, std::string>> msgs_reqs;
         msgs_reqs.reserve(m_messages.size() + m_payment_requests.size());
@@ -334,6 +343,12 @@ public:
             else if (key == "to") m_comment_to = value;
             else if (key == "replaces_txid") m_replaces_txid = Txid::FromHex(value);
             else if (key == "replaced_by_txid") m_replaced_by_txid = Txid::FromHex(value);
+            else if (key == "sprecipients") {
+                DataStream ss{ParseHex(value)};
+                size_t n{ReadCompactSize(ss)};
+                m_sprecipients.reserve(n);
+                for (size_t i = 0; i < n; ++i) m_sprecipients.push_back(SilentPaymentsDestination::Unserialize(ss));
+            }
             else {
                 throw std::runtime_error("Unexpected value in CWalletTx strings value map");
             }
@@ -410,6 +425,7 @@ private:
         fChangeCached = false;
         nChangeCached = 0;
         nOrderPos = -1;
+        m_sprecipients.clear();
     }
 
     void Init()

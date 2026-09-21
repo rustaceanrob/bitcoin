@@ -2074,6 +2074,7 @@ OutputType CWallet::TransactionChangeType(const std::optional<OutputType>& chang
     bool any_pkh{false};
 
     for (const auto& recipient : vecSend) {
+        // For SP recipients dest is a WitnessV1Taproot placeholder, so this naturally picks taproot change.
         if (std::get_if<WitnessV1Taproot>(&recipient.dest)) {
             any_tr = true;
         } else if (std::get_if<WitnessV0KeyHash>(&recipient.dest)) {
@@ -2123,7 +2124,8 @@ void CWallet::CommitTransaction(
     std::optional<std::string> comment,
     std::optional<std::string> comment_to,
     const std::vector<std::string>& messages,
-    const std::vector<std::string>& payment_requests
+    const std::vector<std::string>& payment_requests,
+    const std::vector<SilentPaymentsDestination>& sp_recipients
 )
 {
     LOCK(cs_wallet);
@@ -2137,6 +2139,7 @@ void CWallet::CommitTransaction(
         if (comment_to) wtx.m_comment_to = comment_to;
         if (!messages.empty()) wtx.m_messages = messages;
         if (!payment_requests.empty()) wtx.m_payment_requests = payment_requests;
+        if (!sp_recipients.empty()) wtx.m_sprecipients = sp_recipients;
         return true;
     });
 

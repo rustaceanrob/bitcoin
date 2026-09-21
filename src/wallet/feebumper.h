@@ -8,6 +8,7 @@
 #include <consensus/consensus.h>
 #include <script/interpreter.h>
 #include <primitives/transaction.h>
+#include <wallet/wallet.h>
 
 class uint256;
 enum class FeeEstimateMode;
@@ -54,7 +55,7 @@ Result CreateRateBumpTransaction(CWallet& wallet,
     CAmount& new_fee,
     CMutableTransaction& mtx,
     bool require_mine,
-    const std::vector<CTxOut>& outputs,
+    const std::vector<CRecipient>& outputs,
     std::optional<uint32_t> original_change_index = std::nullopt);
 
 //! Sign the new transaction,

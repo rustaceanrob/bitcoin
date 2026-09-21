@@ -32,16 +32,52 @@ using common::TransactionErrorString;
 using node::TransactionError;
 
 namespace wallet {
-std::vector<CRecipient> CreateRecipients(const std::vector<std::pair<CTxDestination, CAmount>>& outputs, const std::set<int>& subtract_fee_outputs)
+namespace {
+//! Parse an outputs object into CRecipients. For BIP352 silent payments addresses, dest is a
+//! zero-key WitnessV1Taproot placeholder (for size/dust estimation) and sp_dest holds the
+//! actual destination for resolution after coin selection.
+std::vector<CRecipient> ParseWalletOutputs(const UniValue& outputs, const std::set<int>& subtract_fee_outputs = {})
 {
+    std::set<CTxDestination> seen_dests;
+    std::set<SilentPaymentsDestination> seen_sp;
     std::vector<CRecipient> recipients;
-    for (size_t i = 0; i < outputs.size(); ++i) {
-        const auto& [destination, amount] = outputs.at(i);
-        CRecipient recipient{destination, amount, subtract_fee_outputs.contains(i)};
-        recipients.push_back(recipient);
+    bool has_data{false};
+    const auto& keys{outputs.getKeys()};
+    const auto& values{outputs.getValues()};
+    const CChainParams& params{Params()};
+    for (size_t i{0}; i < keys.size(); ++i) {
+        const auto& name_{keys[i]};
+        const auto& value{values[i]};
+        const bool sffo{subtract_fee_outputs.contains(i)};
+        if (name_ == "data") {
+            if (has_data) throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, duplicate key: data");
+            has_data = true;
+            std::vector<unsigned char> data{ParseHexV(value.getValStr(), "Data")};
+            recipients.push_back({CNoDestination{CScript() << OP_RETURN << data}, /*nAmount=*/0, sffo});
+            continue;
+        }
+        if (ToLower(name_.substr(0, params.SilentPaymentsHRP().size())) == params.SilentPaymentsHRP()) {
+            auto sp = DecodeSilentPaymentsAddress(name_, params);
+            if (!sp) throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, sp.error());
+            if (!seen_sp.insert(*sp).second) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, duplicated address: " + name_);
+            }
+            recipients.push_back({WitnessV1Taproot{}, AmountFromValue(value), sffo, *sp});
+            continue;
+        }
+        std::string err;
+        CTxDestination dest{DecodeDestination(name_, err, /*error_locations=*/nullptr)};
+        if (!IsValidDestination(dest)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, err.empty() ? "Invalid Bitcoin address: " + name_ : err);
+        }
+        if (!seen_dests.insert(dest).second) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, duplicated address: " + name_);
+        }
+        recipients.push_back({dest, AmountFromValue(value), sffo});
     }
     return recipients;
 }
+} // namespace
 
 static void InterpretFeeEstimationInstructions(const UniValue& conf_target, const UniValue& estimate_mode, const UniValue& fee_rate, UniValue& options)
 {
@@ -93,7 +129,7 @@ std::set<int> InterpretSubtractFeeFromOutputInstructions(const UniValue& sffo_in
     return sffo_set;
 }
 
-static UniValue FinishTransaction(const std::shared_ptr<CWallet> pwallet, const UniValue& options, CMutableTransaction& rawTx)
+static UniValue FinishTransaction(const std::shared_ptr<CWallet> pwallet, const UniValue& options, CMutableTransaction& rawTx, std::vector<SilentPaymentsDestination> sp_recipients = {})
 {
     bool can_anti_fee_snipe = !options.exists("locktime");
 
@@ -139,7 +175,7 @@ static UniValue FinishTransaction(const std::shared_ptr<CWallet> pwallet, const 
         CTransactionRef tx(MakeTransactionRef(std::move(mtx)));
         result.pushKV("txid", tx->GetHash().GetHex());
         if (add_to_wallet && !psbt_opt_in) {
-            pwallet->CommitTransaction(tx);
+            pwallet->CommitTransaction(tx, /*replaces_txid=*/std::nullopt, /*comment=*/std::nullopt, /*comment_to=*/std::nullopt, /*messages=*/{}, /*payment_requests=*/{}, sp_recipients);
         } else {
             result.pushKV("hex", hex);
         }
@@ -168,6 +204,30 @@ static void PreventOutdatedOptions(const UniValue& options)
     }
 }
 
+//! Collect the SP destinations from `recipients` (for CommitTransaction persistence).
+static std::vector<SilentPaymentsDestination> SpRecipients(const std::vector<CRecipient>& recipients)
+{
+    std::vector<SilentPaymentsDestination> out;
+    for (const auto& r : recipients) {
+        if (r.sp_dest) out.push_back(*r.sp_dest);
+    }
+    return out;
+}
+
+//! Enforce SP preconditions and set the coin control flag. Call from RPCs after parsing recipients.
+static void SetSilentPaymentsCoinControl(const CWallet& wallet, const std::vector<CRecipient>& recipients, CCoinControl& coin_control)
+{
+    if (!std::any_of(recipients.begin(), recipients.end(), [](const auto& r) { return r.sp_dest.has_value(); })) return;
+    if (!wallet.IsWalletFlagSet(WALLET_FLAG_DESCRIPTORS)) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Silent payments are only supported for descriptor wallets.");
+    }
+    if (wallet.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS) || wallet.IsWalletFlagSet(WALLET_FLAG_EXTERNAL_SIGNER)) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Silent payments require access to private keys to build transactions.");
+    }
+    EnsureWalletIsUnlocked(wallet);
+    coin_control.m_silent_payments = true;
+}
+
 UniValue SendMoney(CWallet& wallet, const CCoinControl &coin_control, std::vector<CRecipient> &recipients, std::optional<std::string> comment, std::optional<std::string> comment_to, bool verbose)
 {
     EnsureWalletIsUnlocked(wallet);
@@ -191,7 +251,7 @@ UniValue SendMoney(CWallet& wallet, const CCoinControl &coin_control, std::vecto
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, util::ErrorString(res).original);
     }
     const CTransactionRef& tx = res->tx;
-    wallet.CommitTransaction(tx, /*replaces_txid=*/std::nullopt, comment, comment_to);
+    wallet.CommitTransaction(tx, /*replaces_txid=*/std::nullopt, comment, comment_to, /*messages=*/{}, /*payment_requests=*/{}, SpRecipients(recipients));
     if (verbose) {
         UniValue entry(UniValue::VOBJ);
         entry.pushKV("txid", tx->GetHash().GetHex());
@@ -330,7 +390,8 @@ RPCMethod sendtoaddress()
         sffo_set.insert(0);
     }
 
-    std::vector<CRecipient> recipients{CreateRecipients(ParseOutputs(address_amounts), sffo_set)};
+    std::vector<CRecipient> recipients{ParseWalletOutputs(address_amounts, sffo_set)};
+    SetSilentPaymentsCoinControl(*pwallet, recipients, coin_control);
     const bool verbose{request.params[10].isNull() ? false : request.params[10].get_bool()};
 
     return SendMoney(*pwallet, coin_control, recipients, comment, comment_to, verbose);
@@ -423,10 +484,10 @@ RPCMethod sendmany()
 
     SetFeeEstimateMode(*pwallet, coin_control, /*conf_target=*/request.params[6], /*estimate_mode=*/request.params[7], /*fee_rate=*/request.params[8], /*override_min_fee=*/false);
 
-    std::vector<CRecipient> recipients = CreateRecipients(
-            ParseOutputs(sendTo),
-            InterpretSubtractFeeFromOutputInstructions(request.params[4], sendTo.getKeys())
-    );
+    std::vector<CRecipient> recipients{ParseWalletOutputs(
+            sendTo,
+            InterpretSubtractFeeFromOutputInstructions(request.params[4], sendTo.getKeys()))};
+    SetSilentPaymentsCoinControl(*pwallet, recipients, coin_control);
     const bool verbose{request.params[9].isNull() ? false : request.params[9].get_bool()};
 
     return SendMoney(*pwallet, coin_control, recipients, comment, /*comment_to=*/std::nullopt, verbose);
@@ -682,6 +743,8 @@ CreatedTransactionResult FundTransaction(CWallet& wallet, const CMutableTransact
     if (recipients.empty())
         throw JSONRPCError(RPC_INVALID_PARAMETER, "TX must have at least one output");
 
+    SetSilentPaymentsCoinControl(wallet, recipients, coinControl);
+
     auto txr = FundTransaction(wallet, tx, recipients, change_position, lockUnspents, coinControl);
     if (!txr) {
         throw JSONRPCError(RPC_WALLET_ERROR, ErrorString(txr).original);
@@ -811,17 +874,15 @@ RPCMethod fundrawtransaction()
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
     }
     UniValue options = request.params[1];
-    std::vector<std::pair<CTxDestination, CAmount>> destinations;
-    for (const auto& tx_out : tx.vout) {
+    std::vector<std::string> dummy(tx.vout.size(), "dummy");
+    const std::set<int> sffo{InterpretSubtractFeeFromOutputInstructions(options["subtractFeeFromOutputs"], dummy)};
+    std::vector<CRecipient> recipients;
+    recipients.reserve(tx.vout.size());
+    for (size_t i = 0; i < tx.vout.size(); ++i) {
         CTxDestination dest;
-        ExtractDestination(tx_out.scriptPubKey, dest);
-        destinations.emplace_back(dest, tx_out.nValue);
+        ExtractDestination(tx.vout[i].scriptPubKey, dest);
+        recipients.push_back({dest, tx.vout[i].nValue, sffo.contains(i)});
     }
-    std::vector<std::string> dummy(destinations.size(), "dummy");
-    std::vector<CRecipient> recipients = CreateRecipients(
-            destinations,
-            InterpretSubtractFeeFromOutputInstructions(options["subtractFeeFromOutputs"], dummy)
-    );
     CCoinControl coin_control;
     // Automatically select (additional) coins. Can be overridden by options.add_inputs.
     coin_control.m_allow_other_inputs = true;
@@ -1046,7 +1107,7 @@ static RPCMethod bumpfee_helper(std::string method_name)
     CCoinControl coin_control;
     // optional parameters
     coin_control.m_signal_bip125_rbf = true;
-    std::vector<CTxOut> outputs;
+    std::vector<CRecipient> outputs;
 
     std::optional<uint32_t> original_change_index;
 
@@ -1078,14 +1139,11 @@ static RPCMethod bumpfee_helper(std::string method_name)
         }
         SetFeeEstimateMode(*pwallet, coin_control, conf_target, options["estimate_mode"], options["fee_rate"], /*override_min_fee=*/false);
 
-        // Prepare new outputs by creating a temporary tx and calling AddOutputs().
         if (!options["outputs"].isNull()) {
             if (options["outputs"].isArray() && options["outputs"].empty()) {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, output argument cannot be an empty array");
             }
-            CMutableTransaction tempTx;
-            AddOutputs(tempTx, options["outputs"]);
-            outputs = tempTx.vout;
+            outputs = ParseWalletOutputs(NormalizeOutputs(options["outputs"]));
         }
 
         if (options.exists("original_change_index")) {
@@ -1272,15 +1330,14 @@ RPCMethod send()
 
 
             bool rbf{options.exists("replaceable") ? options["replaceable"].get_bool() : pwallet->m_signal_rbf};
-            UniValue outputs(UniValue::VOBJ);
-            outputs = NormalizeOutputs(request.params[0]);
-            std::vector<CRecipient> recipients = CreateRecipients(
-                    ParseOutputs(outputs),
-                    InterpretSubtractFeeFromOutputInstructions(options["subtract_fee_from_outputs"], outputs.getKeys())
-            );
+            UniValue outputs = NormalizeOutputs(request.params[0]);
+            std::vector<CRecipient> recipients{ParseWalletOutputs(
+                    outputs,
+                    InterpretSubtractFeeFromOutputInstructions(options["subtract_fee_from_outputs"], outputs.getKeys()))};
             CCoinControl coin_control;
             coin_control.m_version = self.Arg<uint32_t>("version");
-            CMutableTransaction rawTx = ConstructTransaction(options["inputs"], request.params[0], options["locktime"], rbf, coin_control.m_version);
+            // vout is rebuilt from `recipients` below, so pass empty outputs to ConstructTransaction.
+            CMutableTransaction rawTx = ConstructTransaction(options["inputs"], UniValue{UniValue::VOBJ}, options["locktime"], rbf, coin_control.m_version);
             // Automatically select coins, unless at least one is manually selected. Can
             // be overridden by options.add_inputs.
             coin_control.m_allow_other_inputs = rawTx.vin.size() == 0;
@@ -1289,13 +1346,9 @@ RPCMethod send()
             }
 
             SetOptionsInputWeights(options["inputs"], options);
-            // Clear tx.vout since it is not meant to be used now that we are passing outputs directly.
-            // This sets us up for a future PR to completely remove tx from the function signature in favor of passing inputs directly
-            rawTx.vout.clear();
             auto txr = FundTransaction(*pwallet, rawTx, recipients, options, coin_control, /*override_min_fee=*/false);
-
             CMutableTransaction tx = CMutableTransaction(*txr.tx);
-            return FinishTransaction(pwallet, options, tx);
+            return FinishTransaction(pwallet, options, tx, SpRecipients(recipients));
         }
     };
 }
@@ -1387,24 +1440,28 @@ RPCMethod sendall()
             PreventOutdatedOptions(options);
 
 
-            std::set<std::string> addresses_without_amount;
-            UniValue recipient_key_value_pairs(UniValue::VARR);
-            const UniValue& recipients{request.params[0]};
-            for (unsigned int i = 0; i < recipients.size(); ++i) {
-                const UniValue& recipient{recipients[i]};
-                if (recipient.isStr()) {
-                    UniValue rkvp(UniValue::VOBJ);
-                    rkvp.pushKV(recipient.get_str(), 0);
-                    recipient_key_value_pairs.push_back(std::move(rkvp));
-                    addresses_without_amount.insert(recipient.get_str());
+            // Reshape the recipients list into a UniValue object suitable for ParseWalletOutputs,
+            // tracking which indices had no amount (they receive an equal share of the remainder).
+            UniValue outputs_uv{UniValue::VOBJ};
+            std::set<size_t> addresses_without_amount;
+            const UniValue& recipients_in{request.params[0]};
+            for (unsigned int i = 0; i < recipients_in.size(); ++i) {
+                const UniValue& r{recipients_in[i]};
+                if (r.isStr()) {
+                    outputs_uv.pushKV(r.get_str(), 0);
+                    addresses_without_amount.insert(i);
                 } else {
-                    recipient_key_value_pairs.push_back(recipient);
+                    const auto& keys{r.getKeys()};
+                    if (keys.size() != 1) {
+                        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, key-value pair must contain exactly one key");
+                    }
+                    outputs_uv.pushKV(keys[0], r[keys[0]]);
                 }
             }
-
-            if (addresses_without_amount.size() == 0) {
+            if (addresses_without_amount.empty()) {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Must provide at least one address without a specified amount");
             }
+            std::vector<CRecipient> recipients{ParseWalletOutputs(outputs_uv)};
 
             CCoinControl coin_control;
 
@@ -1459,7 +1516,12 @@ RPCMethod sendall()
                 throw JSONRPCError(RPC_WALLET_ERROR, "Fee estimation failed. Fallbackfee is disabled. Wait a few blocks or enable -fallbackfee.");
             }
 
-            CMutableTransaction rawTx{ConstructTransaction(options["inputs"], recipient_key_value_pairs, options["locktime"], rbf, coin_control.m_version)};
+            SetSilentPaymentsCoinControl(*pwallet, recipients, coin_control);
+
+            CMutableTransaction rawTx{ConstructTransaction(options["inputs"], UniValue{UniValue::VOBJ}, options["locktime"], rbf, coin_control.m_version)};
+            // Silent payments outputs get a placeholder taproot script here; the real scripts
+            // are derived from the selected inputs below.
+            for (const auto& r : recipients) rawTx.vout.emplace_back(r.nAmount, GetScriptForDestination(r.dest));
             LOCK(pwallet->cs_wallet);
 
             CAmount total_input_value(0);
@@ -1501,6 +1563,23 @@ RPCMethod sendall()
                     rawTx.vin.push_back(input);
                     total_input_value += output.txout.nValue;
                 }
+            }
+
+            if (coin_control.m_silent_payments) {
+                std::map<size_t, SilentPaymentsDestination> sp_dests;
+                for (size_t i = 0; i < recipients.size(); ++i) {
+                    if (recipients[i].sp_dest) sp_dests.emplace(i, *recipients[i].sp_dest);
+                }
+                OutputSet input_coins;
+                for (const CTxIn& txin : rawTx.vin) {
+                    const CWalletTx* wtx{pwallet->GetWalletTx(txin.prevout.hash)};
+                    input_coins.insert(std::make_shared<COutput>(txin.prevout, wtx->GetTx()->vout[txin.prevout.n],
+                        pwallet->GetTxDepthInMainChain(*wtx), /*input_bytes=*/-1, /*solvable=*/true, /*safe=*/true, /*time=*/0, /*from_me=*/true));
+                }
+                bilingual_str err;
+                auto res = CreateSilentPaymentsOutputs(*pwallet, sp_dests, input_coins, err);
+                if (!res) throw JSONRPCError(RPC_WALLET_ERROR, err.translated);
+                for (const auto& [idx, tap] : *res) rawTx.vout[idx].scriptPubKey = GetScriptForDestination(tap);
             }
 
             std::vector<COutPoint> outpoints_spent;
@@ -1553,11 +1632,9 @@ RPCMethod sendall()
             const CAmount per_output_without_amount{remainder / (long)addresses_without_amount.size()};
 
             bool gave_remaining_to_first{false};
-            for (CTxOut& out : rawTx.vout) {
-                CTxDestination dest;
-                ExtractDestination(out.scriptPubKey, dest);
-                std::string addr{EncodeDestination(dest)};
-                if (addresses_without_amount.contains(addr)) {
+            for (size_t i = 0; i < rawTx.vout.size(); ++i) {
+                CTxOut& out = rawTx.vout[i];
+                if (addresses_without_amount.contains(i)) {
                     out.nValue = per_output_without_amount;
                     if (!gave_remaining_to_first) {
                         out.nValue += remainder % addresses_without_amount.size();
@@ -1570,7 +1647,7 @@ RPCMethod sendall()
                 } else {
                     if (IsDust(out, pwallet->chain().relayDustFee())) {
                         // Specified output amount is dust
-                        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Specified output amount to %s is below dust threshold.", addr));
+                        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Specified output amount to %s is below dust threshold.", outputs_uv.getKeys()[i]));
                     }
                 }
             }
@@ -1582,7 +1659,7 @@ RPCMethod sendall()
                 }
             }
 
-            return FinishTransaction(pwallet, options, rawTx);
+            return FinishTransaction(pwallet, options, rawTx, SpRecipients(recipients));
         }
     };
 }
@@ -1768,20 +1845,16 @@ RPCMethod walletcreatefundedpsbt()
 
     const UniValue &replaceable_arg = options["replaceable"];
     const bool rbf{replaceable_arg.isNull() ? wallet.m_signal_rbf : replaceable_arg.get_bool()};
-    CMutableTransaction rawTx = ConstructTransaction(request.params[0], request.params[1], request.params[2], rbf, coin_control.m_version);
-    UniValue outputs(UniValue::VOBJ);
-    outputs = NormalizeOutputs(request.params[1]);
-    std::vector<CRecipient> recipients = CreateRecipients(
-            ParseOutputs(outputs),
-            InterpretSubtractFeeFromOutputInstructions(options["subtractFeeFromOutputs"], outputs.getKeys())
-    );
+    UniValue outputs = NormalizeOutputs(request.params[1]);
+    std::vector<CRecipient> recipients{ParseWalletOutputs(
+            outputs,
+            InterpretSubtractFeeFromOutputInstructions(options["subtractFeeFromOutputs"], outputs.getKeys()))};
+    // vout is rebuilt from `recipients` below, so pass empty outputs to ConstructTransaction.
+    CMutableTransaction rawTx = ConstructTransaction(request.params[0], UniValue{UniValue::VOBJ}, request.params[2], rbf, coin_control.m_version);
     // Automatically select coins, unless at least one is manually selected. Can
     // be overridden by options.add_inputs.
     coin_control.m_allow_other_inputs = rawTx.vin.size() == 0;
     SetOptionsInputWeights(request.params[0], options);
-    // Clear tx.vout since it is not meant to be used now that we are passing outputs directly.
-    // This sets us up for a future PR to completely remove tx from the function signature in favor of passing inputs directly
-    rawTx.vout.clear();
     auto txr = FundTransaction(wallet, rawTx, recipients, options, coin_control, /*override_min_fee=*/true);
 
     // Make a blank psbt

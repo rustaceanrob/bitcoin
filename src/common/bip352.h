@@ -72,6 +72,25 @@ public:
         if (a.m_spend_pubkey > b.m_spend_pubkey) return false;
         return a.m_extension_data < b.m_extension_data;
     }
+
+    template<typename Stream>
+    void Serialize(Stream& s) const
+    {
+        s << m_version << m_scan_pubkey << m_spend_pubkey << m_extension_data;
+    }
+
+    //! Static so it can construct via From() (validating) without a default constructor.
+    template<typename Stream>
+    static SilentPaymentsDestination Unserialize(Stream& s)
+    {
+        uint8_t version;
+        CPubKey scan_pubkey, spend_pubkey;
+        std::vector<unsigned char> extension_data;
+        s >> version >> scan_pubkey >> spend_pubkey >> extension_data;
+        auto d = From(scan_pubkey, spend_pubkey, version, extension_data);
+        if (!d) throw std::ios_base::failure("Invalid SilentPaymentsDestination");
+        return std::move(*d);
+    }
 };
 
 //! Decode a BIP352 "sp1..." address. Returns the destination, or an error message on failure.

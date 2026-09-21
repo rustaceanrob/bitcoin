@@ -91,6 +91,9 @@ public:
     //! If true, the selection process can add extra unselected inputs from the wallet
     //! while requires all selected inputs be used
     bool m_allow_other_inputs = true;
+    //! True if we are funding a transaction with at least one silent payments recipient.
+    //! Requires at least one BIP352-eligible input for shared secret derivation.
+    bool m_silent_payments = false;
     //! Override automatic min/max checks on fee, m_feerate must be set if true
     bool fOverrideFeeRate = false;
     //! Override the wallet's fee rate if set

@@ -158,7 +158,7 @@ bool TransactionCanBeBumped(const CWallet& wallet, const Txid& txid)
 }
 
 Result CreateRateBumpTransaction(CWallet& wallet, const Txid& txid, const CCoinControl& coin_control, std::vector<bilingual_str>& errors,
-                                 CAmount& old_fee, CAmount& new_fee, CMutableTransaction& mtx, bool require_mine, const std::vector<CTxOut>& outputs, std::optional<uint32_t> original_change_index)
+                                 CAmount& old_fee, CAmount& new_fee, CMutableTransaction& mtx, bool require_mine, const std::vector<CRecipient>& outputs, std::optional<uint32_t> original_change_index)
 {
     // For now, cannot specify both new outputs to use and an output index to send change
     if (!outputs.empty() && original_change_index.has_value()) {
@@ -245,23 +245,51 @@ Result CreateRateBumpTransaction(CWallet& wallet, const Txid& txid, const CCoinC
 
     old_fee = input_value - output_value;
 
-    // Fill in recipients (and preserve a single change key if there
-    // is one). If outputs vector is non-empty, replace original
-    // outputs with its contents, otherwise use original outputs.
+    // Fill in recipients (and preserve a single change key if there is one). If `outputs`
+    // is non-empty, replace original outputs with its contents; otherwise use original
+    // outputs. For SP txs, recompute the original SP output scripts so we can identify
+    // which of the original vouts pay SP recipients and preserve those recipients across
+    // the replacement (allowing new inputs to derive new SP scripts).
     std::vector<CRecipient> recipients;
     CAmount new_outputs_value = 0;
-    const auto& txouts = outputs.empty() ? tx->vout : outputs;
-    for (size_t i = 0; i < txouts.size(); ++i) {
-        const CTxOut& output = txouts.at(i);
-        CTxDestination dest;
-        ExtractDestination(output.scriptPubKey, dest);
-        if (original_change_index.has_value() ?  original_change_index.value() == i : OutputIsChange(wallet, output)) {
-            new_coin_control.destChange = dest;
-        } else {
-            CRecipient recipient = {dest, output.nValue, false};
-            recipients.push_back(recipient);
+    if (!outputs.empty()) {
+        for (const auto& r : outputs) {
+            if (r.sp_dest) new_coin_control.m_silent_payments = true;
+            recipients.push_back(r);
+            new_outputs_value += r.nAmount;
         }
-        new_outputs_value += output.nValue;
+    } else {
+        std::map<CScript, size_t> sp_script_to_recipient;
+        if (!wtx.m_sprecipients.empty()) {
+            std::map<size_t, SilentPaymentsDestination> sp_dests;
+            for (size_t i = 0; i < wtx.m_sprecipients.size(); ++i) sp_dests.emplace(i, wtx.m_sprecipients[i]);
+            OutputSet input_coins;
+            for (const CTxIn& txin : tx->vin) {
+                input_coins.insert(std::make_shared<COutput>(txin.prevout, coins.at(txin.prevout).out,
+                    /*depth=*/1, /*input_bytes=*/-1, /*solvable=*/true, /*safe=*/true, /*time=*/0, /*from_me=*/true));
+            }
+            bilingual_str sp_error;
+            if (const auto sp_result = CreateSilentPaymentsOutputs(wallet, sp_dests, input_coins, sp_error)) {
+                for (const auto& [idx, tap] : *sp_result) sp_script_to_recipient.emplace(GetScriptForDestination(tap), idx);
+                new_coin_control.m_silent_payments = true;
+            }
+        }
+        for (size_t i = 0; i < tx->vout.size(); ++i) {
+            const CTxOut& output = tx->vout[i];
+            new_outputs_value += output.nValue;
+            if (original_change_index.has_value() ? original_change_index.value() == i : OutputIsChange(wallet, output)) {
+                ExtractDestination(output.scriptPubKey, new_coin_control.destChange);
+                continue;
+            }
+            CRecipient r{{}, output.nValue, /*fSubtractFeeFromAmount=*/false};
+            if (const auto sp_it = sp_script_to_recipient.find(output.scriptPubKey); sp_it != sp_script_to_recipient.end()) {
+                r.sp_dest = wtx.m_sprecipients[sp_it->second];
+                r.dest = WitnessV1Taproot{};
+            } else {
+                ExtractDestination(output.scriptPubKey, r.dest);
+            }
+            recipients.push_back(std::move(r));
+        }
     }
 
     // If no recipients, means that we are sending coins to a change address
@@ -287,7 +315,12 @@ Result CreateRateBumpTransaction(CWallet& wallet, const Txid& txid, const CCoinC
             txin.scriptSig.clear();
             txin.scriptWitness.SetNull();
         }
-        temp_mtx.vout = txouts;
+        if (!outputs.empty()) {
+            temp_mtx.vout.clear();
+            for (const auto& r : outputs) {
+                temp_mtx.vout.emplace_back(r.nAmount, GetScriptForDestination(r.dest));
+            }
+        }
         const int64_t maxTxSize{CalculateMaximumSignedTxSize(CTransaction(temp_mtx), &wallet, &new_coin_control).vsize};
         Result res = CheckFeeRate(wallet, temp_mtx, *new_coin_control.m_feerate, maxTxSize, old_fee, errors);
         if (res != Result::OK) {
@@ -370,7 +403,7 @@ Result CommitTransaction(CWallet& wallet, const Txid& txid, CMutableTransaction&
 
     // commit/broadcast the tx
     CTransactionRef tx = MakeTransactionRef(std::move(mtx));
-    wallet.CommitTransaction(tx, oldWtx.GetHash(), oldWtx.m_comment, oldWtx.m_comment_to, oldWtx.m_messages, oldWtx.m_payment_requests);
+    wallet.CommitTransaction(tx, oldWtx.GetHash(), oldWtx.m_comment, oldWtx.m_comment_to, oldWtx.m_messages, oldWtx.m_payment_requests, oldWtx.m_sprecipients);
 
     // mark the original tx as bumped
     bumped_txid = tx->GetHash();

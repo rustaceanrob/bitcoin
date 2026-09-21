@@ -7,6 +7,7 @@
 #define BITCOIN_WALLET_WALLET_H
 
 #include <addresstype.h>
+#include <common/bip352.h>
 #include <consensus/amount.h>
 #include <interfaces/chain.h>
 #include <interfaces/handler.h>
@@ -298,11 +299,17 @@ inline std::optional<AddressPurpose> PurposeFromString(std::string_view s)
     return {};
 }
 
+/**
+ * A wallet send recipient. If `sp_dest` is set, this is a BIP352 silent payments
+ * recipient: `dest` is a zero-key WitnessV1Taproot placeholder used for size/dust
+ * estimation, and `vout.scriptPubKey` is filled in post coin selection from `sp_dest`.
+ */
 struct CRecipient
 {
     CTxDestination dest;
     CAmount nAmount;
     bool fSubtractFeeFromAmount;
+    std::optional<SilentPaymentsDestination> sp_dest{};
 };
 
 
@@ -664,6 +671,8 @@ public:
      * @param[in] comment The user's comment for this transaction
      * @param[in] comment_to The comment for this transaction indicating where coins are sent to
      * @param[in] messages The BIP 21 URI messages to attach to this transaction
+     * @param[in] payment_requests The BIP 70 payment requests to attach to this transaction
+     * @param[in] sp_recipients The silent payments recipients this transaction pays to
      */
     void CommitTransaction(
         CTransactionRef tx,
@@ -671,7 +680,8 @@ public:
         std::optional<std::string> comment = std::nullopt,
         std::optional<std::string> comment_to = std::nullopt,
         const std::vector<std::string>& messages = {},
-        const std::vector<std::string>& payment_requests = {}
+        const std::vector<std::string>& payment_requests = {},
+        const std::vector<SilentPaymentsDestination>& sp_recipients = {}
     );
 
     /** Pass this transaction to node for optional mempool insertion and relay to peers. */

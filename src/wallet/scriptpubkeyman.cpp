@@ -1526,6 +1526,35 @@ void DescriptorScriptPubKeyMan::Load()
     m_storage.TopUpCallback(new_spks, this);
 }
 
+void DescriptorScriptPubKeyMan::AddSilentPaymentsInputKey(const CScript& scriptPubKey, std::vector<CKey>& plain_keys, std::vector<KeyPair>& taproot_keys) const
+{
+    std::vector<std::vector<unsigned char>> solutions;
+    TxoutType whichType = Solver(scriptPubKey, solutions);
+    if (whichType != TxoutType::WITNESS_V1_TAPROOT &&
+        whichType != TxoutType::WITNESS_V0_KEYHASH &&
+        whichType != TxoutType::SCRIPTHASH &&
+        whichType != TxoutType::PUBKEYHASH) return;
+
+    std::unique_ptr<FlatSigningProvider> coin_keys = GetSigningProvider(scriptPubKey, /*include_private=*/true);
+    if (!coin_keys || coin_keys->keys.size() != 1) return;
+    const auto& key = coin_keys->keys.begin()->second;
+
+    if (whichType == TxoutType::WITNESS_V1_TAPROOT) {
+        const XOnlyPubKey pubkey_from_spk{solutions[0]};
+        // A "rawtr" output is spent directly with its key; otherwise tweak the key with the
+        // merkle root (which is the tweak for a key-path-only taproot output).
+        if (XOnlyPubKey{key.GetPubKey()} == pubkey_from_spk) {
+            taproot_keys.push_back(key.ComputeKeyPair(/*merkle_root=*/nullptr));
+        } else {
+            TaprootSpendData spenddata;
+            coin_keys->GetTaprootSpendData(pubkey_from_spk, spenddata);
+            taproot_keys.push_back(key.ComputeKeyPair(&spenddata.merkle_root));
+        }
+        return;
+    }
+    plain_keys.push_back(key);
+}
+
 bool DescriptorScriptPubKeyMan::HasWalletDescriptor(const WalletDescriptor& desc) const
 {
     LOCK(cs_desc_man);

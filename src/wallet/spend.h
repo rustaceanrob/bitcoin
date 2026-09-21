@@ -192,6 +192,17 @@ util::Result<SelectionResult> SelectCoins(const CWallet& wallet, CoinsResult& av
 void DiscourageFeeSniping(CMutableTransaction& tx, FastRandomContext& rng_fast, interfaces::Chain& chain, const uint256& block_hash, int block_height);
 
 /**
+ * Generate the taproot output scripts for silent payments recipients by deriving the shared
+ * secret from the selected inputs. Returns a map from recipient index in `vecSend` to the
+ * generated taproot destination, or std::nullopt on failure (with `error` set).
+ */
+std::optional<std::map<size_t, WitnessV1Taproot>> CreateSilentPaymentsOutputs(
+    const CWallet& wallet,
+    const std::map<size_t, SilentPaymentsDestination>& silent_payments_destinations,
+    const OutputSet& selected_coins,
+    bilingual_str& error);
+
+/**
  * Create a new transaction paying the recipients with a set of coins
  * selected by SelectCoins(); Also create the change output, when needed
  * @note passing change_pos as std::nullopt will result in setting a random position
