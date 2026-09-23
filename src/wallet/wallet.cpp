@@ -2074,13 +2074,19 @@ OutputType CWallet::TransactionChangeType(const std::optional<OutputType>& chang
     bool any_pkh{false};
 
     for (const auto& recipient : vecSend) {
-        if (std::get_if<WitnessV1Taproot>(&recipient.dest)) {
+        if (std::holds_alternative<bip352::SilentPaymentsDestination>(recipient.dest)) {
+            // Silent payments outputs are always taproot outputs
             any_tr = true;
-        } else if (std::get_if<WitnessV0KeyHash>(&recipient.dest)) {
+            continue;
+        }
+        const CTxDestination& dest{std::get<CTxDestination>(recipient.dest)};
+        if (std::get_if<WitnessV1Taproot>(&dest)) {
+            any_tr = true;
+        } else if (std::get_if<WitnessV0KeyHash>(&dest)) {
             any_wpkh = true;
-        } else if (std::get_if<ScriptHash>(&recipient.dest)) {
+        } else if (std::get_if<ScriptHash>(&dest)) {
             any_sh = true;
-        } else if (std::get_if<PKHash>(&recipient.dest)) {
+        } else if (std::get_if<PKHash>(&dest)) {
             any_pkh = true;
         }
     }

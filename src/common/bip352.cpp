@@ -65,6 +65,12 @@ std::optional<SilentPaymentsDestination> SilentPaymentsDestination::From(
     return SilentPaymentsDestination(version, scan_pubkey, spend_pubkey, extension_data);
 }
 
+const CScript& GetOutputTemplateScript()
+{
+    static const CScript script{GetScriptForDestination(WitnessV1Taproot{XOnlyPubKey::NUMS_H})};
+    return script;
+}
+
 util::Expected<SilentPaymentsDestination, std::string> DecodeSilentPaymentsAddress(
     const std::string& str, const CChainParams& params)
 {

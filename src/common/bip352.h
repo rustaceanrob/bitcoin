@@ -107,9 +107,30 @@ public:
     }
 };
 
+/**
+ * A destination a payment can be sent to: either a destination with a directly
+ * encodable output script, or a silent payments destination whose output script
+ * is derived from the paying transaction's inputs.
+ */
+using PaymentDestination = std::variant<CTxDestination, SilentPaymentsDestination>;
+
 //! Decode a BIP352 "sp1..." address. Returns the destination, or an error message on failure.
 util::Expected<SilentPaymentsDestination, std::string> DecodeSilentPaymentsAddress(
     const std::string& str, const CChainParams& params);
+
+/**
+ * The template output script of a silent payments recipient.
+ *
+ * A silent payments output is always a P2TR output, but the output script can only
+ * be computed once the transaction's inputs are known, since the output key is an
+ * ECDH between the recipient's scan public key and the input keys. Before the inputs
+ * are known, this template stands in for the output wherever only its form matters
+ * (e.g. serialized size or the dust threshold).
+ *
+ * The template pays to the NUMS point H (BIP341), so if a template output were ever
+ * included in a broadcast transaction, the coins would be provably unspendable.
+ */
+const CScript& GetOutputTemplateScript();
 
 class SilentPaymentsLabel {
 private:

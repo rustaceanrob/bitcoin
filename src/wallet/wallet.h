@@ -7,6 +7,7 @@
 #define BITCOIN_WALLET_WALLET_H
 
 #include <addresstype.h>
+#include <common/bip352.h>
 #include <consensus/amount.h>
 #include <interfaces/chain.h>
 #include <interfaces/handler.h>
@@ -300,7 +301,7 @@ inline std::optional<AddressPurpose> PurposeFromString(std::string_view s)
 
 struct CRecipient
 {
-    CTxDestination dest;
+    bip352::PaymentDestination dest;
     CAmount nAmount;
     bool fSubtractFeeFromAmount;
 };

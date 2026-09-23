@@ -32,7 +32,7 @@ using common::TransactionErrorString;
 using node::TransactionError;
 
 namespace wallet {
-std::vector<CRecipient> CreateRecipients(const std::vector<std::pair<CTxDestination, CAmount>>& outputs, const std::set<int>& subtract_fee_outputs)
+std::vector<CRecipient> CreateRecipients(const std::vector<std::pair<bip352::PaymentDestination, CAmount>>& outputs, const std::set<int>& subtract_fee_outputs)
 {
     std::vector<CRecipient> recipients;
     for (size_t i = 0; i < outputs.size(); ++i) {
@@ -246,7 +246,7 @@ RPCMethod sendtoaddress()
         "Send an amount to a given address." +
         HELP_REQUIRING_PASSPHRASE,
                 {
-                    {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The bitcoin address to send to."},
+                    {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The bitcoin or silent payments address to send to."},
                     {"amount", RPCArg::Type::AMOUNT, RPCArg::Optional::NO, "The amount in " + CURRENCY_UNIT + " to send. eg 0.1"},
                     {"comment", RPCArg::Type::STR, RPCArg::Optional::OMITTED, "A comment used to store what the transaction is for.\n"
                                          "This is not part of the transaction, just kept in your wallet."},
@@ -351,7 +351,7 @@ RPCMethod sendmany()
                      }},
                     {"amounts", RPCArg::Type::OBJ_USER_KEYS, RPCArg::Optional::NO, "The addresses and amounts",
                         {
-                            {"address", RPCArg::Type::AMOUNT, RPCArg::Optional::NO, "The bitcoin address is the key, the numeric amount (can be string) in " + CURRENCY_UNIT + " is the value"},
+                            {"address", RPCArg::Type::AMOUNT, RPCArg::Optional::NO, "The bitcoin or silent payments address is the key, the numeric amount (can be string) in " + CURRENCY_UNIT + " is the value"},
                         },
                     },
                     {"minconf", RPCArg::Type::NUM, RPCArg::Optional::OMITTED, "Ignored dummy value",
@@ -811,7 +811,7 @@ RPCMethod fundrawtransaction()
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
     }
     UniValue options = request.params[1];
-    std::vector<std::pair<CTxDestination, CAmount>> destinations;
+    std::vector<std::pair<bip352::PaymentDestination, CAmount>> destinations;
     for (const auto& tx_out : tx.vout) {
         CTxDestination dest;
         ExtractDestination(tx_out.scriptPubKey, dest);
@@ -947,7 +947,7 @@ static std::vector<RPCArg> OutputsDoc()
     {
         {"", RPCArg::Type::OBJ_USER_KEYS, RPCArg::Optional::OMITTED, "",
             {
-                {"address", RPCArg::Type::AMOUNT, RPCArg::Optional::NO, "A key-value pair. The key (string) is the bitcoin address,\n"
+                {"address", RPCArg::Type::AMOUNT, RPCArg::Optional::NO, "A key-value pair. The key (string) is the bitcoin address or silent payments address,\n"
                          "the value (float or string) is the amount in " + CURRENCY_UNIT + ""},
             },
         },
@@ -1280,7 +1280,10 @@ RPCMethod send()
             );
             CCoinControl coin_control;
             coin_control.m_version = self.Arg<uint32_t>("version");
-            CMutableTransaction rawTx = ConstructTransaction(options["inputs"], request.params[0], options["locktime"], rbf, coin_control.m_version);
+            // Outputs are passed as recipients, not via the transaction: rawTx.vout is
+            // cleared below, and silent payments outputs can only be created during
+            // funding (their script is derived from the transaction inputs).
+            CMutableTransaction rawTx = ConstructTransaction(options["inputs"], UniValue(UniValue::VOBJ), options["locktime"], rbf, coin_control.m_version);
             // Automatically select coins, unless at least one is manually selected. Can
             // be overridden by options.add_inputs.
             coin_control.m_allow_other_inputs = rawTx.vin.size() == 0;
@@ -1768,7 +1771,10 @@ RPCMethod walletcreatefundedpsbt()
 
     const UniValue &replaceable_arg = options["replaceable"];
     const bool rbf{replaceable_arg.isNull() ? wallet.m_signal_rbf : replaceable_arg.get_bool()};
-    CMutableTransaction rawTx = ConstructTransaction(request.params[0], request.params[1], request.params[2], rbf, coin_control.m_version);
+    // Outputs are passed as recipients, not via the transaction: rawTx.vout is
+    // cleared below, and silent payments outputs can only be created during
+    // funding (their script is derived from the transaction inputs).
+    CMutableTransaction rawTx = ConstructTransaction(request.params[0], UniValue(UniValue::VOBJ), request.params[2], rbf, coin_control.m_version);
     UniValue outputs(UniValue::VOBJ);
     outputs = NormalizeOutputs(request.params[1]);
     std::vector<CRecipient> recipients = CreateRecipients(

@@ -108,11 +108,11 @@ UniValue NormalizeOutputs(const UniValue& outputs_in)
     return outputs;
 }
 
-std::vector<std::pair<CTxDestination, CAmount>> ParseOutputs(const UniValue& outputs)
+std::vector<std::pair<bip352::PaymentDestination, CAmount>> ParseOutputs(const UniValue& outputs)
 {
     // Duplicate checking
-    std::set<CTxDestination> destinations;
-    std::vector<std::pair<CTxDestination, CAmount>> parsed_outputs;
+    std::set<bip352::PaymentDestination> destinations;
+    std::vector<std::pair<bip352::PaymentDestination, CAmount>> parsed_outputs;
     bool has_data{false};
     const auto& keys{outputs.getKeys()};
     const auto& values{outputs.getValues()};
@@ -129,10 +129,14 @@ std::vector<std::pair<CTxDestination, CAmount>> ParseOutputs(const UniValue& out
             CAmount amount{0};
             parsed_outputs.emplace_back(destination, amount);
         } else {
-            CTxDestination destination{DecodeDestination(name_)};
+            bip352::PaymentDestination destination{DecodeDestination(name_)};
             CAmount amount{AmountFromValue(value)};
-            if (!IsValidDestination(destination)) {
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Bitcoin address: ") + name_);
+            if (!IsValidDestination(std::get<CTxDestination>(destination))) {
+                auto sp_destination{bip352::DecodeSilentPaymentsAddress(name_, Params())};
+                if (!sp_destination) {
+                    throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Bitcoin address: ") + name_);
+                }
+                destination = *sp_destination;
             }
 
             if (!destinations.insert(destination).second) {
@@ -149,9 +153,14 @@ void AddOutputs(CMutableTransaction& rawTx, const UniValue& outputs_in)
     UniValue outputs(UniValue::VOBJ);
     outputs = NormalizeOutputs(outputs_in);
 
-    std::vector<std::pair<CTxDestination, CAmount>> parsed_outputs = ParseOutputs(outputs);
-    for (const auto& [destination, nAmount] : parsed_outputs) {
-        CScript scriptPubKey = GetScriptForDestination(destination);
+    for (const auto& [destination, nAmount] : ParseOutputs(outputs)) {
+        const auto* tx_destination{std::get_if<CTxDestination>(&destination)};
+        if (!tx_destination) {
+            // A silent payments output script is derived from the transaction inputs,
+            // so it cannot be created before the transaction is funded and signed.
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Silent payments addresses are not supported in raw transactions");
+        }
+        CScript scriptPubKey = GetScriptForDestination(*tx_destination);
 
         CTxOut out(nAmount, scriptPubKey);
         rawTx.vout.push_back(out);

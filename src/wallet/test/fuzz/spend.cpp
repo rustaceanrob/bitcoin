@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <addresstype.h>
+#include <common/bip352.h>
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
 #include <test/fuzz/util.h>
@@ -95,6 +96,19 @@ FUZZ_TARGET(wallet_create_transaction, .init = initialize_setup)
         recipients.push_back({destination,
                               /*nAmount=*/ConsumeMoney(fuzzed_data_provider),
                               /*fSubtractFeeFromAmount=*/fuzzed_data_provider.ConsumeBool()});
+    }
+    // A silent payments destination is derived into a taproot output during
+    // transaction creation
+    if (fuzzed_data_provider.ConsumeBool()) {
+        const auto scan_bytes{ConsumeFixedLengthByteVector(fuzzed_data_provider, CPubKey::COMPRESSED_SIZE)};
+        const auto spend_bytes{ConsumeFixedLengthByteVector(fuzzed_data_provider, CPubKey::COMPRESSED_SIZE)};
+        const CPubKey scan_pubkey{scan_bytes.begin(), scan_bytes.end()};
+        const CPubKey spend_pubkey{spend_bytes.begin(), spend_bytes.end()};
+        if (const auto sp{bip352::SilentPaymentsDestination::From(scan_pubkey, spend_pubkey)}) {
+            recipients.push_back({*sp,
+                                  /*nAmount=*/ConsumeMoney(fuzzed_data_provider),
+                                  /*fSubtractFeeFromAmount=*/fuzzed_data_provider.ConsumeBool()});
+        }
     }
 
     std::optional<unsigned int> change_pos;

@@ -329,6 +329,7 @@ BASE_SCRIPTS = [
     'wallet_send.py',
     'wallet_sendall.py',
     'wallet_sendmany.py',
+    'wallet_silentpayments_sending.py',
     'wallet_spend_unconfirmed.py',
     'wallet_rescan_unconfirmed.py',
     'p2p_fingerprint.py',
