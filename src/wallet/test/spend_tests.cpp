@@ -2,14 +2,19 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <common/bip352.h>
 #include <consensus/amount.h>
 #include <key.h>
+#include <key_io.h>
 #include <script/solver.h>
 #include <validation.h>
 #include <wallet/coincontrol.h>
+#include <wallet/scan.h>
 #include <wallet/spend.h>
 #include <wallet/test/util.h>
 #include <wallet/test/wallet_test_fixture.h>
+
+#include <algorithm>
 
 #include <boost/test/unit_test.hpp>
 
@@ -43,7 +48,7 @@ BOOST_FIXTURE_TEST_CASE(SubtractFee, TestChain100Setup)
     // leftover input amount which would have been change to the recipient
     // instead of the miner.
     auto check_tx = [&wallet](CAmount leftover_input_amount) {
-        CRecipient recipient{PubKeyDestination({}), 50 * COIN - leftover_input_amount, /*subtract_fee=*/true};
+        CRecipient recipient{CTxDestination{PubKeyDestination({})}, 50 * COIN - leftover_input_amount, /*subtract_fee=*/true};
         CCoinControl coin_control;
         coin_control.m_feerate.emplace(10000);
         coin_control.fOverrideFeeRate = true;
@@ -118,6 +123,101 @@ BOOST_FIXTURE_TEST_CASE(wallet_duplicated_preset_inputs_test, TestChain100Setup)
     // Second case, don't use 'subtract_fee_from_outputs'.
     recipients[0].fSubtractFeeFromAmount = false;
     BOOST_CHECK(!CreateTransaction(*wallet, recipients, /*change_pos=*/std::nullopt, coin_control));
+}
+
+BOOST_FIXTURE_TEST_CASE(send_to_silent_payments, TestChain100Setup)
+{
+    // Mine a P2WPKH coinbase output owned by the wallet and mature it, so that
+    // the wallet has exactly one silent payments eligible input.
+    const CScript eligible_spk = GetScriptForDestination(WitnessV0KeyHash{coinbaseKey.GetPubKey()});
+    CreateAndProcessBlock({}, eligible_spk);
+    for (int i = 0; i < 100; ++i) CreateAndProcessBlock({}, CScript() << OP_TRUE);
+
+    auto wallet = CreateSyncedWallet(*m_node.chain, WITH_LOCK(Assert(m_node.chainman)->GetMutex(), return m_node.chainman->ActiveChain()), coinbaseKey);
+
+    const CKey scan_key{GenerateRandomKey()};
+    const CKey spend_key{GenerateRandomKey()};
+    auto sp_dest = bip352::SilentPaymentsDestination::From(scan_key.GetPubKey(), spend_key.GetPubKey());
+    BOOST_REQUIRE(sp_dest);
+
+    const CAmount amount{1 * COIN};
+    CRecipient recipient{*sp_dest, amount, /*fSubtractFeeFromAmount=*/false};
+    CCoinControl coin_control;
+    auto res = CreateTransaction(*wallet, {recipient}, /*change_pos=*/std::nullopt, coin_control);
+    BOOST_REQUIRE(res);
+    const CTransactionRef& tx = res->tx;
+
+    // Only the P2WPKH output is eligible, so it must be the sole input.
+    BOOST_REQUIRE_EQUAL(tx->vin.size(), 1);
+
+    // Independently derive the expected output from the selected input.
+    std::map<size_t, bip352::SilentPaymentsDestination> sp_dests{{0, *sp_dest}};
+    auto expected = bip352::GenerateSilentPaymentsTaprootDestinations(sp_dests, {coinbaseKey}, {}, tx->vin[0].prevout);
+    BOOST_REQUIRE(expected);
+    const CScript expected_spk = GetScriptForDestination(expected->at(0));
+
+    auto out_it = std::find_if(tx->vout.begin(), tx->vout.end(), [&](const CTxOut& out) { return out.scriptPubKey == expected_spk; });
+    BOOST_REQUIRE(out_it != tx->vout.end());
+    BOOST_CHECK_EQUAL(out_it->nValue, amount);
+}
+
+BOOST_FIXTURE_TEST_CASE(send_to_silent_payments_taproot_input, TestChain100Setup)
+{
+    // Mine a mature P2TR coinbase output derived from the coinbase key.
+    const XOnlyPubKey internal_key{coinbaseKey.GetPubKey()};
+    const auto tweaked = internal_key.CreateTapTweak(/*merkle_root=*/nullptr);
+    BOOST_REQUIRE(tweaked);
+    const CScript tr_spk = GetScriptForDestination(WitnessV1Taproot{tweaked->first});
+    CreateAndProcessBlock({}, tr_spk);
+    for (int i = 0; i < 100; ++i) CreateAndProcessBlock({}, CScript() << OP_TRUE);
+
+    auto& cchain = WITH_LOCK(Assert(m_node.chainman)->GetMutex(), return m_node.chainman->ActiveChain());
+    auto wallet = CreateSyncedWallet(*m_node.chain, cchain, coinbaseKey);
+    // combo() does not cover taproot, so add a tr descriptor and rescan.
+    CreateDescriptor(*wallet, "tr(" + EncodeSecret(coinbaseKey) + ")", /*success=*/true);
+    {
+        WalletRescanReserver reserver(*wallet);
+        reserver.reserve();
+        const ScanResult result = wallet->Scanner().Scan(cchain.Genesis()->GetBlockHash(), /*start_height=*/0, /*max_height=*/{}, reserver, /*save_progress=*/false);
+        BOOST_REQUIRE(result.status == ScanResult::SUCCESS);
+    }
+
+    const CKey scan_key{GenerateRandomKey()};
+    const CKey spend_key{GenerateRandomKey()};
+    auto sp_dest = bip352::SilentPaymentsDestination::From(scan_key.GetPubKey(), spend_key.GetPubKey());
+    BOOST_REQUIRE(sp_dest);
+
+    const CAmount amount{1 * COIN};
+    CRecipient recipient{*sp_dest, amount, /*fSubtractFeeFromAmount=*/false};
+    CCoinControl coin_control;
+    auto res = CreateTransaction(*wallet, {recipient}, /*change_pos=*/std::nullopt, coin_control);
+    BOOST_REQUIRE(res);
+    const CTransactionRef& tx = res->tx;
+    BOOST_REQUIRE_EQUAL(tx->vin.size(), 1);
+
+    // The recipient must be able to scan the transaction and find the output.
+    // This only works if the sender used the private key for the taproot output
+    // key (and not the untweaked internal key).
+    std::map<COutPoint, Coin> coins;
+    coins[tx->vin[0].prevout] = Coin{CTxOut{50 * COIN, tr_spk}, 0, false};
+    CTxIn txin{tx->vin[0].prevout};
+    txin.scriptWitness.stack.emplace_back(64, 0); // dummy key path signature
+    auto prevouts_summary = bip352::GetSilentPaymentsPrevoutsSummary({txin}, coins);
+    BOOST_REQUIRE(prevouts_summary);
+
+    std::vector<XOnlyPubKey> tx_outputs;
+    for (const CTxOut& out : tx->vout) {
+        CTxDestination dest;
+        if (ExtractDestination(out.scriptPubKey, dest)) {
+            if (const auto* tap = std::get_if<WitnessV1Taproot>(&dest)) {
+                tx_outputs.push_back(XOnlyPubKey{*tap});
+            }
+        }
+    }
+    bip352::SilentPaymentsReceiver receiver{scan_key, spend_key.GetPubKey()};
+    const auto found = receiver.Scan(*prevouts_summary, tx_outputs);
+    BOOST_REQUIRE(found);
+    BOOST_CHECK(!found->empty());
 }
 
 BOOST_AUTO_TEST_SUITE_END()

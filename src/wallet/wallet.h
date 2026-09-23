@@ -7,6 +7,7 @@
 #define BITCOIN_WALLET_WALLET_H
 
 #include <addresstype.h>
+#include <common/bip352.h>
 #include <consensus/amount.h>
 #include <interfaces/chain.h>
 #include <interfaces/handler.h>
@@ -53,6 +54,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 #include <vector>
 
 class CKey;
@@ -298,9 +300,16 @@ inline std::optional<AddressPurpose> PurposeFromString(std::string_view s)
     return {};
 }
 
+/**
+ * The destination of a payment. Normally a resolved CTxDestination, but for
+ * silent payments it is a bip352::SilentPaymentsDestination whose output script
+ * can only be derived once the transaction inputs are known.
+ */
+using RecipientDestination = std::variant<CTxDestination, bip352::SilentPaymentsDestination>;
+
 struct CRecipient
 {
-    CTxDestination dest;
+    RecipientDestination dest;
     CAmount nAmount;
     bool fSubtractFeeFromAmount;
 };

@@ -2,6 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <chainparams.h>
+#include <common/bip352.h>
 #include <common/messages.h>
 #include <consensus/validation.h>
 #include <core_io.h>
@@ -13,6 +15,7 @@
 #include <rpc/util.h>
 #include <script/script.h>
 #include <util/rbf.h>
+#include <util/strencodings.h>
 #include <util/translation.h>
 #include <util/vector.h>
 #include <wallet/coincontrol.h>
@@ -39,6 +42,43 @@ std::vector<CRecipient> CreateRecipients(const std::vector<std::pair<CTxDestinat
         const auto& [destination, amount] = outputs.at(i);
         CRecipient recipient{destination, amount, subtract_fee_outputs.contains(i)};
         recipients.push_back(recipient);
+    }
+    return recipients;
+}
+
+std::vector<CRecipient> CreateRecipients(const UniValue& outputs, const std::set<int>& subtract_fee_outputs)
+{
+    std::set<RecipientDestination> seen;
+    std::vector<CRecipient> recipients;
+    const auto& keys{outputs.getKeys()};
+    const auto& values{outputs.getValues()};
+    for (size_t i{0}; i < keys.size(); ++i) {
+        const std::string& name_{keys[i]};
+        const UniValue& value{values[i]};
+        RecipientDestination dest;
+        CAmount amount{0};
+        if (name_ == "data") {
+            std::vector<unsigned char> data = ParseHexV(value.getValStr(), "Data");
+            dest = CTxDestination{CNoDestination{CScript() << OP_RETURN << data}};
+        } else {
+            amount = AmountFromValue(value);
+            const std::string& sp_hrp = Params().SilentPaymentsHRP();
+            if (name_.size() > sp_hrp.size() && ToLower(name_.substr(0, sp_hrp.size())) == sp_hrp && name_[sp_hrp.size()] == '1') {
+                auto sp = bip352::DecodeSilentPaymentsAddress(name_, Params());
+                if (!sp) throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, sp.error());
+                dest = *sp;
+            } else {
+                CTxDestination d{DecodeDestination(name_)};
+                if (!IsValidDestination(d)) {
+                    throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Bitcoin address: ") + name_);
+                }
+                dest = d;
+            }
+        }
+        if (!seen.insert(dest).second) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + name_);
+        }
+        recipients.push_back(CRecipient{dest, amount, subtract_fee_outputs.contains(i)});
     }
     return recipients;
 }
@@ -330,7 +370,7 @@ RPCMethod sendtoaddress()
         sffo_set.insert(0);
     }
 
-    std::vector<CRecipient> recipients{CreateRecipients(ParseOutputs(address_amounts), sffo_set)};
+    std::vector<CRecipient> recipients{CreateRecipients(address_amounts, sffo_set)};
     const bool verbose{request.params[10].isNull() ? false : request.params[10].get_bool()};
 
     return SendMoney(*pwallet, coin_control, recipients, comment, comment_to, verbose);
@@ -424,9 +464,8 @@ RPCMethod sendmany()
     SetFeeEstimateMode(*pwallet, coin_control, /*conf_target=*/request.params[6], /*estimate_mode=*/request.params[7], /*fee_rate=*/request.params[8], /*override_min_fee=*/false);
 
     std::vector<CRecipient> recipients = CreateRecipients(
-            ParseOutputs(sendTo),
-            InterpretSubtractFeeFromOutputInstructions(request.params[4], sendTo.getKeys())
-    );
+        sendTo,
+        InterpretSubtractFeeFromOutputInstructions(request.params[4], sendTo.getKeys()));
     const bool verbose{request.params[9].isNull() ? false : request.params[9].get_bool()};
 
     return SendMoney(*pwallet, coin_control, recipients, comment, /*comment_to=*/std::nullopt, verbose);
@@ -1275,12 +1314,14 @@ RPCMethod send()
             UniValue outputs(UniValue::VOBJ);
             outputs = NormalizeOutputs(request.params[0]);
             std::vector<CRecipient> recipients = CreateRecipients(
-                    ParseOutputs(outputs),
-                    InterpretSubtractFeeFromOutputInstructions(options["subtract_fee_from_outputs"], outputs.getKeys())
-            );
+                outputs,
+                InterpretSubtractFeeFromOutputInstructions(options["subtract_fee_from_outputs"], outputs.getKeys()));
             CCoinControl coin_control;
             coin_control.m_version = self.Arg<uint32_t>("version");
-            CMutableTransaction rawTx = ConstructTransaction(options["inputs"], request.params[0], options["locktime"], rbf, coin_control.m_version);
+            // The outputs are parsed into recipients below (which supports silent
+            // payments addresses); pass an empty outputs object here since the
+            // constructed transaction's vout is discarded.
+            CMutableTransaction rawTx = ConstructTransaction(options["inputs"], UniValue{UniValue::VOBJ}, options["locktime"], rbf, coin_control.m_version);
             // Automatically select coins, unless at least one is manually selected. Can
             // be overridden by options.add_inputs.
             coin_control.m_allow_other_inputs = rawTx.vin.size() == 0;

@@ -66,6 +66,30 @@ struct BIP352Comparator {
     }
 };
 
+/**
+ * The scriptPubKey template for a Silent Payments output.
+ *
+ * A Silent Payments output is always a P2TR output, but its output key is
+ * derived from the transaction inputs and is therefore unknown when a recipient
+ * is added to a transaction. The output script's size and dust threshold only
+ * depend on the output type, so this type carries the P2TR template script used
+ * for fee estimation before the real output is derived. It is deliberately
+ * distinct from a spendable output script: the embedded key is a placeholder
+ * and the script must never be included in a transaction as-is.
+ */
+class OutputScriptTemplate
+{
+public:
+    //! The output script template for the given Silent Payments version.
+    static OutputScriptTemplate ForVersion(uint8_t version);
+
+    const CScript& GetScript() const LIFETIMEBOUND { return m_script; }
+
+private:
+    explicit OutputScriptTemplate(CScript script) : m_script{std::move(script)} {}
+    CScript m_script;
+};
+
 struct SilentPaymentsDestination
 {
 private:
@@ -94,6 +118,11 @@ public:
     const CPubKey& GetScanPubKey() const { return m_scan_pubkey; }
     const CPubKey& GetSpendPubKey() const { return m_spend_pubkey; }
     std::span<const unsigned char> GetExtensionData() const { return m_extension_data; }
+
+    //! The output script template for an output paying this destination. Only
+    //! valid for size/dust estimation; the real output script is derived from
+    //! the transaction inputs.
+    OutputScriptTemplate GetOutputScriptTemplate() const;
 
     bool operator==(const SilentPaymentsDestination&) const = default;
 

@@ -392,5 +392,17 @@ BOOST_AUTO_TEST_CASE(bip352_decode_address)
     SelectParams(ChainType::MAIN);
 }
 
+BOOST_AUTO_TEST_CASE(bip352_output_script_template)
+{
+    CKey scan_key = ParseHexToCKey("0000000000000000000000000000000000000000000000000000000000000002");
+    CKey spend_key = ParseHexToCKey("0000000000000000000000000000000000000000000000000000000000000003");
+    auto sp_dest = SilentPaymentsDestination::From(scan_key.GetPubKey(), spend_key.GetPubKey());
+    BOOST_REQUIRE(sp_dest);
+
+    const CScript template_script = sp_dest->GetOutputScriptTemplate().GetScript();
+    BOOST_CHECK(template_script.IsPayToTaproot());
+    BOOST_CHECK_EQUAL(template_script.size(), 34u);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 } // namespace bip352

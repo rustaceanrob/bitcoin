@@ -49,6 +49,19 @@ const secp256k1_silentpayments_prevouts_summary* PrevoutsSummary::Get() const
     return m_prevouts_summary.get();
 }
 
+OutputScriptTemplate OutputScriptTemplate::ForVersion(uint8_t version)
+{
+    // All Silent Payments versions currently supported by this implementation
+    // produce P2TR outputs, so the template is version-independent.
+    assert(version < 31);
+    return OutputScriptTemplate{GetScriptForDestination(WitnessV1Taproot{})};
+}
+
+OutputScriptTemplate SilentPaymentsDestination::GetOutputScriptTemplate() const
+{
+    return OutputScriptTemplate::ForVersion(m_version);
+}
+
 std::optional<SilentPaymentsDestination> SilentPaymentsDestination::From(
     const CPubKey& scan_pubkey,
     const CPubKey& spend_pubkey,
