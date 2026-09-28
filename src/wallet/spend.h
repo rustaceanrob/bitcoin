@@ -212,6 +212,11 @@ util::Result<CreatedTransactionResult> CreateTransaction(CWallet& wallet, const 
  * calling CreateTransaction();
  */
 util::Result<CreatedTransactionResult> FundTransaction(CWallet& wallet, const CMutableTransaction& tx, const std::vector<CRecipient>& recipients, std::optional<unsigned int> change_pos, bool lockUnspents, CCoinControl);
+
+util::Result<std::map<size_t, CScript>> derive_silent_payments_outputs(
+    const CWallet& wallet,
+    const std::vector<CRecipient>& recipients,
+    const std::vector<std::shared_ptr<COutput>>& selected_coins);
 } // namespace wallet
 
 #endif // BITCOIN_WALLET_SPEND_H

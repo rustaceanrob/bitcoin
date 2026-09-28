@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <common/args.h>
+#include <common/bip352.h>
 #include <common/messages.h>
 #include <common/system.h>
 #include <consensus/amount.h>
@@ -1048,6 +1049,86 @@ void DiscourageFeeSniping(CMutableTransaction& tx, FastRandomContext& rng_fast,
     }
 }
 
+util::Result<std::map<size_t, CScript>> derive_silent_payments_outputs(
+    const CWallet& wallet,
+    const std::vector<CRecipient>& recipients,
+    const std::vector<std::shared_ptr<COutput>>& selected_coins)
+{
+    std::map<size_t, bip352::SilentPaymentsDestination> sp_dests;
+    size_t recipient_i = 0;
+    for (const auto& r : recipients) {
+        if (auto* sp = r.payment_dest.get_if<bip352::SilentPaymentsDestination>()) {
+            sp_dests.emplace(recipient_i, *sp);
+        }
+        ++recipient_i;
+    }
+    if (sp_dests.empty()) return std::map<size_t, CScript>{};
+
+    std::vector<CKey> plain_keys;
+    std::vector<KeyPair> taproot_keys;
+    for (const auto& coin : selected_coins) {
+        const CScript& spk = coin->txout.scriptPubKey;
+        std::vector<std::vector<unsigned char>> solutions;
+        switch (Solver(spk, solutions)) {
+        case TxoutType::WITNESS_V0_KEYHASH:
+        case TxoutType::PUBKEYHASH: {
+            auto key = wallet.GetKey(CKeyID{uint160{solutions[0]}});
+            if (!key) return util::Error{strprintf(_("Silent payments: missing private key for input %s"), coin->outpoint.ToString())};
+            plain_keys.push_back(std::move(*key));
+            break;
+        }
+        case TxoutType::SCRIPTHASH: {
+            auto provider = wallet.GetSolvingProvider(spk);
+            CScript redeem;
+            if (!provider || !provider->GetCScript(CScriptID{uint160{solutions[0]}}, redeem)) {
+                return util::Error{strprintf(_("Silent payments: missing redeem script for input %s"), coin->outpoint.ToString())};
+            }
+            std::vector<std::vector<unsigned char>> inner;
+            if (Solver(redeem, inner) != TxoutType::WITNESS_V0_KEYHASH) {
+                break;
+            }
+            auto key = wallet.GetKey(CKeyID{uint160{inner[0]}});
+            if (!key) return util::Error{strprintf(_("Silent payments: missing private key for input %s"), coin->outpoint.ToString())};
+            plain_keys.push_back(std::move(*key));
+            break;
+        }
+        case TxoutType::WITNESS_V1_TAPROOT: {
+            auto provider = wallet.GetSolvingProvider(spk);
+            TaprootSpendData spenddata;
+            if (!provider || !provider->GetTaprootSpendData(XOnlyPubKey{solutions[0]}, spenddata)) {
+                return util::Error{strprintf(_("Silent payments: missing taproot spend data for input %s"), coin->outpoint.ToString())};
+            }
+            std::optional<CKey> key;
+            for (const auto& keyid : spenddata.internal_key.GetKeyIDs()) {
+                if ((key = wallet.GetKey(keyid))) break;
+            }
+            if (!key) return util::Error{strprintf(_("Silent payments: missing internal key for input %s"), coin->outpoint.ToString())};
+            const uint256* mr = spenddata.merkle_root.IsNull() ? nullptr : &spenddata.merkle_root;
+            taproot_keys.push_back(key->ComputeKeyPair(mr));
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    if (plain_keys.empty() && taproot_keys.empty()) {
+        return util::Error{_("Silent payments: no eligible inputs to derive the shared secret")};
+    }
+
+    const auto& smallest_coin = std::ranges::min(selected_coins, bip352::BIP352Comparator{},
+        [](const auto& c) { return c->outpoint; });
+    auto sp_outputs = bip352::GenerateSilentPaymentsTaprootDestinations(
+        sp_dests, plain_keys, taproot_keys, smallest_coin->outpoint);
+    if (!sp_outputs) {
+        return util::Error{_("Failed to generate silent payments outputs")};
+    }
+    std::map<size_t, CScript> sp_scripts;
+    for (const auto& [i, tap] : *sp_outputs) {
+        sp_scripts.emplace(i, GetScriptForDestination(tap));
+    }
+    return sp_scripts;
+}
+
 static util::Result<CreatedTransactionResult> CreateTransactionInternal(
         CWallet& wallet,
         const std::vector<CRecipient>& vecSend,
@@ -1240,26 +1321,6 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
            result.GetWaste(),
            result.GetSelectedValue());
 
-    // vouts to the payees
-    txNew.vout.reserve(vecSend.size() + 1); // + 1 because of possible later insert
-    for (const auto& recipient : vecSend)
-    {
-        txNew.vout.emplace_back(recipient.nAmount, GetScriptForDestination(*recipient.payment_dest.get_if<CTxDestination>()));
-    }
-    const CAmount change_amount = result.GetChange(coin_selection_params.min_viable_change, coin_selection_params.m_change_fee);
-    if (change_amount > 0) {
-        CTxOut newTxOut(change_amount, scriptChange);
-        if (!change_pos) {
-            // Insert change txn at random position:
-            change_pos = rng_fast.randrange(txNew.vout.size() + 1);
-        } else if ((unsigned int)*change_pos > txNew.vout.size()) {
-            return util::Error{_("Transaction change output index out of range")};
-        }
-        txNew.vout.insert(txNew.vout.begin() + *change_pos, newTxOut);
-    } else {
-        change_pos = std::nullopt;
-    }
-
     // Shuffle selected coins and fill in final vin
     std::vector<std::shared_ptr<COutput>> selected_coins = result.GetShuffledInputVector();
 
@@ -1316,6 +1377,33 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
     }
     if (use_anti_fee_sniping) {
         DiscourageFeeSniping(txNew, rng_fast, wallet.chain(), wallet.GetLastBlockHash(), wallet.GetLastBlockHeight());
+    }
+
+    auto sp_scripts_result = derive_silent_payments_outputs(wallet, vecSend, selected_coins);
+    if (!sp_scripts_result) return util::Error{util::ErrorString(sp_scripts_result)};
+    const auto sp_scripts = *std::move(sp_scripts_result);
+
+    txNew.vout.reserve(vecSend.size() + 1); // + 1 because of possible later insert
+    for (size_t i = 0; i < vecSend.size(); ++i) {
+        const auto& r = vecSend[i];
+        if (auto* ctx_dest = r.payment_dest.get_if<CTxDestination>()) {
+            txNew.vout.emplace_back(r.nAmount, GetScriptForDestination(*ctx_dest));
+        } else {
+            txNew.vout.emplace_back(r.nAmount, sp_scripts.at(i));
+        }
+    }
+    const CAmount change_amount = result.GetChange(coin_selection_params.min_viable_change, coin_selection_params.m_change_fee);
+    if (change_amount > 0) {
+        CTxOut newTxOut(change_amount, scriptChange);
+        if (!change_pos) {
+            // Insert change txn at random position:
+            change_pos = rng_fast.randrange(txNew.vout.size() + 1);
+        } else if ((unsigned int)*change_pos > txNew.vout.size()) {
+            return util::Error{_("Transaction change output index out of range")};
+        }
+        txNew.vout.insert(txNew.vout.begin() + *change_pos, newTxOut);
+    } else {
+        change_pos = std::nullopt;
     }
 
     // Calculate the transaction fee
