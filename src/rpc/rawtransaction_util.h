@@ -5,7 +5,7 @@
 #ifndef BITCOIN_RPC_RAWTRANSACTION_UTIL_H
 #define BITCOIN_RPC_RAWTRANSACTION_UTIL_H
 
-#include <addresstype.h>
+#include <common/paymentdestination.h>
 #include <consensus/amount.h>
 #include <rpc/util.h>
 
@@ -52,7 +52,7 @@ void AddInputs(CMutableTransaction& rawTx, const UniValue& inputs_in, bool rbf);
 UniValue NormalizeOutputs(const UniValue& outputs_in);
 
 /** Parse normalized outputs into destination, amount tuples */
-std::vector<std::pair<CTxDestination, CAmount>> ParseOutputs(const UniValue& outputs);
+std::vector<std::pair<PaymentDestination, CAmount>> ParseOutputs(const UniValue& outputs);
 
 /** Normalize, parse, and add outputs to the transaction */
 void AddOutputs(CMutableTransaction& rawTx, const UniValue& outputs_in);

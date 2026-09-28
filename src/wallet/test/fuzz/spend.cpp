@@ -92,7 +92,7 @@ FUZZ_TARGET(wallet_create_transaction, .init = initialize_setup)
                 destination = ConsumeTxDestination(fuzzed_data_provider);
             }
         );
-        recipients.push_back({destination,
+        recipients.push_back({PaymentDestination::FromTxDestination(destination),
                               /*nAmount=*/ConsumeMoney(fuzzed_data_provider),
                               /*fSubtractFeeFromAmount=*/fuzzed_data_provider.ConsumeBool()});
     }

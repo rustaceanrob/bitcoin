@@ -145,7 +145,7 @@ void WalletModel::updateAddressBook(const QString &address, const QString &label
 
 bool WalletModel::validateAddress(const QString& address) const
 {
-    return IsValidDestinationString(address.toStdString());
+    return PaymentDestination::FromString(address.toStdString()).has_value();
 }
 
 WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransaction &transaction, const CCoinControl& coinControl)
@@ -182,7 +182,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             setAddress.insert(rcp.address);
             ++nAddresses;
 
-            vecSend.emplace_back(CRecipient{DecodeDestination(rcp.address.toStdString()), rcp.amount, rcp.fSubtractFeeFromAmount});
+            vecSend.emplace_back(CRecipient{*PaymentDestination::FromString(rcp.address.toStdString()), rcp.amount, rcp.fSubtractFeeFromAmount});
 
             total += rcp.amount;
         }
@@ -258,22 +258,17 @@ void WalletModel::sendCoins(WalletModelTransaction& transaction)
     // and emit coinsSent signal for each recipient
     for (const SendCoinsRecipient &rcp : transaction.getRecipients())
     {
-        {
-            std::string strAddress = rcp.address.toStdString();
-            CTxDestination dest = DecodeDestination(strAddress);
+        auto dest_or = PaymentDestination::FromString(rcp.address.toStdString());
+        const auto* ctx_dest = dest_or ? dest_or->get_if<CTxDestination>() : nullptr;
+        if (ctx_dest) {
+            const CTxDestination& dest = *ctx_dest;
             std::string strLabel = rcp.label.toStdString();
-            {
-                // Check if we have a new address or an updated label
-                std::string name;
-                if (!m_wallet->getAddress(
-                     dest, &name, /*purpose=*/nullptr))
-                {
-                    m_wallet->setAddressBook(dest, strLabel, wallet::AddressPurpose::SEND);
-                }
-                else if (name != strLabel)
-                {
-                    m_wallet->setAddressBook(dest, strLabel, {}); // {} means don't change purpose
-                }
+            // Check if we have a new address or an updated label
+            std::string name;
+            if (!m_wallet->getAddress(dest, &name, /*purpose=*/nullptr)) {
+                m_wallet->setAddressBook(dest, strLabel, wallet::AddressPurpose::SEND);
+            } else if (name != strLabel) {
+                m_wallet->setAddressBook(dest, strLabel, {}); // {} means don't change purpose
             }
         }
         Q_EMIT coinsSent(this, rcp, transaction_array);

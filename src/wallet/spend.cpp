@@ -1048,16 +1048,6 @@ void DiscourageFeeSniping(CMutableTransaction& tx, FastRandomContext& rng_fast,
     }
 }
 
-uint64_t GetSerializeSizeForRecipient(const CRecipient& recipient)
-{
-    return ::GetSerializeSize(CTxOut(recipient.nAmount, GetScriptForDestination(recipient.dest)));
-}
-
-bool IsDust(const CRecipient& recipient, const CFeeRate& dustRelayFee)
-{
-    return ::IsDust(CTxOut(recipient.nAmount, GetScriptForDestination(recipient.dest)), dustRelayFee);
-}
-
 static util::Result<CreatedTransactionResult> CreateTransactionInternal(
         CWallet& wallet,
         const std::vector<CRecipient>& vecSend,
@@ -1091,12 +1081,12 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
     ReserveDestination reservedest(&wallet, change_type);
     unsigned int outputs_to_subtract_fee_from = 0; // The number of outputs which we are subtracting the fee from
     for (const auto& recipient : vecSend) {
-        if (IsDust(recipient, wallet.chain().relayDustFee())) {
+        if (recipient.payment_dest.IsDust(recipient.nAmount, wallet.chain().relayDustFee())) {
             return util::Error{_("Transaction amount too small")};
         }
 
         // Include the fee cost for outputs.
-        coin_selection_params.tx_noinputs_size += GetSerializeSizeForRecipient(recipient);
+        coin_selection_params.tx_noinputs_size += recipient.payment_dest.GetSerializeSize();
         recipients_sum += recipient.nAmount;
 
         if (recipient.fSubtractFeeFromAmount) {
@@ -1254,7 +1244,7 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
     txNew.vout.reserve(vecSend.size() + 1); // + 1 because of possible later insert
     for (const auto& recipient : vecSend)
     {
-        txNew.vout.emplace_back(recipient.nAmount, GetScriptForDestination(recipient.dest));
+        txNew.vout.emplace_back(recipient.nAmount, GetScriptForDestination(*recipient.payment_dest.get_if<CTxDestination>()));
     }
     const CAmount change_amount = result.GetChange(coin_selection_params.min_viable_change, coin_selection_params.m_change_fee);
     if (change_amount > 0) {

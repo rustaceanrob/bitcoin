@@ -5,11 +5,12 @@
 
 #include <rpc/rawtransaction_util.h>
 
+#include <addresstype.h>
 #include <coins.h>
+#include <common/paymentdestination.h>
 #include <consensus/amount.h>
 #include <core_io.h>
 #include <crypto/hex_base.h>
-#include <key_io.h>
 #include <policy/feerate.h>
 #include <policy/policy.h>
 #include <primitives/transaction.h>
@@ -23,6 +24,7 @@
 #include <tinyformat.h>
 #include <univalue.h>
 #include <util/check.h>
+#include <util/expected.h>
 #include <util/rbf.h>
 #include <util/translation.h>
 #include <util/vector.h>
@@ -108,11 +110,10 @@ UniValue NormalizeOutputs(const UniValue& outputs_in)
     return outputs;
 }
 
-std::vector<std::pair<CTxDestination, CAmount>> ParseOutputs(const UniValue& outputs)
+std::vector<std::pair<PaymentDestination, CAmount>> ParseOutputs(const UniValue& outputs)
 {
-    // Duplicate checking
-    std::set<CTxDestination> destinations;
-    std::vector<std::pair<CTxDestination, CAmount>> parsed_outputs;
+    std::set<CTxDestination> seen_destinations;
+    std::vector<std::pair<PaymentDestination, CAmount>> parsed_outputs;
     bool has_data{false};
     const auto& keys{outputs.getKeys()};
     const auto& values{outputs.getValues()};
@@ -125,20 +126,19 @@ std::vector<std::pair<CTxDestination, CAmount>> ParseOutputs(const UniValue& out
             }
             has_data = true;
             std::vector<unsigned char> data = ParseHexV(value.getValStr(), "Data");
-            CTxDestination destination{CNoDestination{CScript() << OP_RETURN << data}};
-            CAmount amount{0};
-            parsed_outputs.emplace_back(destination, amount);
+            auto destination = PaymentDestination::FromTxDestination(CNoDestination{CScript() << OP_RETURN << data});
+            parsed_outputs.emplace_back(std::move(destination), CAmount{0});
         } else {
-            CTxDestination destination{DecodeDestination(name_)};
-            CAmount amount{AmountFromValue(value)};
-            if (!IsValidDestination(destination)) {
+            auto dest = PaymentDestination::FromString(name_);
+            if (!dest) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Bitcoin address: ") + name_);
             }
-
-            if (!destinations.insert(destination).second) {
-                throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + name_);
+            if (auto* ctx_dest = dest->get_if<CTxDestination>()) {
+                if (!seen_destinations.insert(*ctx_dest).second) {
+                    throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + name_);
+                }
             }
-            parsed_outputs.emplace_back(destination, amount);
+            parsed_outputs.emplace_back(std::move(*dest), AmountFromValue(value));
         }
     }
     return parsed_outputs;
@@ -149,12 +149,13 @@ void AddOutputs(CMutableTransaction& rawTx, const UniValue& outputs_in)
     UniValue outputs(UniValue::VOBJ);
     outputs = NormalizeOutputs(outputs_in);
 
-    std::vector<std::pair<CTxDestination, CAmount>> parsed_outputs = ParseOutputs(outputs);
+    std::vector<std::pair<PaymentDestination, CAmount>> parsed_outputs = ParseOutputs(outputs);
     for (const auto& [destination, nAmount] : parsed_outputs) {
-        CScript scriptPubKey = GetScriptForDestination(destination);
-
-        CTxOut out(nAmount, scriptPubKey);
-        rawTx.vout.push_back(out);
+        auto* ctx_dest = destination.get_if<CTxDestination>();
+        if (!ctx_dest) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Silent payments outputs are not supported by this RPC");
+        }
+        rawTx.vout.emplace_back(nAmount, GetScriptForDestination(*ctx_dest));
     }
 }
 

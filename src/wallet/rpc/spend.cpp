@@ -32,7 +32,7 @@ using common::TransactionErrorString;
 using node::TransactionError;
 
 namespace wallet {
-std::vector<CRecipient> CreateRecipients(const std::vector<std::pair<CTxDestination, CAmount>>& outputs, const std::set<int>& subtract_fee_outputs)
+std::vector<CRecipient> CreateRecipients(const std::vector<std::pair<PaymentDestination, CAmount>>& outputs, const std::set<int>& subtract_fee_outputs)
 {
     std::vector<CRecipient> recipients;
     for (size_t i = 0; i < outputs.size(); ++i) {
@@ -811,11 +811,11 @@ RPCMethod fundrawtransaction()
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
     }
     UniValue options = request.params[1];
-    std::vector<std::pair<CTxDestination, CAmount>> destinations;
+    std::vector<std::pair<PaymentDestination, CAmount>> destinations;
     for (const auto& tx_out : tx.vout) {
         CTxDestination dest;
         ExtractDestination(tx_out.scriptPubKey, dest);
-        destinations.emplace_back(dest, tx_out.nValue);
+        destinations.emplace_back(PaymentDestination::FromTxDestination(dest), tx_out.nValue);
     }
     std::vector<std::string> dummy(destinations.size(), "dummy");
     std::vector<CRecipient> recipients = CreateRecipients(
