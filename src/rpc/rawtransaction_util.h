@@ -8,6 +8,7 @@
 #include <common/paymentdestination.h>
 #include <consensus/amount.h>
 #include <rpc/util.h>
+#include <univalue.h>
 
 #include <cstdint>
 #include <map>
@@ -18,7 +19,6 @@
 
 struct bilingual_str;
 struct FlatSigningProvider;
-class UniValue;
 struct CMutableTransaction;
 class Coin;
 class COutPoint;
@@ -58,7 +58,7 @@ std::vector<std::pair<PaymentDestination, CAmount>> ParseOutputs(const UniValue&
 void AddOutputs(CMutableTransaction& rawTx, const UniValue& outputs_in);
 
 /** Create a transaction from univalue parameters */
-CMutableTransaction ConstructTransaction(const UniValue& inputs_in, const UniValue& outputs_in, const UniValue& locktime, std::optional<bool> rbf, uint32_t version);
+CMutableTransaction ConstructTransaction(const UniValue& inputs_in, std::optional<UniValue> outputs_in, const UniValue& locktime, std::optional<bool> rbf, uint32_t version);
 
 enum class ElisionMode {
     None,        ///< no elision, all top-level fields rendered normally

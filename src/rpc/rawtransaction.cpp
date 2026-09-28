@@ -425,7 +425,7 @@ static RPCMethod createrawtransaction()
     if (!request.params[3].isNull()) {
         rbf = request.params[3].get_bool();
     }
-    CMutableTransaction rawTx = ConstructTransaction(request.params[0], request.params[1], request.params[2], rbf, self.Arg<uint32_t>("version"));
+    CMutableTransaction rawTx = ConstructTransaction(request.params[0], std::optional<UniValue>{request.params[1]}, request.params[2], rbf, self.Arg<uint32_t>("version"));
 
     return EncodeHexTx(CTransaction(rawTx));
 },
@@ -1749,7 +1749,7 @@ static RPCMethod createpsbt()
     if (!request.params[3].isNull()) {
         rbf = request.params[3].get_bool();
     }
-    CMutableTransaction rawTx = ConstructTransaction(request.params[0], request.params[1], request.params[2], rbf, self.Arg<uint32_t>("version"));
+    CMutableTransaction rawTx = ConstructTransaction(request.params[0], std::optional<UniValue>{request.params[1]}, request.params[2], rbf, self.Arg<uint32_t>("version"));
 
     // Make a blank psbt
     uint32_t psbt_version = 2;
