@@ -22,8 +22,6 @@
  * which maps to a fixed scriptPubKey, or a SilentPaymentsDestination, whose
  * scriptPubKey can only be derived once the inputs of the paying transaction
  * are known.
- *
- * A default constructed PaymentDestination holds a CNoDestination.
  */
 class PaymentDestination
 {
@@ -31,7 +29,6 @@ private:
     std::variant<CTxDestination, bip352::SilentPaymentsDestination> m_destination;
 
 public:
-    PaymentDestination() = default;
     /** Build a payment destination from a CTxDestination. This does not validate the CTxDestination. */
     explicit PaymentDestination(CTxDestination dest) : m_destination(std::move(dest)) {}
     explicit PaymentDestination(bip352::SilentPaymentsDestination dest) : m_destination(std::move(dest)) {}
@@ -48,9 +45,6 @@ public:
 
     /** Return the SilentPaymentsDestination, or nullptr if this is not a silent payments destination. */
     const bip352::SilentPaymentsDestination* GetSilentPaymentsDestination() const { return std::get_if<bip352::SilentPaymentsDestination>(&m_destination); }
-
-    /** Whether this is a valid CTxDestination or a SilentPaymentsDestination */
-    bool IsValid() const;
 
     /** Whether this is a silent payments destination. */
     bool IsSilentPayment() const { return std::holds_alternative<bip352::SilentPaymentsDestination>(m_destination); }

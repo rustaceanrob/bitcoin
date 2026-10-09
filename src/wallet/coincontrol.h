@@ -84,7 +84,7 @@ class CCoinControl
 {
 public:
     //! Custom change destination, if not set an address is generated
-    PaymentDestination destChange;
+    std::optional<PaymentDestination> destChange;
     //! Override the default change type if set, ignored if destChange is set
     std::optional<OutputType> m_change_type;
     //! If false, only safe inputs will be used
@@ -122,6 +122,8 @@ public:
     std::optional<int> m_max_tx_weight{std::nullopt};
 
     CCoinControl();
+
+    const bip352::SilentPaymentsDestination* GetSilentPaymentsChange() const { return destChange ? destChange->GetSilentPaymentsDestination() : nullptr; }
 
     /**
      * Returns true if there are pre-selected inputs.

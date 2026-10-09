@@ -22,16 +22,6 @@ BOOST_FIXTURE_TEST_SUITE(paymentdestination_tests, BasicTestingSetup)
 static const std::string SP_ADDRESS{"sp1qq22l5s6l9460ww6t4tkzsy2a7zejurcmzz35pt0ffrzk5erlaykdcqugecjjnjqf7ggq39vl6wexjlm00n66z94v675n7wcux6d2krr68gdjvfn2"};
 static const std::string P2WPKH_ADDRESS{"bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"};
 
-BOOST_AUTO_TEST_CASE(default_destination)
-{
-    const PaymentDestination dest;
-    BOOST_CHECK(!dest.IsSilentPayment());
-    BOOST_CHECK(!dest.GetSilentPaymentsDestination());
-    BOOST_REQUIRE(dest.GetTxDestination());
-    BOOST_CHECK(std::holds_alternative<CNoDestination>(*dest.GetTxDestination()));
-    BOOST_CHECK(dest == PaymentDestination{CNoDestination{}});
-}
-
 BOOST_AUTO_TEST_CASE(from_string_silent_payments)
 {
     const auto sp_dest{bip352::DecodeSilentPaymentsAddress(SP_ADDRESS, Params())};

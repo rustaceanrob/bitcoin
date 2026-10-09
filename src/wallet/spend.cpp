@@ -1433,12 +1433,12 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
     bilingual_str error; // possible error str
 
     // coin control: send change to custom address
-    if (coin_control.destChange.IsValid()) {
+    if (coin_control.destChange) {
         // A silent payments change output script is derived once the inputs are selected, see below
-        if (coin_control.destChange.IsSilentPayment() && !coin_control.m_silent_payments) {
+        if (coin_control.destChange->IsSilentPayment() && !coin_control.m_silent_payments) {
             return util::Error{_("Silent payments change requires a silent payments transaction")};
         }
-        scriptChange = GetDummyTxOut(coin_control.destChange, /*amount=*/0).scriptPubKey;
+        scriptChange = GetDummyTxOut(*coin_control.destChange, /*amount=*/0).scriptPubKey;
     } else { // no coin control: send change to newly generated address
         // Note: We use a new key here to keep it from being obvious which side is the change.
         //  The drawback is that by not reusing a previous key, the change may be lost if a
@@ -1591,7 +1591,7 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
         // A silent payments change destination is keyed after all recipients, so its output is
         // numbered after those of recipients with the same scan key. It is only derived if there
         // is a change output.
-        if (const auto* sp = coin_control.destChange.GetSilentPaymentsDestination(); sp && change_amount > 0) {
+        if (const auto* sp = coin_control.GetSilentPaymentsChange(); sp && change_amount > 0) {
             sp_dests.emplace(vecSend.size(), *sp);
         }
         auto res{CreateSilentPaymentsOutputs(wallet, sp_dests, result.GetInputSet())};
@@ -1828,7 +1828,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
 
         // Reuse the change destination from the first creation attempt to avoid skipping BIP44 indexes.
         // A silent payments change output script depends on the selected inputs, so it is not reused.
-        if (txr_ungrouped.change_pos && !coin_control.destChange.IsSilentPayment()) {
+        if (txr_ungrouped.change_pos && !coin_control.GetSilentPaymentsChange()) {
             CTxDestination change_dest;
             ExtractDestination(txr_ungrouped.tx->vout[*txr_ungrouped.change_pos].scriptPubKey, change_dest);
             tmp_cc.destChange = PaymentDestination{change_dest};

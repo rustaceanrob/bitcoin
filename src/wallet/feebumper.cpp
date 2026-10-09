@@ -311,15 +311,14 @@ util::Expected<BumpTransaction, BumpError> CreateRateBumpTransaction(CWallet& wa
         for (size_t i = 0; i < tx->vout.size(); ++i) {
             const CTxOut& output = tx->vout[i];
 
-            PaymentDestination dest;
-            if (const auto it = sp_scripts.find(output.scriptPubKey); it != sp_scripts.end()) {
-                dest = PaymentDestination{wtx.m_sprecipients[it->second]};
-                new_coin_control.m_silent_payments = true;
-            } else {
+            const auto it{sp_scripts.find(output.scriptPubKey)};
+            const PaymentDestination dest{[&] {
+                if (it != sp_scripts.end()) return PaymentDestination{wtx.m_sprecipients[it->second]};
                 CTxDestination tx_dest;
                 ExtractDestination(output.scriptPubKey, tx_dest);
-                dest = PaymentDestination{tx_dest};
-            }
+                return PaymentDestination{tx_dest};
+            }()};
+            if (it != sp_scripts.end()) new_coin_control.m_silent_payments = true;
 
             if (original_change_index.has_value() ? original_change_index.value() == i : OutputIsChange(wallet, output)) {
                 new_coin_control.destChange = dest;
@@ -333,15 +332,15 @@ util::Expected<BumpTransaction, BumpError> CreateRateBumpTransaction(CWallet& wa
     // If no recipients, means that we are sending coins to a change address
     if (recipients.empty()) {
         // Just as a sanity check, ensure that the change address exist
-        if (!new_coin_control.destChange.IsValid()) {
+        if (!new_coin_control.destChange) {
             errors.emplace_back(Untranslated("Unable to create transaction. Transaction must have at least one recipient"));
             return util::Unexpected{BumpError{Result::INVALID_PARAMETER, std::move(errors)}};
         }
 
         // Add change as recipient with SFFO flag enabled, so fees are deduced from it.
         // If the output differs from the original tx output (because the user customized it) a new change output will be created.
-        recipients.emplace_back(CRecipient{new_coin_control.destChange, new_outputs_value, /*fSubtractFeeFromAmount=*/true});
-        new_coin_control.destChange = PaymentDestination{};
+        recipients.emplace_back(CRecipient{*new_coin_control.destChange, new_outputs_value, /*fSubtractFeeFromAmount=*/true});
+        new_coin_control.destChange.reset();
     }
 
     if (coin_control.m_feerate) {
@@ -396,7 +395,7 @@ util::Expected<BumpTransaction, BumpError> CreateRateBumpTransaction(CWallet& wa
     // CreateTransaction: recipients first, then a silent payments change destination if the
     // transaction has a change output
     std::vector<bip352::SilentPaymentsDestination> sp_recipients{GetSilentPaymentsDestinations(recipients)};
-    if (const auto* sp = new_coin_control.destChange.GetSilentPaymentsDestination(); sp && txr.change_pos) {
+    if (const auto* sp = new_coin_control.GetSilentPaymentsChange(); sp && txr.change_pos) {
         sp_recipients.push_back(*sp);
     }
 

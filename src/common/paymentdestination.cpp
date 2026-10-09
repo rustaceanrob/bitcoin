@@ -47,11 +47,3 @@ std::optional<CScript> PaymentDestination::GetStaticScript() const
     if (const auto* dest{GetTxDestination()}) return GetScriptForDestination(*dest);
     return std::nullopt;
 }
-
-bool PaymentDestination::IsValid() const
-{
-    if (const auto* dest{GetTxDestination()}) {
-        return !std::holds_alternative<CNoDestination>(*dest);
-    }
-    return IsSilentPayment();
-}
