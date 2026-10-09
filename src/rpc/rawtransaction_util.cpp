@@ -112,13 +112,11 @@ UniValue NormalizeOutputs(const UniValue& outputs_in)
     return outputs;
 }
 
-//! Parse normalized outputs, decoding each address with decode, which returns std::nullopt if the address is invalid
-template <typename Destination, typename Decode>
-static std::vector<std::pair<Destination, CAmount>> ParseOutputsWith(const UniValue& outputs, Decode decode)
+std::vector<std::pair<PaymentDestination, CAmount>> ParseOutputs(const UniValue& outputs, bool allow_silent_payments)
 {
     // Duplicate checking
-    std::set<Destination> destinations;
-    std::vector<std::pair<Destination, CAmount>> parsed_outputs;
+    std::set<PaymentDestination> destinations;
+    std::vector<std::pair<PaymentDestination, CAmount>> parsed_outputs;
     bool has_data{false};
     const auto& keys{outputs.getKeys()};
     const auto& values{outputs.getValues()};
@@ -131,14 +129,17 @@ static std::vector<std::pair<Destination, CAmount>> ParseOutputsWith(const UniVa
             }
             has_data = true;
             std::vector<unsigned char> data = ParseHexV(value.getValStr(), "Data");
-            Destination destination{CNoDestination{CScript() << OP_RETURN << data}};
+            PaymentDestination destination{CNoDestination{CScript() << OP_RETURN << data}};
             CAmount amount{0};
             parsed_outputs.emplace_back(destination, amount);
         } else {
-            std::optional<Destination> destination{decode(name_)};
+            auto destination{PaymentDestination::FromString(name_)};
             CAmount amount{AmountFromValue(value)};
             if (!destination) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Bitcoin address: ") + name_);
+            }
+            if (!allow_silent_payments && destination->IsSilentPayment()) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "Silent payments are not supported by this RPC");
             }
 
             if (!destinations.insert(*destination).second) {
@@ -150,32 +151,14 @@ static std::vector<std::pair<Destination, CAmount>> ParseOutputsWith(const UniVa
     return parsed_outputs;
 }
 
-std::vector<std::pair<CTxDestination, CAmount>> ParseOutputs(const UniValue& outputs)
-{
-    return ParseOutputsWith<CTxDestination>(outputs, [](const std::string& address) -> std::optional<CTxDestination> {
-        CTxDestination destination{DecodeDestination(address)};
-        if (!IsValidDestination(destination)) return std::nullopt;
-        return destination;
-    });
-}
-
-std::vector<std::pair<PaymentDestination, CAmount>> ParsePaymentOutputs(const UniValue& outputs)
-{
-    return ParseOutputsWith<PaymentDestination>(outputs, [](const std::string& address) -> std::optional<PaymentDestination> {
-        auto destination{PaymentDestination::FromString(address)};
-        if (!destination) return std::nullopt;
-        return std::move(*destination);
-    });
-}
-
 void AddOutputs(CMutableTransaction& rawTx, const UniValue& outputs_in)
 {
     UniValue outputs(UniValue::VOBJ);
     outputs = NormalizeOutputs(outputs_in);
 
-    std::vector<std::pair<CTxDestination, CAmount>> parsed_outputs = ParseOutputs(outputs);
+    std::vector<std::pair<PaymentDestination, CAmount>> parsed_outputs = ParseOutputs(outputs, /*allow_silent_payments=*/false);
     for (const auto& [destination, nAmount] : parsed_outputs) {
-        CScript scriptPubKey = GetScriptForDestination(destination);
+        CScript scriptPubKey = *CHECK_NONFATAL(destination.GetStaticScript());
 
         CTxOut out(nAmount, scriptPubKey);
         rawTx.vout.push_back(out);

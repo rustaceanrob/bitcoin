@@ -52,11 +52,8 @@ void AddInputs(CMutableTransaction& rawTx, const UniValue& inputs_in, bool rbf);
 /** Normalize univalue-represented outputs */
 UniValue NormalizeOutputs(const UniValue& outputs_in);
 
-/** Parse normalized outputs into destination, amount tuples. Silent payments addresses are rejected. */
-std::vector<std::pair<CTxDestination, CAmount>> ParseOutputs(const UniValue& outputs);
-
-/** Parse normalized outputs into destination, amount tuples, accepting silent payments addresses */
-std::vector<std::pair<PaymentDestination, CAmount>> ParsePaymentOutputs(const UniValue& outputs);
+/** Parse normalized outputs into destination, amount tuples. Silent payments addresses are rejected unless allow_silent_payments is true. */
+std::vector<std::pair<PaymentDestination, CAmount>> ParseOutputs(const UniValue& outputs, bool allow_silent_payments);
 
 /** Normalize, parse, and add outputs to the transaction */
 void AddOutputs(CMutableTransaction& rawTx, const UniValue& outputs_in);

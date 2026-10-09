@@ -33,13 +33,12 @@ using common::TransactionErrorString;
 using node::TransactionError;
 
 namespace wallet {
-template <typename Destination>
-static std::vector<CRecipient> CreateRecipients(const std::vector<std::pair<Destination, CAmount>>& outputs, const std::set<int>& subtract_fee_outputs)
+std::vector<CRecipient> CreateRecipients(const std::vector<std::pair<PaymentDestination, CAmount>>& outputs, const std::set<int>& subtract_fee_outputs)
 {
     std::vector<CRecipient> recipients;
     for (size_t i = 0; i < outputs.size(); ++i) {
         const auto& [destination, amount] = outputs.at(i);
-        CRecipient recipient{PaymentDestination{destination}, amount, subtract_fee_outputs.contains(i)};
+        CRecipient recipient{destination, amount, subtract_fee_outputs.contains(i)};
         recipients.push_back(recipient);
     }
     return recipients;
@@ -371,7 +370,7 @@ RPCMethod sendtoaddress()
         sffo_set.insert(0);
     }
 
-    std::vector<CRecipient> recipients{CreateRecipients(ParsePaymentOutputs(address_amounts), sffo_set)};
+    std::vector<CRecipient> recipients{CreateRecipients(ParseOutputs(address_amounts, /*allow_silent_payments=*/true), sffo_set)};
     const bool verbose{request.params[10].isNull() ? false : request.params[10].get_bool()};
 
     return SendMoney(*pwallet, coin_control, recipients, comment, comment_to, verbose);
@@ -465,7 +464,7 @@ RPCMethod sendmany()
     SetFeeEstimateMode(*pwallet, coin_control, /*conf_target=*/request.params[6], /*estimate_mode=*/request.params[7], /*fee_rate=*/request.params[8], /*override_min_fee=*/false);
 
     std::vector<CRecipient> recipients = CreateRecipients(
-            ParsePaymentOutputs(sendTo),
+            ParseOutputs(sendTo, /*allow_silent_payments=*/true),
             InterpretSubtractFeeFromOutputInstructions(request.params[4], sendTo.getKeys())
     );
     const bool verbose{request.params[9].isNull() ? false : request.params[9].get_bool()};
@@ -856,11 +855,11 @@ RPCMethod fundrawtransaction()
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
     }
     UniValue options = request.params[1];
-    std::vector<std::pair<CTxDestination, CAmount>> destinations;
+    std::vector<std::pair<PaymentDestination, CAmount>> destinations;
     for (const auto& tx_out : tx.vout) {
         CTxDestination dest;
         ExtractDestination(tx_out.scriptPubKey, dest);
-        destinations.emplace_back(dest, tx_out.nValue);
+        destinations.emplace_back(PaymentDestination{dest}, tx_out.nValue);
     }
     std::vector<std::string> dummy(destinations.size(), "dummy");
     std::vector<CRecipient> recipients = CreateRecipients(
@@ -1131,14 +1130,7 @@ static RPCMethod bumpfee_helper(std::string method_name)
             // inputs, and the transaction must be added to the wallet when it is created, see
             // EnsureSilentPaymentsTxIsAddedToWallet. A PSBT may be signed elsewhere and its inputs
             // may change before signing, so only allow silent payments addresses for bumpfee RPC.
-            const UniValue normalized_outputs{NormalizeOutputs(options["outputs"])};
-            if (want_psbt) {
-                for (auto& [dest, amount] : ParseOutputs(normalized_outputs)) {
-                    outputs.emplace_back(PaymentDestination{std::move(dest)}, amount);
-                }
-            } else {
-                outputs = ParsePaymentOutputs(normalized_outputs);
-            }
+            outputs = ParseOutputs(NormalizeOutputs(options["outputs"]), /*allow_silent_payments=*/!want_psbt);
         }
 
         if (options.exists("original_change_index")) {
@@ -1336,7 +1328,7 @@ RPCMethod send()
             UniValue outputs(UniValue::VOBJ);
             outputs = NormalizeOutputs(request.params[0]);
             std::vector<CRecipient> recipients = CreateRecipients(
-                    ParsePaymentOutputs(outputs),
+                    ParseOutputs(outputs, /*allow_silent_payments=*/true),
                     InterpretSubtractFeeFromOutputInstructions(options["subtract_fee_from_outputs"], outputs.getKeys())
             );
             if (std::ranges::any_of(recipients, [](const auto& r) { return r.dest.IsSilentPayment(); })) {
@@ -1525,7 +1517,7 @@ RPCMethod sendall()
             CMutableTransaction rawTx{ConstructTransaction(options["inputs"], /*outputs_in=*/std::nullopt, options["locktime"], rbf, coin_control.m_version)};
             // Output i pays to the address in key i of the normalized outputs
             const UniValue outputs{NormalizeOutputs(recipient_key_value_pairs)};
-            const auto parsed_outputs{ParsePaymentOutputs(outputs)};
+            const auto parsed_outputs{ParseOutputs(outputs, /*allow_silent_payments=*/true)};
             std::map<size_t, SilentPaymentsDestination> sp_destinations;
             for (size_t i = 0; i < parsed_outputs.size(); ++i) {
                 if (const auto* sp = parsed_outputs[i].first.GetSilentPaymentsDestination()) {
@@ -1895,7 +1887,7 @@ RPCMethod walletcreatefundedpsbt()
     UniValue outputs(UniValue::VOBJ);
     outputs = NormalizeOutputs(request.params[1]);
     std::vector<CRecipient> recipients = CreateRecipients(
-            ParseOutputs(outputs),
+            ParseOutputs(outputs, /*allow_silent_payments=*/false),
             InterpretSubtractFeeFromOutputInstructions(options["subtractFeeFromOutputs"], outputs.getKeys())
     );
     // Automatically select coins, unless at least one is manually selected. Can
