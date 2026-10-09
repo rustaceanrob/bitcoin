@@ -5,7 +5,9 @@ from test_framework.blocktools import COINBASE_MATURITY
 from test_framework.descriptors import descsum_create
 from test_framework.extendedkey import ExtendedPrivateKey
 from test_framework.key import ECKey, H_POINT
+from test_framework.messages import tx_from_hex
 from test_framework.segwit_addr import bech32_encode, convertbits, Encoding
+from test_framework.silentpayments import scan_transaction
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
@@ -153,16 +155,18 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
         return results
 
+    def scan_sp_outputs(self, txid, scan_key, spend_key):
+        """Return the x-only keys of the outputs of txid paying to the SP address of (scan_key, spend_key)."""
+        node = self.nodes[0]
+        tx = tx_from_hex(node.getrawtransaction(txid))
+        prevout_spks = [bytes.fromhex(node.getrawtransaction(f"{txin.prevout.hash:064x}", True)["vout"][txin.prevout.n]["scriptPubKey"]["hex"])
+                        for txin in tx.vin]
+        return scan_transaction(tx, prevout_spks, scan_key, spend_key.get_pubkey())
+
     def assert_sp_outputs(self, txid, *recipients):
         """Assert each (scan_key, spend_key, expected_n) recipient has exactly expected_n SP outputs in txid."""
-        tx_hex = self.nodes[0].getrawtransaction(txid)
         for scan_key, spend_key, expected_n in recipients:
-            found = self.nodes[0].scantxforsilentpayments(
-                tx_hex,
-                scan_key.get_bytes().hex(),
-                spend_key.get_pubkey().get_bytes().hex(),
-            )
-            assert_equal(len(found), expected_n)
+            assert_equal(len(self.scan_sp_outputs(txid, scan_key, spend_key)), expected_n)
 
     def fund_descriptor(self, wallet, template, amount):
         """Import a non-active descriptor into wallet and fund its first address. Return the funded outpoint."""
@@ -648,9 +652,8 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         assert new_txid in node.getrawmempool()
         assert txid not in node.getrawmempool()
         self.assert_sp_outputs(new_txid, (self.scan_key_1, self.spend_key_1, 1))
-        found = node.scantxforsilentpayments(node.getrawtransaction(new_txid), self.scan_key_1.get_bytes().hex(),
-                                             self.spend_key_1.get_pubkey().get_bytes().hex())
-        sp_vout = next(o for o in node.getrawtransaction(new_txid, True)["vout"] if o["scriptPubKey"]["hex"] == "5120" + found[0]["output"])
+        found = self.scan_sp_outputs(new_txid, self.scan_key_1, self.spend_key_1)
+        sp_vout = next(o for o in node.getrawtransaction(new_txid, True)["vout"] if o["scriptPubKey"]["hex"] == "5120" + found[0].hex())
         assert_greater_than(5, sp_vout["value"])
 
         # The silent payments change destination is persisted, so the output is found again on the next bump

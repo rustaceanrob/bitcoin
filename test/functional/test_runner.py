@@ -392,7 +392,6 @@ BASE_SCRIPTS = [
     'feature_settings.py',
     'rpc_getdescriptorinfo.py',
     'rpc_gettxspendingprevout.py',
-    'rpc_scantxforsilentpayments.py',
     'rpc_help.py',
     'feature_framework_testshell.py',
     'tool_rpcauth.py',
