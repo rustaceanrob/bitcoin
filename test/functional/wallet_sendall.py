@@ -169,7 +169,7 @@ class SendallTest(BitcoinTestFramework):
                 [{self.recipient: 5}]
             )
 
-    @for_each_target
+    @for_each_target(allow_sp=False)
     def sendall_duplicate_recipient(self):
         self.log.info("Test duplicate destination")
         self.add_utxos([1, 8, 3, 9])

@@ -115,7 +115,7 @@ UniValue NormalizeOutputs(const UniValue& outputs_in)
 std::vector<std::pair<PaymentDestination, CAmount>> ParseOutputs(const UniValue& outputs, bool allow_silent_payments)
 {
     // Duplicate checking
-    std::set<PaymentDestination> destinations;
+    std::set<CTxDestination> destinations;
     std::vector<std::pair<PaymentDestination, CAmount>> parsed_outputs;
     bool has_data{false};
     const auto& keys{outputs.getKeys()};
@@ -142,7 +142,8 @@ std::vector<std::pair<PaymentDestination, CAmount>> ParseOutputs(const UniValue&
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Silent payments are not supported by this RPC");
             }
 
-            if (!destinations.insert(*destination).second) {
+            const CTxDestination* tx_destination{destination->GetTxDestination()};
+            if (tx_destination && !destinations.insert(*tx_destination).second) {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + name_);
             }
             parsed_outputs.emplace_back(std::move(*destination), amount);

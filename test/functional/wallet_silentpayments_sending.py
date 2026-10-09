@@ -522,6 +522,48 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
                 (self.scan_key_1, self.spend_key_1, 1),
                 (self.scan_key_2, self.spend_key_2, 1))
 
+    def test_repeated_sp_recipient(self):
+        self.log.info("Testing a single tx paying the same SP address more than once")
+        node = self.nodes[0]
+        wallet = self.create_funded_wallet(node, "repeated_sp_wallet")
+
+        txid = wallet.send(outputs=[{self.sp_addr_1: 3}, {self.sp_addr_1: 4}, {self.sp_addr_2: 1}])["txid"]
+        found = self.scan_sp_outputs(txid, self.scan_key_1, self.spend_key_1)
+        assert_equal(len(found), 2)
+        assert_not_equal(found[0], found[1])
+        amounts = sorted(o["value"] for o in node.getrawtransaction(txid, True)["vout"] if o["scriptPubKey"]["hex"][4:] in {f.hex() for f in found})
+        assert_equal(amounts, [3, 4])
+        self.assert_sp_outputs(txid, (self.scan_key_2, self.spend_key_2, 1))
+
+        bumped_txid = wallet.bumpfee(txid)["txid"]
+        self.assert_sp_outputs(bumped_txid, (self.scan_key_1, self.spend_key_1, 2), (self.scan_key_2, self.spend_key_2, 1))
+        self.generate(node, 1)
+
+        txid = wallet.sendall(recipients=[self.sp_addr_1, self.sp_addr_1])["txid"]
+        found = self.scan_sp_outputs(txid, self.scan_key_1, self.spend_key_1)
+        assert_equal(len(found), 2)
+        amounts = [o["value"] for o in node.getrawtransaction(txid, True)["vout"]]
+        assert_equal(len(amounts), 2)
+        assert_greater_than_or_equal(Decimal("0.00000001"), abs(amounts[0] - amounts[1]))
+        self.generate(node, 1)
+
+        wallet = self.create_funded_wallet(node, "repeated_sp_positions_wallet")
+        regular_address = wallet.getnewaddress()
+        txid = wallet.sendall(recipients=[self.sp_addr_1, self.sp_addr_1, {regular_address: 1}])["txid"]
+        vout = node.getrawtransaction(txid, True)["vout"]
+        assert_equal(len(vout), 3)
+        assert_equal(vout[2]["scriptPubKey"]["address"], regular_address)
+        assert_equal(vout[2]["value"], 1)
+        found = {f.hex() for f in self.scan_sp_outputs(txid, self.scan_key_1, self.spend_key_1)}
+        assert_equal({vout[0]["scriptPubKey"]["hex"][4:], vout[1]["scriptPubKey"]["hex"][4:]}, found)
+        assert_greater_than_or_equal(Decimal("0.00000001"), abs(vout[0]["value"] - vout[1]["value"]))
+        self.generate(node, 1)
+
+        regular_wallet = self.create_funded_wallet(node, "repeated_regular_wallet")
+        address = regular_wallet.getnewaddress()
+        assert_raises_rpc_error(-8, f"Invalid parameter, duplicated address: {address}",
+                                regular_wallet.send, outputs=[{address: 1}, {address: 2}])
+
     def test_mixed_sp_and_regular(self):
         self.log.info("Testing a single tx with both SP and regular outputs")
         wallet = self.create_funded_wallet(self.nodes[0], "mixed_output_wallet")
@@ -758,6 +800,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.test_address_reuse()
 
         self.test_multiple_sp_recipients()
+        self.test_repeated_sp_recipient()
         self.test_mixed_sp_and_regular()
 
         self.test_external_inputs()

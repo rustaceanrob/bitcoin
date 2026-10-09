@@ -62,7 +62,6 @@ public:
     std::optional<CScript> GetStaticScript() const;
 
     friend bool operator==(const PaymentDestination&, const PaymentDestination&) = default;
-    friend bool operator<(const PaymentDestination& a, const PaymentDestination& b) { return a.m_destination < b.m_destination; }
 };
 
 #endif // BITCOIN_COMMON_PAYMENTDESTINATION_H

@@ -1440,7 +1440,6 @@ RPCMethod sendall()
             PreventOutdatedOptions(options);
 
 
-            std::set<PaymentDestination> addresses_without_amount;
             UniValue recipient_key_value_pairs(UniValue::VARR);
             const UniValue& recipients{request.params[0]};
             for (unsigned int i = 0; i < recipients.size(); ++i) {
@@ -1449,15 +1448,12 @@ RPCMethod sendall()
                     UniValue rkvp(UniValue::VOBJ);
                     rkvp.pushKV(recipient.get_str(), 0);
                     recipient_key_value_pairs.push_back(std::move(rkvp));
-                    // Store the decoded destination, so it matches the outputs below
-                    // also when the address was given in another case (e.g. uppercase bech32)
-                    addresses_without_amount.insert(PaymentDestination::FromString(recipient.get_str()).value_or(PaymentDestination{}));
                 } else {
                     recipient_key_value_pairs.push_back(recipient);
                 }
             }
 
-            if (addresses_without_amount.size() == 0) {
+            if (std::ranges::none_of(recipients.getValues(), [](const UniValue& recipient) { return recipient.isStr(); })) {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Must provide at least one address without a specified amount");
             }
 
@@ -1518,9 +1514,15 @@ RPCMethod sendall()
             // Output i pays to the address in key i of the normalized outputs
             const UniValue outputs{NormalizeOutputs(recipient_key_value_pairs)};
             const auto parsed_outputs{ParseOutputs(outputs, /*allow_silent_payments=*/true)};
-            std::map<size_t, SilentPaymentsDestination> sp_destinations;
+            std::vector<std::pair<PaymentDestination, std::optional<CAmount>>> sendall_outputs;
+            sendall_outputs.reserve(parsed_outputs.size());
             for (size_t i = 0; i < parsed_outputs.size(); ++i) {
-                if (const auto* sp = parsed_outputs[i].first.GetSilentPaymentsDestination()) {
+                const auto& [dest, amount] = parsed_outputs[i];
+                sendall_outputs.emplace_back(dest, recipients[i].isStr() ? std::nullopt : std::optional{amount});
+            }
+            std::map<size_t, SilentPaymentsDestination> sp_destinations;
+            for (size_t i = 0; i < sendall_outputs.size(); ++i) {
+                if (const auto* sp = sendall_outputs[i].first.GetSilentPaymentsDestination()) {
                     sp_destinations.emplace(i, *sp);
                 }
             }
@@ -1603,10 +1605,10 @@ RPCMethod sendall()
                 }
                 sp_outputs = std::move(*sp_result);
             }
-            for (size_t i = 0; i < parsed_outputs.size(); ++i) {
-                const auto& [dest, amount] = parsed_outputs[i];
+            for (size_t i = 0; i < sendall_outputs.size(); ++i) {
+                const auto& [dest, amount] = sendall_outputs[i];
                 const auto sp_it{sp_outputs.find(i)};
-                rawTx.vout.emplace_back(amount, sp_it != sp_outputs.end() ? GetScriptForDestination(sp_it->second) : *CHECK_NONFATAL(dest.GetStaticScript()));
+                rawTx.vout.emplace_back(amount.value_or(0), sp_it != sp_outputs.end() ? GetScriptForDestination(sp_it->second) : *CHECK_NONFATAL(dest.GetStaticScript()));
             }
 
             std::vector<COutPoint> outpoints_spent;
@@ -1660,15 +1662,16 @@ RPCMethod sendall()
                 throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds for fees after creating specified outputs.");
             }
 
-            const CAmount per_output_without_amount{remainder / (long)addresses_without_amount.size()};
+            const auto num_outputs_without_amount{std::ranges::count_if(sendall_outputs, [](const auto& output) { return !output.second; })};
+            const CAmount per_output_without_amount{remainder / num_outputs_without_amount};
 
             bool gave_remaining_to_first{false};
             for (size_t i = 0; i < rawTx.vout.size(); ++i) {
                 CTxOut& out = rawTx.vout[i];
-                if (addresses_without_amount.contains(parsed_outputs[i].first)) {
+                if (!sendall_outputs[i].second) {
                     out.nValue = per_output_without_amount;
                     if (!gave_remaining_to_first) {
-                        out.nValue += remainder % addresses_without_amount.size();
+                        out.nValue += remainder % num_outputs_without_amount;
                         gave_remaining_to_first = true;
                     }
                     if (IsDust(out, pwallet->chain().relayDustFee())) {
