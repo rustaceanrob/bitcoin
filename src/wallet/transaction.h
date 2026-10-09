@@ -209,11 +209,6 @@ public:
     // BIP 70 Payment Request (deprecated, field kept to preserve metadata from old wallets)
     std::vector<std::string> m_payment_requests;
     std::vector<bip352::SilentPaymentsDestination> m_sprecipients; //!< original SP recipients used for RBF output recomputation
-    /**
-     * True if this tx sends to at least one silent payments address. It is not stored as a
-     * value of its own, but as a placeholder replaced_by_txid, see Serialize.
-     */
-    bool m_is_sp_tx{false};
     unsigned int nTimeReceived; //!< time received by this node
     /**
      * Stable timestamp that never changes, and reflects the order a transaction
@@ -264,7 +259,7 @@ public:
         Assert(m_txs.contains(GetWitnessHash()));
     }
 
-    bool IsSilentPaymentsTx() const { return m_is_sp_tx; }
+    bool IsSilentPaymentsTx() const { return !m_sprecipients.empty(); }
 
     TxState m_state;
 
@@ -289,17 +284,7 @@ public:
         if (m_comment) string_values["comment"] = *m_comment;
         if (m_comment_to) string_values["to"] = *m_comment_to;
         if (m_replaces_txid) string_values["replaces_txid"] = m_replaces_txid->ToString();
-        if (m_replaced_by_txid) {
-            string_values["replaced_by_txid"] = m_replaced_by_txid->ToString();
-        } else if (m_is_sp_tx) {
-            // Older releases don't know about silent payments and could fee bump this tx by
-            // adding inputs, which would invalidate its silent payments outputs. Mark it as
-            // replaced by itself so they refuse to bump it. No tx can replace itself, so on load
-            // this placeholder flags the tx as a silent payments tx. A new value is not used to
-            // flag it, since releases that throw on unknown values could not load the wallet.
-            // Once the tx is replaced, the flag is not kept, since it can no longer be bumped.
-            string_values["replaced_by_txid"] = GetHash().ToString();
-        }
+        if (m_replaced_by_txid) string_values["replaced_by_txid"] = m_replaced_by_txid->ToString();
         string_values["fromaccount"] = "";
         if (nOrderPos != -1) string_values["n"] = util::ToString(nOrderPos);
         if (nTimeSmart) string_values["timesmart"] = strprintf("%u", nTimeSmart);
@@ -352,15 +337,7 @@ public:
             else if (key == "comment") m_comment = value;
             else if (key == "to") m_comment_to = value;
             else if (key == "replaces_txid") m_replaces_txid = Txid::FromHex(value);
-            else if (key == "replaced_by_txid") {
-                // A tx replaced by itself is the placeholder written for silent payments txs, see Serialize
-                const auto txid{Txid::FromHex(value)};
-                if (txid == GetHash()) {
-                    m_is_sp_tx = true;
-                } else {
-                    m_replaced_by_txid = txid;
-                }
-            }
+            else if (key == "replaced_by_txid") m_replaced_by_txid = Txid::FromHex(value);
             else {
                 throw std::runtime_error("Unexpected value in CWalletTx strings value map");
             }
@@ -438,7 +415,6 @@ private:
         nChangeCached = 0;
         nOrderPos = -1;
         m_sprecipients.clear();
-        m_is_sp_tx = false;
     }
 
     void Init()

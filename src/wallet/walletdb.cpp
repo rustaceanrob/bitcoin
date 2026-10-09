@@ -7,6 +7,7 @@
 
 #include <wallet/walletdb.h>
 
+#include <chainparams.h>
 #include <common/system.h>
 #include <key_io.h>
 #include <primitives/transaction_identifier.h>
@@ -313,7 +314,12 @@ bool WalletBatch::EraseLockedUTXO(const COutPoint& output)
 
 bool WalletBatch::WriteSpRecipients(const Txid& txid, const std::vector<bip352::SilentPaymentsDestination>& recipients)
 {
-    return WriteIC(std::make_pair(DBKeys::SP_RECIPIENTS, txid), recipients);
+    std::vector<std::string> addresses;
+    addresses.reserve(recipients.size());
+    for (const auto& recipient : recipients) {
+        addresses.push_back(bip352::EncodeSilentPaymentsAddress(recipient, Params()));
+    }
+    return WriteIC(std::make_pair(DBKeys::SP_RECIPIENTS, txid), addresses);
 }
 
 bool WalletBatch::EraseSpRecipients(const Txid& txid)
@@ -1210,10 +1216,16 @@ DBErrors WalletBatch::LoadWallet(CWallet* pwallet)
             [](CWallet* pwallet, DataStream& key, DataStream& value, std::string& err) EXCLUSIVE_LOCKS_REQUIRED(pwallet->cs_wallet) {
             Txid txid;
             key >> txid;
-            // SilentPaymentsDestination is not default constructible, so deserialize the vector by hand
+            std::vector<std::string> addresses;
+            value >> addresses;
             std::vector<bip352::SilentPaymentsDestination> recipients;
-            for (uint64_t n{ReadCompactSize(value)}; n > 0; --n) {
-                recipients.emplace_back(deserialize, value);
+            for (const auto& address : addresses) {
+                auto recipient{bip352::DecodeSilentPaymentsAddress(address, Params())};
+                if (!recipient) {
+                    err = strprintf("Error reading silent payments recipients of tx %s: %s", txid.ToString(), recipient.error());
+                    return DBErrors::CORRUPT;
+                }
+                recipients.push_back(std::move(*recipient));
             }
             pwallet->LoadSpRecipients(txid, std::move(recipients));
             return DBErrors::LOAD_OK;

@@ -15,7 +15,6 @@
 #include <qt/transactiontablemodel.h>
 
 #include <common/args.h>
-#include <common/bip352.h>
 #include <interfaces/handler.h>
 #include <interfaces/node.h>
 #include <key_io.h>
@@ -467,8 +466,7 @@ bool WalletModel::bumpFee(Txid hash, Txid& new_hash)
     CAmount old_fee;
     CAmount new_fee;
     CMutableTransaction mtx;
-    std::vector<bip352::SilentPaymentsDestination> sp_recipients;
-    if (!m_wallet->createBumpTransaction(hash, coin_control, errors, old_fee, new_fee, mtx, sp_recipients)) {
+    if (!m_wallet->createBumpTransaction(hash, coin_control, errors, old_fee, new_fee, mtx)) {
         QMessageBox::critical(nullptr, tr("Fee bump error"), tr("Increasing transaction fee failed") + "<br />(" +
             (errors.size() ? QString::fromStdString(errors[0].translated) : "") +")");
         return false;
@@ -503,7 +501,7 @@ bool WalletModel::bumpFee(Txid hash, Txid& new_hash)
     // A silent payments transaction must be added to the wallet when it is created, so it is not
     // offered as a PSBT. A PSBT broadcast elsewhere would be bumped later as if it paid to regular
     // taproot outputs, since the wallet would not know its silent payments recipients.
-    const bool always_show_unsigned{getOptionsModel()->getEnablePSBTControls() && sp_recipients.empty()};
+    const bool always_show_unsigned{getOptionsModel()->getEnablePSBTControls() && !is_silent_payments};
     auto confirmationDialog = new SendConfirmationDialog(tr("Confirm fee bump"), questionString, "", "", SEND_CONFIRM_DELAY, enable_send, always_show_unsigned, nullptr);
     confirmationDialog->setAttribute(Qt::WA_DeleteOnClose);
     // TODO: Replace QDialog::exec() with safer QDialog::show().
@@ -517,7 +515,7 @@ bool WalletModel::bumpFee(Txid hash, Txid& new_hash)
     // Short-circuit if we are returning a bumped transaction PSBT to clipboard
     if (retval == QMessageBox::Save) {
         // "Create Unsigned" clicked
-        if (!sp_recipients.empty()) {
+        if (is_silent_payments) {
             QMessageBox::critical(nullptr, tr("Fee bump error"), tr("Silent payments transactions cannot be bumped as a PSBT."));
             return false;
         }
@@ -549,7 +547,7 @@ bool WalletModel::bumpFee(Txid hash, Txid& new_hash)
         return false;
     }
     // commit the bumped transaction
-    if(!m_wallet->commitBumpTransaction(hash, std::move(mtx), errors, new_hash, sp_recipients)) {
+    if(!m_wallet->commitBumpTransaction(hash, std::move(mtx), errors, new_hash)) {
         QMessageBox::critical(nullptr, tr("Fee bump error"), tr("Could not commit transaction") + "<br />(" +
             QString::fromStdString(errors[0].translated)+")");
         return false;

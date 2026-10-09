@@ -85,13 +85,13 @@ bool SignTransaction(CWallet& wallet, CMutableTransaction& mtx);
 //! but sets errors if the tx could not be added to the mempool (will try later)
 //! or if the old transaction could not be marked as replaced.
 //! sp_recipients are the silent payments recipients of the bump transaction, as
-//! returned by CreateRateBumpTransaction.
+//! returned by CreateRateBumpTransaction, or those of the original transaction if std::nullopt.
 Result CommitTransaction(CWallet& wallet,
     const Txid& txid,
     CMutableTransaction&& mtx,
     std::vector<bilingual_str>& errors,
     Txid& bumped_txid,
-    const std::vector<bip352::SilentPaymentsDestination>& sp_recipients);
+    const std::optional<std::vector<bip352::SilentPaymentsDestination>>& sp_recipients = std::nullopt);
 
 struct SignatureWeights
 {

@@ -260,10 +260,6 @@ util::Expected<BumpTransaction, BumpError> CreateRateBumpTransaction(CWallet& wa
     // given, they replace all the original outputs, so the original
     // destinations are not needed.
     std::map<CScript, size_t> sp_scripts;
-    if (outputs.empty() && wtx.IsSilentPaymentsTx() && wtx.m_sprecipients.empty()) {
-        errors.emplace_back(Untranslated("Unable to bump fee: silent payments recipient data is missing for this transaction"));
-        return util::Unexpected{BumpError{Result::WALLET_ERROR, std::move(errors)}};
-    }
     if (outputs.empty() && !wtx.m_sprecipients.empty()) {
         std::map<size_t, bip352::SilentPaymentsDestination> sp_dests;
         for (size_t i = 0; i < wtx.m_sprecipients.size(); ++i) {
@@ -432,7 +428,7 @@ bool SignTransaction(CWallet& wallet, CMutableTransaction& mtx) {
     }
 }
 
-Result CommitTransaction(CWallet& wallet, const Txid& txid, CMutableTransaction&& mtx, std::vector<bilingual_str>& errors, Txid& bumped_txid, const std::vector<bip352::SilentPaymentsDestination>& sp_recipients)
+Result CommitTransaction(CWallet& wallet, const Txid& txid, CMutableTransaction&& mtx, std::vector<bilingual_str>& errors, Txid& bumped_txid, const std::optional<std::vector<bip352::SilentPaymentsDestination>>& sp_recipients)
 {
     LOCK(wallet.cs_wallet);
     if (!errors.empty()) {
@@ -453,13 +449,8 @@ Result CommitTransaction(CWallet& wallet, const Txid& txid, CMutableTransaction&
 
     // commit/broadcast the tx
     CTransactionRef tx = MakeTransactionRef(std::move(mtx));
-    wallet.CommitTransaction(tx, oldWtx.GetHash(), oldWtx.m_comment, oldWtx.m_comment_to, oldWtx.m_messages, oldWtx.m_payment_requests, sp_recipients);
-
-    // Erase the old tx's SP recipients record; the replacement tx has its own record.
-    // A record left behind is harmless, since the old tx can no longer be bumped.
-    if (oldWtx.IsSilentPaymentsTx() && !WalletBatch(wallet.GetDatabase()).EraseSpRecipients(oldWtx.GetHash())) {
-        wallet.WalletLogPrintf("Failed to erase SP recipients for replaced tx %s\n", oldWtx.GetHash().ToString());
-    }
+    wallet.CommitTransaction(tx, oldWtx.GetHash(), oldWtx.m_comment, oldWtx.m_comment_to, oldWtx.m_messages, oldWtx.m_payment_requests,
+                             sp_recipients.value_or(oldWtx.m_sprecipients));
 
     // mark the original tx as bumped
     bumped_txid = tx->GetHash();

@@ -296,8 +296,7 @@ public:
         std::vector<bilingual_str>& errors,
         CAmount& old_fee,
         CAmount& new_fee,
-        CMutableTransaction& mtx,
-        std::vector<bip352::SilentPaymentsDestination>& sp_recipients) override
+        CMutableTransaction& mtx) override
     {
         std::vector<std::pair<PaymentDestination, CAmount>> outputs; // just an empty list of new recipients for now
         auto bump{feebumper::CreateRateBumpTransaction(*m_wallet.get(), txid, coin_control, /*require_mine=*/true, outputs)};
@@ -308,17 +307,15 @@ public:
         old_fee = bump->old_fee;
         new_fee = bump->new_fee;
         mtx = std::move(bump->mtx);
-        sp_recipients = std::move(bump->sp_recipients);
         return true;
     }
     bool signBumpTransaction(CMutableTransaction& mtx) override { return feebumper::SignTransaction(*m_wallet.get(), mtx); }
     bool commitBumpTransaction(const Txid& txid,
         CMutableTransaction&& mtx,
         std::vector<bilingual_str>& errors,
-        Txid& bumped_txid,
-        const std::vector<bip352::SilentPaymentsDestination>& sp_recipients) override
+        Txid& bumped_txid) override
     {
-        return feebumper::CommitTransaction(*m_wallet.get(), txid, std::move(mtx), errors, bumped_txid, sp_recipients) ==
+        return feebumper::CommitTransaction(*m_wallet.get(), txid, std::move(mtx), errors, bumped_txid) ==
                feebumper::Result::OK;
     }
     CTransactionRef getTx(const Txid& txid) override

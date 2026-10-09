@@ -2149,7 +2149,6 @@ void CWallet::CommitTransaction(
         if (!sp_recipients.empty()) {
             // The recipients are only written with a new tx, see WalletBatch::WriteFullTx
             Assume(new_tx);
-            wtx.m_is_sp_tx = true;
             wtx.m_sprecipients = sp_recipients;
         }
         return true;
