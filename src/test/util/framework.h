@@ -129,14 +129,6 @@ concept is_non_bool_char_int = std::is_integral_v<T> &&
                                !std::same_as<std::remove_cv_t<T>, char> &&
                                !std::same_as<std::remove_cv_t<T>, wchar_t> &&
                                !std::same_as<std::remove_cv_t<T>, char8_t>;
-template <typename T>
-constexpr bool is_null_cstring(const T& v)
-{
-    if constexpr (std::is_pointer_v<std::remove_reference_t<T>>)
-        return !v;
-    else
-        return false;
-}
 
 /** The main debugging output for most types on test failure. */
 template <typename T>
@@ -366,14 +358,8 @@ struct CapturedExpression {
             return check_equal_ranges(lhs, rhs);                                                                   \
         } else {                                                                                                   \
             bool btc_test_result;                                                                                  \
-            if constexpr (is_cstring<T> && is_cstring<U>) {                                                        \
-                if (is_null_cstring(lhs) || is_null_cstring(rhs)) {                                                \
-                    btc_test_result = (lhs op rhs);                                                                \
-                } else {                                                                                           \
-                    btc_test_result = (std::strcmp(lhs, rhs) op 0);                                                \
-                }                                                                                                  \
-            } else if constexpr (is_non_bool_char_int<T> && is_non_bool_char_int<U> &&                             \
-                                 std::is_signed_v<T> != std::is_signed_v<U>) {                                     \
+            if constexpr (is_non_bool_char_int<T> && is_non_bool_char_int<U> &&                                    \
+                          std::is_signed_v<T> != std::is_signed_v<U>) {                                            \
                 btc_test_result = cmp(lhs, rhs);                                                                   \
             } else {                                                                                               \
                 btc_test_result = static_cast<bool>(lhs op rhs);                                                   \
