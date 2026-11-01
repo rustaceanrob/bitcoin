@@ -107,42 +107,26 @@ void log(LogLevel level, const char* fmt, Args&&... args)
 
 /** These concepts determine the string representation of failing cases. */
 template <typename T>
-concept streamable = !std::is_pointer_v<T> && requires(std::ostream& os, const T& value) { os << value; };
+concept streamable = requires(std::ostream& os, const T& value) { os << value; };
 
 template <typename T>
 concept is_cstring = std::is_same_v<std::decay_t<T>, const char*> || std::is_same_v<std::decay_t<T>, char*>;
 
 template <typename T>
-concept is_variant = requires(const T& v) {
-    []<typename... Ts>(const std::variant<Ts...>&) {}(v);
-};
+concept is_range_check = std::ranges::range<T> && !streamable<T>;
 
 template <typename T>
-concept is_non_char_pointer = std::is_pointer_v<T> && !is_cstring<T>;
-
-template <typename T>
-concept is_range_check = std::ranges::range<T> && !streamable<T> && !is_cstring<T> && !HasToString<T>;
-
-template <typename T>
-concept is_non_bool_char_int = std::is_integral_v<T> &&
-                               !std::same_as<std::remove_cv_t<T>, bool> &&
-                               !std::same_as<std::remove_cv_t<T>, char> &&
-                               !std::same_as<std::remove_cv_t<T>, wchar_t> &&
-                               !std::same_as<std::remove_cv_t<T>, char8_t>;
-template <typename T>
-constexpr bool is_null_cstring(const T& v)
-{
-    if constexpr (std::is_pointer_v<std::remove_reference_t<T>>)
-        return !v;
-    else
-        return false;
-}
+concept is_non_bool_char_int = std::integral<T> &&
+                               !std::same_as<T, bool> &&
+                               !std::same_as<T, char> &&
+                               !std::same_as<T, wchar_t> &&
+                               !std::same_as<T, char8_t>;
 
 /** The main debugging output for most types on test failure. */
 template <typename T>
 std::string stringify(const T& value)
 {
-    if constexpr (is_non_char_pointer<T>) {
+    if constexpr (std::is_pointer_v<T>) {
         if (!value) return "nullptr";
         std::ostringstream os;
         os << static_cast<const void*>(value);
@@ -151,10 +135,8 @@ std::string stringify(const T& value)
         std::ostringstream os;
         os << value;
         return os.str();
-    } else if constexpr (is_variant<T>) {
-        return std::visit([](const auto& v) { return stringify(v); }, value);
     } else {
-        static_assert(requires(std::ostream& os) { os << value; }, "Please provide an operator<<(std::ostream&, const T&) for formatting. Otherwise, a test failure will not be able to display the differing objects. Alternatively, use CHECK_NO_DISPLAY to disable display of the objects completely.");
+        static_assert(streamable<T>, "Please provide an operator<<(std::ostream&, const T&) for formatting. Otherwise, a test failure will not be able to display the differing objects. Alternatively, use CHECK_NO_DISPLAY to disable display of the objects completely.");
     }
 }
 
@@ -367,13 +349,9 @@ struct CapturedExpression {
         } else {                                                                                                   \
             bool btc_test_result;                                                                                  \
             if constexpr (is_cstring<T> && is_cstring<U>) {                                                        \
-                if (is_null_cstring(lhs) || is_null_cstring(rhs)) {                                                \
-                    btc_test_result = (lhs op rhs);                                                                \
-                } else {                                                                                           \
-                    btc_test_result = (std::strcmp(lhs, rhs) op 0);                                                \
-                }                                                                                                  \
-            } else if constexpr (is_non_bool_char_int<T> && is_non_bool_char_int<U> &&                             \
-                                 std::is_signed_v<T> != std::is_signed_v<U>) {                                     \
+                const char *l{lhs}, *r{rhs};                                                                       \
+                btc_test_result = (l && r) ? (std::strcmp(l, r) op 0) : (l op r);                                  \
+            } else if constexpr (is_non_bool_char_int<T> && is_non_bool_char_int<U>) {                             \
                 btc_test_result = cmp(lhs, rhs);                                                                   \
             } else {                                                                                               \
                 btc_test_result = static_cast<bool>(lhs op rhs);                                                   \
