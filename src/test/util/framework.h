@@ -3,7 +3,6 @@
  * file COPYING or http://www.opensource.org/licenses/mit-license.php. */
 #ifndef BITCOIN_TEST_UTIL_FRAMEWORK_H
 #define BITCOIN_TEST_UTIL_FRAMEWORK_H
-#pragma once
 
 #include <test/util/common.h>
 #include <tinyformat.h>
