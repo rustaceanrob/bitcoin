@@ -134,6 +134,17 @@ std::string current_test_full_name()
     return test_context().full_name();
 }
 
+std::string current_exception_message()
+{
+    try {
+        throw;
+    } catch (const std::exception& e) {
+        return e.what();
+    } catch (...) {
+        return "unknown exception";
+    }
+}
+
 void record_check(TestContext& ctx, const Result& result, const char* kind, const char* expr,
                   const char* file, int line, const std::string& message)
 {

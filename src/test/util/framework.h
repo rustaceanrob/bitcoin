@@ -370,6 +370,9 @@ struct Decomposer {
 void record_check(TestContext& ctx, const Result& result, const char* kind, const char* expr,
                   const char* file, int line, const std::string& message = {});
 
+/** Message of the exception being handled, for use inside a `catch (...)` block. */
+std::string current_exception_message();
+
 /** Thrown by REQUIRE on failure to abort the current test. */
 struct RequireFailed {
 };
@@ -605,56 +608,56 @@ inline constexpr const char* btc_suite_name = "";
     } while (false)
 
 /** Passes if `expr` does NOT throw any exception. */
-#define CHECK_NOTHROW(expr)                                                      \
-    do {                                                                         \
-        auto& btc_test_ctx_{::framework::test_context()};                        \
-        ::framework::Result btc_test_res_{::framework::Result::ok()};            \
-        try {                                                                    \
-            expr;                                                                \
-        } catch (...) {                                                          \
-            btc_test_res_ = ::framework::Result::failed("unexpectedly threw");   \
-        }                                                                        \
-        ::framework::record_check(btc_test_ctx_, btc_test_res_, "CHECK_NOTHROW", \
-                                  #expr, __FILE__, __LINE__);                    \
+#define CHECK_NOTHROW(expr)                                                                                                 \
+    do {                                                                                                                    \
+        auto& btc_test_ctx_{::framework::test_context()};                                                                   \
+        ::framework::Result btc_test_res_{::framework::Result::ok()};                                                       \
+        try {                                                                                                               \
+            expr;                                                                                                           \
+        } catch (...) {                                                                                                     \
+            btc_test_res_ = ::framework::Result::failed("unexpectedly threw: " + ::framework::current_exception_message()); \
+        }                                                                                                                   \
+        ::framework::record_check(btc_test_ctx_, btc_test_res_, "CHECK_NOTHROW",                                            \
+                                  #expr, __FILE__, __LINE__);                                                               \
     } while (false)
 
 /** Like CHECK_NOTHROW, but aborts the current test on failure. Use
  * CHECK_NOTHROW from child threads. */
-#define REQUIRE_NOTHROW(expr)                                                                                      \
-    do {                                                                                                           \
-        auto& btc_test_ctx_{::framework::test_context()};                                                          \
-        if (!btc_test_ctx_.on_owner_thread()) {                                                                    \
-            ::framework::Result btc_test_res_{::framework::Result::failed(                                         \
-                "REQUIRE_NOTHROW used from a child thread; use CHECK_NOTHROW in child threads.")};                 \
-            ::framework::record_check(btc_test_ctx_, btc_test_res_, "REQUIRE_NOTHROW", #expr, __FILE__, __LINE__); \
-        } else {                                                                                                   \
-            ::framework::Result btc_test_res_{::framework::Result::ok()};                                          \
-            try {                                                                                                  \
-                expr;                                                                                              \
-            } catch (...) {                                                                                        \
-                btc_test_res_ = ::framework::Result::failed("unexpectedly threw");                                 \
-            }                                                                                                      \
-            ::framework::record_check(btc_test_ctx_, btc_test_res_, "REQUIRE_NOTHROW",                             \
-                                      #expr, __FILE__, __LINE__);                                                  \
-            if (!btc_test_res_.is_ok()) throw ::framework::RequireFailed{};                                        \
-        }                                                                                                          \
+#define REQUIRE_NOTHROW(expr)                                                                                                   \
+    do {                                                                                                                        \
+        auto& btc_test_ctx_{::framework::test_context()};                                                                       \
+        if (!btc_test_ctx_.on_owner_thread()) {                                                                                 \
+            ::framework::Result btc_test_res_{::framework::Result::failed(                                                      \
+                "REQUIRE_NOTHROW used from a child thread; use CHECK_NOTHROW in child threads.")};                              \
+            ::framework::record_check(btc_test_ctx_, btc_test_res_, "REQUIRE_NOTHROW", #expr, __FILE__, __LINE__);              \
+        } else {                                                                                                                \
+            ::framework::Result btc_test_res_{::framework::Result::ok()};                                                       \
+            try {                                                                                                               \
+                expr;                                                                                                           \
+            } catch (...) {                                                                                                     \
+                btc_test_res_ = ::framework::Result::failed("unexpectedly threw: " + ::framework::current_exception_message()); \
+            }                                                                                                                   \
+            ::framework::record_check(btc_test_ctx_, btc_test_res_, "REQUIRE_NOTHROW",                                          \
+                                      #expr, __FILE__, __LINE__);                                                               \
+            if (!btc_test_res_.is_ok()) throw ::framework::RequireFailed{};                                                     \
+        }                                                                                                                       \
     } while (false)
 
 /** Passes only if `expr` throws an exception derived from `ExceptionType`. */
-#define CHECK_THROWS_AS(expr, ExceptionType)                                                \
-    do {                                                                                    \
-        auto& btc_test_ctx_{::framework::test_context()};                                   \
-        ::framework::Result btc_test_res_{::framework::Result::failed(                      \
-            "expression did not throw")};                                                   \
-        try {                                                                               \
-            expr;                                                                           \
-        } catch (ExceptionType const&) {                                                    \
-            btc_test_res_ = ::framework::Result::ok();                                      \
-        } catch (...) {                                                                     \
-            btc_test_res_ = ::framework::Result::failed("threw unexpected exception type"); \
-        }                                                                                   \
-        ::framework::record_check(btc_test_ctx_, btc_test_res_, "CHECK_THROWS_AS",          \
-                                  #expr, __FILE__, __LINE__);                               \
+#define CHECK_THROWS_AS(expr, ExceptionType)                                                                                             \
+    do {                                                                                                                                 \
+        auto& btc_test_ctx_{::framework::test_context()};                                                                                \
+        ::framework::Result btc_test_res_{::framework::Result::failed(                                                                   \
+            "expression did not throw")};                                                                                                \
+        try {                                                                                                                            \
+            expr;                                                                                                                        \
+        } catch (ExceptionType const&) {                                                                                                 \
+            btc_test_res_ = ::framework::Result::ok();                                                                                   \
+        } catch (...) {                                                                                                                  \
+            btc_test_res_ = ::framework::Result::failed("threw unexpected exception type: " + ::framework::current_exception_message()); \
+        }                                                                                                                                \
+        ::framework::record_check(btc_test_ctx_, btc_test_res_, "CHECK_THROWS_AS",                                                       \
+                                  #expr, __FILE__, __LINE__);                                                                            \
     } while (false)
 
 /** Passes only if `expr` throws an exception derived from `ExceptionType`
@@ -674,8 +677,7 @@ inline constexpr const char* btc_suite_name = "";
         } catch (ExceptionType const& e) {                                                                                                   \
             btc_test_res_ = Predicate(e) ? ::framework::Result::ok() : ::framework::Result::failed("threw expected type, predicate failed"); \
         } catch (...) {                                                                                                                      \
-            btc_test_res_ = ::framework::Result::failed(                                                                                     \
-                "threw unexpected exception type");                                                                                          \
+            btc_test_res_ = ::framework::Result::failed("threw unexpected exception type: " + ::framework::current_exception_message());     \
         }                                                                                                                                    \
         ::framework::record_check(btc_test_ctx_, btc_test_res_, "CHECK_EXCEPTION",                                                           \
                                   #expr, __FILE__, __LINE__);                                                                                \
