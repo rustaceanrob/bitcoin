@@ -110,7 +110,8 @@ template <typename T>
 concept is_cstring = std::is_same_v<std::decay_t<T>, const char*> || std::is_same_v<std::decay_t<T>, char*>;
 
 template <typename T>
-concept is_range_check = std::ranges::range<T> && !streamable<T> && !is_cstring<T> && !HasToString<T>;
+concept byte_like = std::same_as<T, std::byte> || std::same_as<T, unsigned char> ||
+                    std::same_as<T, signed char> || std::same_as<T, char8_t>;
 
 template <typename T>
 concept is_non_bool_char_int = std::integral<T> &&
@@ -118,24 +119,6 @@ concept is_non_bool_char_int = std::integral<T> &&
                                !std::same_as<T, char> &&
                                !std::same_as<T, wchar_t> &&
                                !std::same_as<T, char8_t>;
-
-/** The main debugging output for most types on test failure. */
-template <typename T>
-std::string stringify(const T& value)
-{
-    if constexpr (std::is_pointer_v<T>) {
-        if (!value) return "nullptr";
-        std::ostringstream os;
-        os << static_cast<const void*>(value);
-        return os.str();
-    } else if constexpr (streamable<T>) {
-        std::ostringstream os;
-        os << value;
-        return os.str();
-    } else {
-        static_assert(streamable<T>, "Please provide an operator<<(std::ostream&, const T&) for formatting. Otherwise, a test failure will not be able to display the differing objects. Alternatively, use CHECK_NO_DISPLAY to disable display of the objects completely.");
-    }
-}
 
 /** Stringify overloads for common types. */
 std::string stringify(bool v);
@@ -150,7 +133,34 @@ std::string stringify(const util::Result<T>& v)
 {
     return v ? "OK" : "error: " + util::ErrorString(v).original;
 }
-/** End of stringify implementations. */
+
+/** The main debugging output for most types on test failure. */
+template <typename T>
+std::string stringify(const T& value)
+{
+    if constexpr (byte_like<T>) {
+        return tfm::format("0x%02x", static_cast<unsigned>(value) & 0xffU);
+    } else if constexpr (std::is_pointer_v<T>) {
+        if (!value) return "nullptr";
+        std::ostringstream os;
+        os << static_cast<const void*>(value);
+        return os.str();
+    } else if constexpr (streamable<T>) {
+        std::ostringstream os;
+        os << value;
+        return os.str();
+    } else if constexpr (std::ranges::range<T>) {
+        std::string out{"["};
+        for (bool first{true}; const auto& e : value) {
+            if (!first) out += ", ";
+            first = false;
+            out += stringify(e);
+        }
+        return out + "]";
+    } else {
+        static_assert(streamable<T>, "Please provide an operator<<(std::ostream&, const T&) for formatting. Otherwise, a test failure will not be able to display the differing objects. Alternatively, use CHECK_NO_DISPLAY to disable display of the objects completely.");
+    }
+}
 
 /** Result after evaluating a test expression. */
 struct Result {
@@ -256,17 +266,6 @@ template <std::ranges::range R1, std::ranges::range R2>
     requires std::equality_comparable_with<std::ranges::range_value_t<R1>, std::ranges::range_value_t<R2>>
 Result check_equal_ranges(const R1& r1, const R2& r2)
 {
-    /** Byte-like types are printed as hex, everything else falls back to stringify. */
-    auto fmt = []<typename E>(const E& v) -> std::string {
-        if constexpr (std::same_as<E, std::byte>) {
-            return tfm::format("0x%02x", std::to_integer<unsigned>(v));
-        } else if constexpr (std::same_as<E, unsigned char> || std::same_as<E, signed char> || std::same_as<E, char8_t>) {
-            return tfm::format("0x%02x", static_cast<unsigned>(v) & 0xffU);
-        } else {
-            return stringify(v);
-        }
-    };
-
     std::size_t idx{0};
     auto it1{std::ranges::begin(r1)};
     auto it2{std::ranges::begin(r2)};
@@ -276,8 +275,8 @@ Result check_equal_ranges(const R1& r1, const R2& r2)
     while (it1 != end1 && it2 != end2) {
         if (!(*it1 == *it2)) {
             return Result::failed("[index " + stringify(idx) + "]: " +
-                                  fmt(static_cast<const std::ranges::range_value_t<R1>&>(*it1)) + " != " +
-                                  fmt(static_cast<const std::ranges::range_value_t<R2>&>(*it2)));
+                                  stringify(static_cast<const std::ranges::range_value_t<R1>&>(*it1)) + " != " +
+                                  stringify(static_cast<const std::ranges::range_value_t<R2>&>(*it2)));
         }
         ++it1;
         ++it2;
@@ -327,24 +326,20 @@ struct CapturedExpression {
     template <typename U>
     auto operator&&(const U&) = delete;
 
-#define DECOMPOSE_OP(op, cmp)                                                                                      \
-    template <typename U>                                                                                          \
-    Result operator op(const U& rhs) const                                                                         \
-    {                                                                                                              \
-        if constexpr (std::string_view{#op} == "==" && is_range_check<T> && is_range_check<U>) {                   \
-            return check_equal_ranges(lhs, rhs);                                                                   \
-        } else {                                                                                                   \
-            bool btc_test_result;                                                                                  \
-            if constexpr (is_cstring<T> && is_cstring<U>) {                                                        \
-                const char *l{lhs}, *r{rhs};                                                                       \
-                btc_test_result = (l && r) ? (std::strcmp(l, r) op 0) : (l op r);                                  \
-            } else if constexpr (is_non_bool_char_int<T> && is_non_bool_char_int<U>) {                             \
-                btc_test_result = cmp(lhs, rhs);                                                                   \
-            } else {                                                                                               \
-                btc_test_result = static_cast<bool>(lhs op rhs);                                                   \
-            }                                                                                                      \
-            return btc_test_result ? Result::ok() : Result::failed(stringify(lhs) + " " #op " " + stringify(rhs)); \
-        }                                                                                                          \
+#define DECOMPOSE_OP(op, cmp)                                                                                  \
+    template <typename U>                                                                                      \
+    Result operator op(const U& rhs) const                                                                     \
+    {                                                                                                          \
+        bool btc_test_result;                                                                                  \
+        if constexpr (is_cstring<T> && is_cstring<U>) {                                                        \
+            const char *l{lhs}, *r{rhs};                                                                       \
+            btc_test_result = (l && r) ? (std::strcmp(l, r) op 0) : (l op r);                                  \
+        } else if constexpr (is_non_bool_char_int<T> && is_non_bool_char_int<U>) {                             \
+            btc_test_result = cmp(lhs, rhs);                                                                   \
+        } else {                                                                                               \
+            btc_test_result = static_cast<bool>(lhs op rhs);                                                   \
+        }                                                                                                      \
+        return btc_test_result ? Result::ok() : Result::failed(stringify(lhs) + " " #op " " + stringify(rhs)); \
     }
 
     DECOMPOSE_OP(==, std::cmp_equal)
@@ -591,6 +586,16 @@ inline constexpr const char* btc_suite_name = "";
         }                                                                                                  \
     } while (false)
 
+/** Compares two ranges element-wise, reporting the first differing index or a size mismatch.
+ *
+ * Example: CHECK_EQUAL_RANGES(actual_bytes, expected_bytes); */
+#define CHECK_EQUAL_RANGES(r1, r2)                                                            \
+    do {                                                                                      \
+        auto& btc_test_ctx_{::framework::test_context()};                                     \
+        ::framework::record_check(btc_test_ctx_, ::framework::check_equal_ranges((r1), (r2)), \
+                                  "CHECK_EQUAL_RANGES", #r1 ", " #r2, __FILE__, __LINE__);    \
+    } while (false)
+
 /** Passes if `expr` throws any exception. */
 #define CHECK_THROWS(expr)                                                      \
     do {                                                                        \
@@ -753,7 +758,7 @@ inline constexpr const char* btc_suite_name = "";
 #define BOOST_TEST_MESSAGE(msg) TEST_MESSAGE(msg)
 #define BOOST_WARN_MESSAGE(expr, msg) WARN_MESSAGE(expr, msg)
 #define BOOST_CHECK_EQUAL_COLLECTIONS(ab, ae, bb, be) \
-    CHECK(std::ranges::subrange((ab), (ae)) == std::ranges::subrange((bb), (be)))
+    CHECK_EQUAL_RANGES(std::ranges::subrange((ab), (ae)), std::ranges::subrange((bb), (be)))
 #define BOOST_AUTO_TEST_CASE(name) FIXTURE_TEST_CASE(name, btc_suite_fixture)
 #define BOOST_FIXTURE_TEST_CASE(name, F) \
     using name = F;                      \
