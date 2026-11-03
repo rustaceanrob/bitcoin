@@ -500,10 +500,14 @@ inline constexpr const char* btc_suite_name = "";
         BITCOIN_TEST_DIAG_PUSH                                                                      \
         ::framework::Result btc_test_res_ = ::framework::Decomposer{} <= expr;                      \
         BITCOIN_TEST_DIAG_POP                                                                       \
-        std::ostringstream btc_test_os_;                                                            \
-        __VA_OPT__(if (!btc_test_res_.is_ok()) btc_test_os_ << __VA_ARGS__;)                        \
+        std::string btc_test_msg_;                                                                  \
+        __VA_OPT__(if (!btc_test_res_.is_ok()) {                                                    \
+            std::ostringstream btc_test_os_;                                                        \
+            btc_test_os_ << __VA_ARGS__;                                                            \
+            btc_test_msg_ = btc_test_os_.str();                                                     \
+        })                                                                                          \
         ::framework::record_check(btc_test_ctx_, btc_test_res_, "CHECK", #expr, __FILE__, __LINE__, \
-                                  btc_test_res_.is_ok() ? std::string{} : btc_test_os_.str());      \
+                                  btc_test_msg_);                                                   \
     } while (false)
 
 /** Same as CHECK, however in the case of failure, no meaningful
@@ -518,10 +522,14 @@ inline constexpr const char* btc_suite_name = "";
                                  ::framework::Result::failed(                                       \
                                      "Unable to produce an expression."                             \
                                      "If you are unable to use CHECK, try implementing `<<`");      \
-        std::ostringstream btc_test_os_;                                                            \
-        __VA_OPT__(if (!btc_test_res_.is_ok()) btc_test_os_ << __VA_ARGS__;)                        \
+        std::string btc_test_msg_;                                                                  \
+        __VA_OPT__(if (!btc_test_res_.is_ok()) {                                                    \
+            std::ostringstream btc_test_os_;                                                        \
+            btc_test_os_ << __VA_ARGS__;                                                            \
+            btc_test_msg_ = btc_test_os_.str();                                                     \
+        })                                                                                          \
         ::framework::record_check(btc_test_ctx_, btc_test_res_, "CHECK", #expr, __FILE__, __LINE__, \
-                                  btc_test_res_.is_ok() ? std::string{} : btc_test_os_.str());      \
+                                  btc_test_msg_);                                                   \
     } while (false)
 
 /** Like CHECK, but aborts the current test on failure by throwing.
@@ -540,10 +548,14 @@ inline constexpr const char* btc_suite_name = "";
             BITCOIN_TEST_DIAG_PUSH                                                                         \
             ::framework::Result btc_test_res_ = ::framework::Decomposer{} <= expr;                         \
             BITCOIN_TEST_DIAG_POP                                                                          \
-            std::ostringstream btc_test_os_;                                                               \
-            __VA_OPT__(if (!btc_test_res_.is_ok()) btc_test_os_ << __VA_ARGS__;)                           \
+            std::string btc_test_msg_;                                                                     \
+            __VA_OPT__(if (!btc_test_res_.is_ok()) {                                                       \
+                std::ostringstream btc_test_os_;                                                           \
+                btc_test_os_ << __VA_ARGS__;                                                               \
+                btc_test_msg_ = btc_test_os_.str();                                                        \
+            })                                                                                             \
             ::framework::record_check(btc_test_ctx_, btc_test_res_, "REQUIRE", #expr, __FILE__, __LINE__,  \
-                                      btc_test_res_.is_ok() ? std::string{} : btc_test_os_.str());         \
+                                      btc_test_msg_);                                                      \
             if (!btc_test_res_.is_ok()) throw ::framework::RequireFailed{};                                \
         }                                                                                                  \
     } while (false)
@@ -565,10 +577,14 @@ inline constexpr const char* btc_suite_name = "";
                                      ::framework::Result::failed(                                          \
                                          "Unable to produce an expression."                                \
                                          "If you are unable to use REQUIRE, try implementing `<<`");       \
-            std::ostringstream btc_test_os_;                                                               \
-            __VA_OPT__(if (!btc_test_res_.is_ok()) btc_test_os_ << __VA_ARGS__;)                           \
+            std::string btc_test_msg_;                                                                     \
+            __VA_OPT__(if (!btc_test_res_.is_ok()) {                                                       \
+                std::ostringstream btc_test_os_;                                                           \
+                btc_test_os_ << __VA_ARGS__;                                                               \
+                btc_test_msg_ = btc_test_os_.str();                                                        \
+            })                                                                                             \
             ::framework::record_check(btc_test_ctx_, btc_test_res_, "REQUIRE", #expr, __FILE__, __LINE__,  \
-                                      btc_test_res_.is_ok() ? std::string{} : btc_test_os_.str());         \
+                                      btc_test_msg_);                                                      \
             if (!btc_test_res_.is_ok()) throw ::framework::RequireFailed{};                                \
         }                                                                                                  \
     } while (false)
