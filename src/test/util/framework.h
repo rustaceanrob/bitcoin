@@ -523,8 +523,8 @@ inline constexpr const char* btc_suite_name = "";
         auto btc_test_res_ = btc_test_bool_ ?                                                       \
                                  ::framework::Result::ok() :                                        \
                                  ::framework::Result::failed(                                       \
-                                     "Unable to produce an expression."                             \
-                                     "If you are unable to use CHECK, try implementing `<<`");      \
+                                     "Unable to produce an expression. "                            \
+                                     "If you are unable to use CHECK, try implementing `<<`.");     \
         std::string btc_test_msg_;                                                                  \
         __VA_OPT__(if (!btc_test_res_.is_ok()) {                                                    \
             std::ostringstream btc_test_os_;                                                        \
@@ -578,8 +578,8 @@ inline constexpr const char* btc_suite_name = "";
             auto btc_test_res_ = btc_test_bool_ ?                                                          \
                                      ::framework::Result::ok() :                                           \
                                      ::framework::Result::failed(                                          \
-                                         "Unable to produce an expression."                                \
-                                         "If you are unable to use REQUIRE, try implementing `<<`");       \
+                                         "Unable to produce an expression. "                               \
+                                         "If you are unable to use REQUIRE, try implementing `<<`.");      \
             std::string btc_test_msg_;                                                                     \
             __VA_OPT__(if (!btc_test_res_.is_ok()) {                                                       \
                 std::ostringstream btc_test_os_;                                                           \
