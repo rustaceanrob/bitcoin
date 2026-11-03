@@ -416,20 +416,20 @@ int run(int argc, char** argv)
         } catch (const RequireFailed&) {
         } catch (const std::exception& e) {
             ctx.exception_occurred();
-            log(LogLevel::Error, "EXCEPTION in %s: %s\n", test_case.name, e.what());
+            log(LogLevel::Error, "EXCEPTION in %s: %s\n", ctx.full_name(), e.what());
         } catch (...) {
             ctx.exception_occurred();
-            log(LogLevel::Error, "EXCEPTION in %s: %s\n", test_case.name, "unknown exception");
+            log(LogLevel::Error, "EXCEPTION in %s: %s\n", ctx.full_name(), "unknown exception");
         }
         const auto stats = ctx.stats();
         summary.total_checks += stats.checks;
         if (ctx.passed()) {
             ++summary.passed;
-            log(LogLevel::Info, "[ OK ] %s (%d checks)\n", test_case.name, stats.checks);
+            log(LogLevel::Info, "[ OK ] %s (%d checks)\n", ctx.full_name(), stats.checks);
         } else {
             ++summary.failed;
             log(LogLevel::Error, "[FAIL] %s (%d/%d checks failed)\n",
-                test_case.name, stats.failed_checks, stats.checks);
+                ctx.full_name(), stats.failed_checks, stats.checks);
         }
     }
     const int total_tests = summary.passed + summary.failed + summary.skipped;
