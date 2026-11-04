@@ -156,6 +156,19 @@ std::string test_name(const TestCase& test_case)
     return test_case.name;
 }
 
+bool glob_match(std::string_view pattern, std::string_view text)
+{
+    if (pattern == "*") return true;
+    const bool any_prefix{pattern.starts_with('*')};
+    const bool any_suffix{pattern.ends_with('*')};
+    if (any_prefix) pattern.remove_prefix(1);
+    if (any_suffix) pattern.remove_suffix(1);
+    if (any_prefix && any_suffix) return text.find(pattern) != std::string_view::npos;
+    if (any_prefix) return text.ends_with(pattern);
+    if (any_suffix) return text.starts_with(pattern);
+    return text == pattern;
+}
+
 bool matches_filter(const TestCase& tc, std::string_view filter)
 {
     if (filter.empty()) return true;
@@ -164,8 +177,8 @@ bool matches_filter(const TestCase& tc, std::string_view filter)
     return std::ranges::any_of(std::views::split(filter, ','), [&](auto piece) {
         const std::string_view token{piece.begin(), piece.end()};
         const auto pos = token.find('/');
-        if (pos == std::string_view::npos) return (tc.suite && token == suite) || token == name;
-        return tc.suite && token.substr(0, pos) == suite && token.substr(pos + 1) == name;
+        if (pos == std::string_view::npos) return (tc.suite && glob_match(token, suite)) || glob_match(token, name);
+        return tc.suite && glob_match(token.substr(0, pos), suite) && glob_match(token.substr(pos + 1), name);
     });
 }
 
