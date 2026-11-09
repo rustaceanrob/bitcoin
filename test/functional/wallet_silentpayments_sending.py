@@ -364,10 +364,9 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_rbf(self):
         self.log.info("Testing RBF for silent payment transactions")
         node = self.nodes[0]
+        regular_addr = self.funder.getnewaddress()
 
         def bump_and_confirm(wallet, send_fn):
-            regular_addr = self.funder.getnewaddress()
-
             # Plain bumpfee
             new_txid = self.bumpfee(wallet, send_fn(wallet))
             self.mine_and_check_confirmed(wallet, new_txid)
@@ -394,7 +393,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
         # sendall: use maxconf=1 to restrict sendall to one UTXO, leaving the
         # original (2+ confirmations) available as additional input for the fee bump
-        wallet = self.create_funded_wallet("rbf_sendall", amount=25)
+        wallet = self.create_funded_wallet("rbf_sendall")
         extra_addr = wallet.getnewaddress()
         self.funder.sendtoaddress(extra_addr, 5)
         self.generate(node, 1)  # rbf_sendall funding UTXO now has 2 confs; extra UTXO has 1 conf
