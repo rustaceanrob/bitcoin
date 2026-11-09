@@ -489,7 +489,15 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
         new_txid = self.bumpfee(wallet, txid, outputs=[{self.sp_1.address: 4}])
         self.assert_sp_outputs(new_txid, self.sp_1)
-        self.mine_and_check_confirmed(wallet, new_txid)
+
+        self.log.info("- the replacement is bumped as a silent payments transaction")
+        funding_txid = self.funder.sendtoaddress(wallet.getnewaddress(), 1)
+        self.generateblock(self.nodes[0], self.funder.getnewaddress(), [funding_txid])
+        num_inputs = len(self.nodes[0].getrawtransaction(new_txid, True)["vin"])
+        newer_txid = self.bumpfee(wallet, new_txid, fee_rate=1000)
+        assert_greater_than(len(self.nodes[0].getrawtransaction(newer_txid, True)["vin"]), num_inputs)
+        self.assert_sp_outputs(newer_txid, self.sp_1)
+        self.mine_and_check_confirmed(wallet, newer_txid)
 
     def test_sp_change_address(self):
         self.log.info("Testing a silent payments change address")
