@@ -222,19 +222,6 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         wallet.walletpassphrase("passphrase", 120)
         self.do_send(wallet, {self.sp_1.address: 5}, expect=[self.sp_1])
 
-    def test_p2tr_inputs(self):
-        self.log.info("Testing P2TR inputs are eligible for silent payments")
-        wallet = self.create_funded_wallet(
-            "p2tr_wallet",
-            blank=True,
-            address_type="bech32m",
-            descriptors=[
-                desc(f"tr({self.xprv}/86h/1h/0h/0/*)"),
-                internal_desc(f"tr({self.xprv}/86h/1h/0h/1/*)"),
-            ],
-        )
-        self.do_send(wallet, {self.sp_1.address: 5}, expect=[self.sp_1])
-
     def test_inputs_with_multiple_spkms(self):
         self.log.info("Testing inputs whose script is managed by more than one ScriptPubKeyMan")
         recv = f"{self.xprv}/19/0/*"
@@ -251,33 +238,22 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         assert result["success"], result
         self.do_send(wallet, {self.sp_1.address: 5}, expect=[self.sp_1])
 
-    def test_p2pkh_inputs(self):
-        self.log.info("Testing P2PKH inputs are eligible for silent payments")
-        wallet = self.create_funded_wallet(
-            "p2pkh_wallet",
-            blank=True,
-            address_type="legacy",
-            descriptors=[
-                desc(f"pkh({self.xprv}/44h/1h/0h/0/*)"),
-                # P2WPKH for change — wallet default change type is bech32
-                internal_desc(f"wpkh({self.xprv}/84h/1h/0h/1/*)"),
-            ],
-        )
-        self.do_send(wallet, {self.sp_1.address: 5}, expect=[self.sp_1])
-
-    def test_p2sh_p2wpkh_inputs(self):
-        self.log.info("Testing P2SH-P2WPKH inputs are eligible for silent payments")
-        wallet = self.create_funded_wallet(
-            "p2sh_p2wpkh_wallet",
-            blank=True,
-            address_type="p2sh-segwit",
-            descriptors=[
-                desc(f"sh(wpkh({self.xprv}/49h/1h/0h/0/*))"),
-                # P2WPKH for change — wallet default change type is bech32
-                internal_desc(f"wpkh({self.xprv}/84h/1h/0h/1/*)"),
-            ],
-        )
-        self.do_send(wallet, {self.sp_1.address: 5}, expect=[self.sp_1])
+    def test_eligible_input_types(self):
+        # P2WPKH for change — wallet default change type is bech32
+        wpkh_change = f"wpkh({self.xprv}/84h/1h/0h/1/*)"
+        for input_type, address_type, recv, change in [
+            ("P2TR", "bech32m", f"tr({self.xprv}/86h/1h/0h/0/*)", f"tr({self.xprv}/86h/1h/0h/1/*)"),
+            ("P2PKH", "legacy", f"pkh({self.xprv}/44h/1h/0h/0/*)", wpkh_change),
+            ("P2SH-P2WPKH", "p2sh-segwit", f"sh(wpkh({self.xprv}/49h/1h/0h/0/*))", wpkh_change),
+        ]:
+            self.log.info(f"Testing {input_type} inputs are eligible for silent payments")
+            wallet = self.create_funded_wallet(
+                f"eligible_{address_type}",
+                blank=True,
+                address_type=address_type,
+                descriptors=[desc(recv), internal_desc(change)],
+            )
+            self.do_send(wallet, {self.sp_1.address: 5}, expect=[self.sp_1])
 
     def test_no_eligible_inputs(self):
         self.log.info("Testing wallet with only P2WSH inputs cannot send silent payments")
@@ -613,9 +589,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.test_encrypted_wallet_locked()
         self.test_encrypted_wallet_unlocked()
 
-        self.test_p2tr_inputs()
-        self.test_p2pkh_inputs()
-        self.test_p2sh_p2wpkh_inputs()
+        self.test_eligible_input_types()
         self.test_no_eligible_inputs()
         self.test_preset_eligible_input()
         self.test_preset_ineligible_input()
