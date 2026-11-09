@@ -134,12 +134,13 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def fund_descriptor(self, wallet, template, amount):
         """Import a non-active descriptor into wallet and fund its first address. Return the funded outpoint."""
         descriptor = descsum_create(template)
+        ranged = "*" in template
         request = {"desc": descriptor, "timestamp": "now"}
-        if "*" in template:
+        if ranged:
             request["range"] = [0, 0]
         result = wallet.importdescriptors([request])[0]
         assert result["success"], result
-        addr = self.nodes[0].deriveaddresses(descriptor, [0, 0] if "*" in template else None)[0]
+        addr = self.nodes[0].deriveaddresses(descriptor, [0, 0] if ranged else None)[0]
         txid = self.funder.sendtoaddress(addr, amount)
         self.generate(self.nodes[0], 1)
         return {"txid": txid, "vout": find_vout_for_address(self.nodes[0], txid, addr)}
