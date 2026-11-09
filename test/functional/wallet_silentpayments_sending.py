@@ -524,18 +524,29 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.log.info("Testing wallet state is correctly updated after a reorg of SP transactions")
         wallet = self.create_funded_wallet("reorg_wallet")
 
-        txids = self.do_send(wallet, {self.sp_1.address: 5}, mine_block=False).values()
+        txids = self.do_send(wallet, {self.sp_1.address: 5}, mine_block=False)
 
         self.generate(self.nodes[0], 3)
-        for txid in txids:
+        for txid in txids.values():
             assert_equal(wallet.gettransaction(txid)["confirmations"], 3)
 
         for _ in range(3):
             self.nodes[0].invalidateblock(self.nodes[0].getbestblockhash())
         self.nodes[0].syncwithvalidationinterfacequeue()
 
-        for txid in txids:
+        for txid in txids.values():
             assert_greater_than_or_equal(0, wallet.gettransaction(txid)["confirmations"])
+
+        self.log.info("- the silent payments recipient data survives the reorg and a reload")
+        self.nodes[0].unloadwallet("reorg_wallet")
+        self.nodes[0].loadwallet("reorg_wallet")
+        wallet = self.nodes[0].get_wallet_rpc("reorg_wallet")
+        funding_txid = self.funder.sendtoaddress(wallet.getnewaddress(), 1)
+        self.generateblock(self.nodes[0], self.funder.getnewaddress(), [funding_txid])
+        num_inputs = len(self.nodes[0].getrawtransaction(txids["sendall"], True)["vin"])
+        txids["sendall"] = self.bumpfee(wallet, txids["sendall"])
+        assert_greater_than(len(self.nodes[0].getrawtransaction(txids["sendall"], True)["vin"]), num_inputs)
+        self.assert_sp_outputs(txids["sendall"], self.sp_1)
 
         # Advance mock time so re-mined blocks have different timestamps from the
         # now-invalid blocks. In fast regtest, same parent + same txs + same timestamp
@@ -546,7 +557,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.generate(self.nodes[0], 5, sync_fun=self.no_op)
         self.nodes[0].setmocktime(0)
 
-        for txid in txids:
+        for txid in txids.values():
             assert_greater_than_or_equal(wallet.gettransaction(txid)["confirmations"], 1)
 
     def run_test(self):
