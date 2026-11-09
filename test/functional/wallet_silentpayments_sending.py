@@ -285,6 +285,23 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         assert_raises_rpc_error(-4, "No silent payment eligible inputs were found.",
                                 wallet.send, outputs=[{self.sp_1.address: 5}], options={"inputs": [ineligible_input], "add_inputs": False})
 
+    def test_sendall_skipped_inputs(self):
+        self.log.info("Testing sendall fails if the wallet has coins that cannot be spent in a silent payments transaction")
+        wallet = self.create_funded_wallet("sendall_skipped_inputs")
+        external_internal_key = generate_key().get_pubkey().get_bytes()[1:].hex()
+        skipped = self.fund_descriptor(wallet, f"tr({external_internal_key},pk({self.xprv}/20/0/*))", 2)
+
+        assert_raises_rpc_error(-4, "The wallet has coins that cannot be spent in a silent payments transaction. Use the inputs option to choose the coins to spend.",
+            wallet.sendall, recipients=[self.sp_1.address])
+        assert_raises_rpc_error(-4, f"Missing the private key of silent payments eligible input COutPoint({skipped['txid'][:10]}, {skipped['vout']})",
+            wallet.sendall, recipients=[self.sp_1.address], options={"inputs": [skipped]})
+
+        inputs = [{"txid": u["txid"], "vout": u["vout"]} for u in wallet.listunspent() if u["txid"] != skipped["txid"]]
+        txid = wallet.sendall(recipients=[self.sp_1.address], options={"inputs": inputs})["txid"]
+        self.assert_sp_outputs(txid, self.sp_1)
+        assert_equal([u["txid"] for u in wallet.listunspent()], [skipped["txid"]])
+        self.generate(self.nodes[0], 1)
+
     def test_must_add_to_wallet(self):
         self.log.info("Testing silent payments transactions must be added to the wallet when they are created")
         node = self.nodes[0]
@@ -582,6 +599,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.test_no_eligible_inputs()
         self.test_preset_eligible_input()
         self.test_preset_ineligible_input()
+        self.test_sendall_skipped_inputs()
         self.test_taproot_script_path_inputs()
         self.test_uncompressed_p2pkh_inputs()
         self.test_inputs_with_multiple_spkms()
