@@ -17,33 +17,6 @@ from test_framework.util import (
 )
 from test_framework.wallet_util import generate_keypair
 
-_master_key = ExtendedPrivateKey.generate()
-XPRV = _master_key.to_string()
-XPUB = _master_key.pubkey().to_string()
-
-P2TR_EXT  = f"{XPRV}/86h/1h/0h/0/*"
-P2TR_INT  = f"{XPRV}/86h/1h/0h/1/*"
-P2PKH_EXT = f"{XPRV}/44h/1h/0h/0/*"
-P2SH_EXT  = f"{XPRV}/49h/1h/0h/0/*"
-WPKH_INT  = f"{XPRV}/84h/1h/0h/1/*"
-
-# Per-test subtrees for non-standard paths; each test owns one numeric namespace so
-# wallets that share XPRV cannot accidentally see each other's UTXOs.
-NO_ELIGIBLE_EXT        = f"{XPRV}/11/0/*"   # test_no_eligible_inputs — recv
-NO_ELIGIBLE_INT        = f"{XPRV}/11/1/*"   # test_no_eligible_inputs — change
-MIXED_WSH              = f"{XPRV}/12/0/*"   # test_mixed_input_types — non-eligible WSH
-TR_SCRIPT_INTERNAL     = f"{XPRV}/13/0/*"   # test_taproot_script_path_inputs — internal key
-TR_SCRIPT_LEAF         = f"{XPRV}/13/1/*"   # test_taproot_script_path_inputs — leaf key
-TR_NUMS_LEAF           = f"{XPRV}/14/0/*"   # test_taproot_script_path_inputs — NUMS leaf key
-UNCOMPRESSED_INT       = f"{XPRV}/15/0/*"   # test_uncompressed_p2pkh_inputs — change
-UNCOMPRESSED_WPKH      = f"{XPRV}/15/1/*"   # test_uncompressed_p2pkh_inputs — eligible P2WPKH
-PRESET_ELIGIBLE_EXT    = f"{XPRV}/17/0/*"   # test_preset_eligible_input — non-eligible recv
-PRESET_ELIGIBLE_INT    = f"{XPRV}/17/1/*"   # test_preset_eligible_input — non-eligible change
-PRESET_ELIGIBLE_WPKH   = f"{XPRV}/17/2/*"   # test_preset_eligible_input — eligible P2WPKH
-PRESET_INELIGIBLE_WSH  = f"{XPRV}/18/0/*"   # test_preset_ineligible_input — non-eligible
-MULTIPLE_SPKMS_EXT     = f"{XPRV}/19/0/*"   # test_inputs_with_multiple_spkms — recv, also imported as combo()
-MULTIPLE_SPKMS_INT     = f"{XPRV}/19/1/*"   # test_inputs_with_multiple_spkms — change
-
 
 def generate_key():
     key = ECKey()
@@ -186,12 +159,12 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         wallet = node.get_wallet_rpc("taproot_script_path")
 
         # The internal key is ours, so the input is used for the shared secret
-        tr_input = self.fund_descriptor(wallet, f"tr({TR_SCRIPT_INTERNAL},pk({TR_SCRIPT_LEAF}))", 2)
+        tr_input = self.fund_descriptor(wallet, f"tr({self.xprv}/13/0/*,pk({self.xprv}/13/1/*))", 2)
         txid = wallet.sendall(recipients=[self.sp_1.address], options={"inputs": [tr_input]})["txid"]
         self.assert_sp_outputs(txid, self.sp_1)
 
         # The internal key is the NUMS point, so BIP352 leaves the input out of the shared secret
-        nums_input = self.fund_descriptor(wallet, f"tr({H_POINT},pk({TR_NUMS_LEAF}))", 2)
+        nums_input = self.fund_descriptor(wallet, f"tr({H_POINT},pk({self.xprv}/14/0/*))", 2)
         assert_raises_rpc_error(-4, "No silent payment eligible inputs were found.",
             wallet.sendall, recipients=[self.sp_1.address], options={"inputs": [nums_input]})
 
@@ -200,11 +173,11 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         node = self.nodes[0]
         node.createwallet("uncompressed_p2pkh", blank=True)
         wallet = node.get_wallet_rpc("uncompressed_p2pkh")
-        wallet.importdescriptors([internal_desc(f"wpkh({UNCOMPRESSED_INT})")])
+        wallet.importdescriptors([internal_desc(f"wpkh({self.xprv}/15/0/*)")])
 
         uncompressed_wif, _ = generate_keypair(compressed=False, wif=True)
         self.fund_descriptor(wallet, f"pkh({uncompressed_wif})", 3)
-        self.fund_descriptor(wallet, f"wpkh({UNCOMPRESSED_WPKH})", 3)
+        self.fund_descriptor(wallet, f"wpkh({self.xprv}/15/1/*)", 3)
 
         # Paying 5 needs both inputs, and only the P2WPKH one is used for the shared secret
         txid = wallet.sendtoaddress(self.sp_1.address, 5)
@@ -219,7 +192,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             blank=True,
             disable_private_keys=True,
             descriptors=[{
-                "desc": descsum_create(f"wpkh({XPUB}/0/*)"),
+                "desc": descsum_create(f"wpkh({self.xpub}/0/*)"),
                 "timestamp": "now",
                 "active": True,
                 "keypool": True,
@@ -262,24 +235,25 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             blank=True,
             address_type="bech32m",
             descriptors=[
-                desc(f"tr({P2TR_EXT})"),
-                internal_desc(f"tr({P2TR_INT})"),
+                desc(f"tr({self.xprv}/86h/1h/0h/0/*)"),
+                internal_desc(f"tr({self.xprv}/86h/1h/0h/1/*)"),
             ],
         )
         self.do_send(wallet, [{"address": self.sp_1.address, "amount": 5}], expect=[self.sp_1])
 
     def test_inputs_with_multiple_spkms(self):
         self.log.info("Testing inputs whose script is managed by more than one ScriptPubKeyMan")
+        recv = f"{self.xprv}/19/0/*"
         wallet = self.create_funded_wallet(
             "multiple_spkms",
             blank=True,
             descriptors=[
-                desc(f"wpkh({MULTIPLE_SPKMS_EXT})"),
-                internal_desc(f"wpkh({MULTIPLE_SPKMS_INT})"),
+                desc(f"wpkh({recv})"),
+                internal_desc(f"wpkh({self.xprv}/19/1/*)"),
             ],
         )
         # combo() also produces the P2WPKH scripts of the active receive descriptor, including the funded one
-        result = wallet.importdescriptors([{"desc": descsum_create(f"combo({MULTIPLE_SPKMS_EXT})"), "timestamp": "now", "range": [0, 10]}])[0]
+        result = wallet.importdescriptors([{"desc": descsum_create(f"combo({recv})"), "timestamp": "now", "range": [0, 10]}])[0]
         assert result["success"], result
         self.do_send(wallet, [{"address": self.sp_1.address, "amount": 5}], expect=[self.sp_1])
 
@@ -290,9 +264,9 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             blank=True,
             address_type="legacy",
             descriptors=[
-                desc(f"pkh({P2PKH_EXT})"),
+                desc(f"pkh({self.xprv}/44h/1h/0h/0/*)"),
                 # P2WPKH for change — wallet default change type is bech32
-                internal_desc(f"wpkh({WPKH_INT})"),
+                internal_desc(f"wpkh({self.xprv}/84h/1h/0h/1/*)"),
             ],
         )
         self.do_send(wallet, [{"address": self.sp_1.address, "amount": 5}], expect=[self.sp_1])
@@ -304,9 +278,9 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             blank=True,
             address_type="p2sh-segwit",
             descriptors=[
-                desc(f"sh(wpkh({P2SH_EXT}))"),
+                desc(f"sh(wpkh({self.xprv}/49h/1h/0h/0/*))"),
                 # P2WPKH for change — wallet default change type is bech32
-                internal_desc(f"wpkh({WPKH_INT})"),
+                internal_desc(f"wpkh({self.xprv}/84h/1h/0h/1/*)"),
             ],
         )
         self.do_send(wallet, [{"address": self.sp_1.address, "amount": 5}], expect=[self.sp_1])
@@ -317,8 +291,8 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             "wsh_only_wallet",
             blank=True,
             descriptors=[
-                desc(f"wsh(multi(1,{NO_ELIGIBLE_EXT}))"),
-                internal_desc(f"wsh(multi(1,{NO_ELIGIBLE_INT}))"),
+                desc(f"wsh(multi(1,{self.xprv}/11/0/*))"),
+                internal_desc(f"wsh(multi(1,{self.xprv}/11/1/*))"),
             ],
         )
         self.do_send(
@@ -334,11 +308,11 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             "preset_eligible_wallet",
             blank=True,
             descriptors=[
-                desc(f"wsh(multi(1,{PRESET_ELIGIBLE_EXT}))"),
-                internal_desc(f"wsh(multi(1,{PRESET_ELIGIBLE_INT}))"),
+                desc(f"wsh(multi(1,{self.xprv}/17/0/*))"),
+                internal_desc(f"wsh(multi(1,{self.xprv}/17/1/*))"),
             ],
         )
-        eligible_input = self.fund_descriptor(wallet, f"wpkh({PRESET_ELIGIBLE_WPKH})", 2)
+        eligible_input = self.fund_descriptor(wallet, f"wpkh({self.xprv}/17/2/*)", 2)
 
         # Paying 5 needs the funded P2WSH coin too, which the wallet adds to the preset input
         txid = wallet.send(outputs=[{self.sp_1.address: 5}], options={"inputs": [eligible_input], "add_inputs": True})["txid"]
@@ -349,7 +323,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_preset_ineligible_input(self):
         self.log.info("Testing ineligible preset inputs alone cannot fund a silent payments transaction")
         wallet = self.create_funded_wallet("preset_ineligible_wallet")
-        ineligible_input = self.fund_descriptor(wallet, f"wsh(multi(1,{PRESET_INELIGIBLE_WSH}))", 10)
+        ineligible_input = self.fund_descriptor(wallet, f"wsh(multi(1,{self.xprv}/18/0/*))", 10)
 
         assert_raises_rpc_error(-4, "No silent payment eligible inputs were found.",
                                 wallet.send, outputs=[{self.sp_1.address: 5}], options={"inputs": [ineligible_input], "add_inputs": False})
@@ -649,6 +623,10 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.nodes[0].createwallet("funder")
         self.funder = self.nodes[0].get_wallet_rpc("funder")
         self.generatetoaddress(self.nodes[0], COINBASE_MATURITY + 15, self.funder.getnewaddress())
+
+        master_key = ExtendedPrivateKey.generate()
+        self.xprv = master_key.to_string()
+        self.xpub = master_key.pubkey().to_string()
 
         self.sp_1 = SPRecipient()
         self.sp_2 = SPRecipient()
