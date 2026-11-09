@@ -125,6 +125,9 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         for txid in txids:
             assert_equal(wallet.gettransaction(txid)["confirmations"], 1)
 
+    def find_output(self, txid, value):
+        return next(o for o in self.nodes[0].getrawtransaction(txid, True)["vout"] if o["value"] == value)
+
     def fund_descriptor(self, wallet, template, amount):
         """Import a non-active descriptor into wallet and fund its first address. Return the funded outpoint."""
         descriptor = descsum_create(template)
@@ -331,14 +334,8 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         txid1 = sender.sendtoaddress(address=self.sp_2.address, amount=4)
         txid2 = sender.sendtoaddress(address=self.sp_2.address, amount=3)
 
-        output1 = ""
-        output2 = ""
-        for output in sender.getrawtransaction(txid1, True)["vout"]:
-            if output["value"] == 4.0:
-                output1 = output["scriptPubKey"]["address"]
-        for output in sender.getrawtransaction(txid2, True)["vout"]:
-            if output["value"] == 3.0:
-                output2 = output["scriptPubKey"]["address"]
+        output1 = self.find_output(txid1, 4)["scriptPubKey"]["address"]
+        output2 = self.find_output(txid2, 3)["scriptPubKey"]["address"]
 
         assert_not_equal(output1, output2, error_message="Two sends to same SP address must produce distinct outputs")
         self.assert_sp_outputs(txid1, self.sp_2)
@@ -440,7 +437,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         node = self.nodes[0]
         wallet = self.create_funded_wallet("rbf_sp_change")
         txid = wallet.sendtoaddress(self.sp_1.address, 5)
-        sp_index = next(o["n"] for o in node.getrawtransaction(txid, True)["vout"] if o["value"] == 5)
+        sp_index = self.find_output(txid, 5)["n"]
 
         # The fee is deducted from the silent payments output, which is recomputed for the new inputs
         new_txid = self.bumpfee(wallet, txid, original_change_index=sp_index)
@@ -460,7 +457,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         wallet = self.create_funded_wallet("rbf_sp_change_dropped")
         # sp_addr_1 and sp_addr_3 share a scan key, so their outputs are numbered together
         txid = wallet.sendmany("", {self.sp_1.address: 0.00001, self.sp_3.address: 1}, fee_rate=1)
-        sp_index = next(o["n"] for o in node.getrawtransaction(txid, True)["vout"] if o["value"] == Decimal("0.00001"))
+        sp_index = self.find_output(txid, Decimal("0.00001"))["n"]
 
         # Deducting the higher fee from the sp_addr_1 output leaves less than dust, so it is dropped
         new_txid = self.bumpfee(wallet, txid, original_change_index=sp_index, fee_rate=6)
