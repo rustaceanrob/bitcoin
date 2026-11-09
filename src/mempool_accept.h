@@ -49,6 +49,8 @@ public:
     virtual std::optional<uint256> BlockHash(int height) EXCLUSIVE_LOCKS_REQUIRED(::cs_main) = 0;
     //! Median time past of the active chain block at height, which is at most the tip height.
     virtual int64_t MedianTimePast(int height) EXCLUSIVE_LOCKS_REQUIRED(::cs_main) = 0;
+    //! Whether the block with hash at height is part of the active chain.
+    virtual bool IsInActiveChain(int height, const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return BlockHash(height) == hash; }
     //! Consensus script flags in effect at the chain tip.
     virtual script_verify_flags TipScriptFlags() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) = 0;
     //! All consensus script flags of the chain, used when standardness is not required.

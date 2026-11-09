@@ -162,7 +162,7 @@ bool TestLockPointValidity(MempoolChainView& chain, const LockPoints& lp)
         // Check whether the active chain is an extension of the block at which the LockPoints
         // calculation was valid.  If not LockPoints are no longer valid
         const auto& [height, hash] = *lp.max_input_block;
-        if (chain.BlockHash(height) != hash) {
+        if (!chain.IsInActiveChain(height, hash)) {
             return false;
         }
     }
