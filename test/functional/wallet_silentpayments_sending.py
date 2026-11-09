@@ -107,11 +107,14 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         return txids
 
     def assert_sp_outputs(self, txid, *recipients, n=1):
-        """Assert each recipient has exactly n SP outputs in txid."""
+        """Assert each recipient has exactly n SP outputs in txid. Return the outputs found."""
         tx_hex = self.nodes[0].getrawtransaction(txid)
+        outputs = []
         for r in recipients:
             found = scan_tx(self.nodes[0], tx_hex, r.scan_key.get_bytes(), r.spend_key.get_pubkey().get_bytes())
             assert_equal(len(found), n)
+            outputs += found
+        return outputs
 
     def bumpfee(self, wallet, txid, **options):
         new_txid = wallet.bumpfee(txid, **options)["txid"]
@@ -441,8 +444,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
         # The fee is deducted from the silent payments output, which is recomputed for the new inputs
         new_txid = self.bumpfee(wallet, txid, original_change_index=sp_index)
-        self.assert_sp_outputs(new_txid, self.sp_1)
-        found = scan_tx(node, node.getrawtransaction(new_txid), self.sp_1.scan_key.get_bytes(), self.sp_1.spend_key.get_pubkey().get_bytes())
+        found = self.assert_sp_outputs(new_txid, self.sp_1)
         sp_vout = next(o for o in node.getrawtransaction(new_txid, True)["vout"] if o["scriptPubKey"]["hex"] == "5120" + found[0]["output"])
         assert_greater_than(5, sp_vout["value"])
 
