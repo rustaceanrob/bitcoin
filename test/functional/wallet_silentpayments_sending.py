@@ -487,6 +487,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         wallet = self.create_funded_wallet("rbf_regular_to_sp", amount=Decimal("4.001"))
         txid = wallet.sendtoaddress(self.funder.getnewaddress(), 4)
 
+        assert_raises_rpc_error(-5, "Silent payments are not supported by this RPC", wallet.psbtbumpfee, txid, outputs=[{self.sp_1.address: 4}])
         new_txid = self.bumpfee(wallet, txid, outputs=[{self.sp_1.address: 4}])
         self.assert_sp_outputs(new_txid, self.sp_1)
 
