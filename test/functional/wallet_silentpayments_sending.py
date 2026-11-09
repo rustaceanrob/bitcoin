@@ -364,8 +364,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_mixed_sp_and_regular(self):
         self.log.info("Testing a single tx with both SP and regular outputs")
         wallet = self.create_funded_wallet("mixed_output_wallet")
-        regular_wallet = self.create_funded_wallet("regular_recv_wallet", amount=1)
-        regular_addr = regular_wallet.getnewaddress()
+        regular_addr = self.funder.getnewaddress()
 
         txids = self.do_send(wallet, {self.sp_1.address: 2, regular_addr: 3}, expect=[self.sp_1])
         for txid in txids.values():
