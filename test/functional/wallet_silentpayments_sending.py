@@ -143,9 +143,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             self.assert_sp_outputs(txid, *expect)
 
         if mine_block:
-            self.generate(self.nodes[0], 1)
-            for txid in txids.values():
-                assert_equal(wallet.gettransaction(txid)["confirmations"], 1)
+            self.mine_and_check_confirmed(wallet, *txids.values())
 
         return txids
 
@@ -155,6 +153,18 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         for r in recipients:
             found = scan_tx(self.nodes[0], tx_hex, r.scan_key.get_bytes(), r.spend_key.get_pubkey().get_bytes())
             assert_equal(len(found), n)
+
+    def bumpfee(self, wallet, txid, **options):
+        new_txid = wallet.bumpfee(txid, **options)["txid"]
+        mempool = self.nodes[0].getrawmempool()
+        assert new_txid in mempool
+        assert txid not in mempool
+        return new_txid
+
+    def mine_and_check_confirmed(self, wallet, *txids):
+        self.generate(self.nodes[0], 1)
+        for txid in txids:
+            assert_equal(wallet.gettransaction(txid)["confirmations"], 1)
 
     def fund_descriptor(self, wallet, template, amount):
         """Import a non-active descriptor into wallet and fund its first address. Return the funded outpoint."""
@@ -373,9 +383,8 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
         txid = wallet.sendtoaddress(self.sp_1.address, 1)
         assert_raises_rpc_error(-8, "psbtbumpfee does not support silent payments transactions, use bumpfee instead", wallet.psbtbumpfee, txid)
-        new_txid = wallet.bumpfee(txid)["txid"]
-        self.generate(node, 1)
-        assert_equal(wallet.gettransaction(new_txid)["confirmations"], 1)
+        new_txid = self.bumpfee(wallet, txid)
+        self.mine_and_check_confirmed(wallet, new_txid)
 
     def test_address_reuse(self):
         self.log.info("Testing that two sends to the same SP address produce distinct outputs")
@@ -444,34 +453,19 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             regular_addr = self.funder.getnewaddress()
 
             # Plain bumpfee
-            txid = send_fn(wallet)
-            assert txid in node.getrawmempool()
-            new_txid = wallet.bumpfee(txid)["txid"]
-            assert new_txid in node.getrawmempool()
-            assert txid not in node.getrawmempool()
-            self.generate(node, 1)
-            assert_equal(wallet.gettransaction(new_txid)["confirmations"], 1)
+            new_txid = self.bumpfee(wallet, send_fn(wallet))
+            self.mine_and_check_confirmed(wallet, new_txid)
             self.assert_sp_outputs(new_txid, self.sp_1)
 
             # bumpfee with outputs: add a new SP output and a regular output
-            txid = send_fn(wallet)
-            assert txid in node.getrawmempool()
-            new_txid = wallet.bumpfee(txid, outputs=[{self.sp_2.address: 1}, {regular_addr: 0.5}])["txid"]
-            assert new_txid in node.getrawmempool()
-            assert txid not in node.getrawmempool()
-            self.generate(node, 1)
-            assert_equal(wallet.gettransaction(new_txid)["confirmations"], 1)
+            new_txid = self.bumpfee(wallet, send_fn(wallet), outputs=[{self.sp_2.address: 1}, {regular_addr: 0.5}])
+            self.mine_and_check_confirmed(wallet, new_txid)
             # bumpfee with outputs= replaces all outputs; sp_addr_2 + change are the only SP output
             self.assert_sp_outputs(new_txid, self.sp_2)
 
             # bumpfee with outputs: replace existing outputs with a regular output (no SP output)
-            txid = send_fn(wallet)
-            assert txid in node.getrawmempool()
-            new_txid = wallet.bumpfee(txid, outputs=[{regular_addr: 0.5}])["txid"]
-            assert new_txid in node.getrawmempool()
-            assert txid not in node.getrawmempool()
-            self.generate(node, 1)
-            assert_equal(wallet.gettransaction(new_txid)["confirmations"], 1)
+            new_txid = self.bumpfee(wallet, send_fn(wallet), outputs=[{regular_addr: 0.5}])
+            self.mine_and_check_confirmed(wallet, new_txid)
 
         send_methods = [
             ("rbf_sendtoaddress", lambda w: w.sendtoaddress(self.sp_1.address, 5)),
@@ -490,15 +484,10 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.generate(node, 1)  # rbf_sendall funding UTXO now has 2 confs; extra UTXO has 1 conf
 
         txid = wallet.sendall(recipients=[self.sp_1.address], options={"maxconf": 1})["txid"]
-        assert txid in node.getrawmempool()
         original_input_count = len(node.getrawtransaction(txid, True)["vin"])
-        result = wallet.bumpfee(txid, fee_rate=500)
-        new_txid = result["txid"]
-        assert new_txid in node.getrawmempool()
-        assert txid not in node.getrawmempool()
+        new_txid = self.bumpfee(wallet, txid, fee_rate=500)
         assert_greater_than(len(node.getrawtransaction(new_txid, True)["vin"]), original_input_count)
-        self.generate(node, 1)
-        assert_equal(wallet.gettransaction(new_txid)["confirmations"], 1)
+        self.mine_and_check_confirmed(wallet, new_txid)
         self.assert_sp_outputs(new_txid, self.sp_1)
 
         # Test wallet unload/reload: verify m_sprecipients is persisted and RBF still works
@@ -508,11 +497,8 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         node.unloadwallet("rbf_reload")
         node.loadwallet("rbf_reload")
         wallet = node.get_wallet_rpc("rbf_reload")
-        new_txid = wallet.bumpfee(txid)["txid"]
-        assert new_txid in node.getrawmempool()
-        assert txid not in node.getrawmempool()
-        self.generate(node, 1)
-        assert_equal(wallet.gettransaction(new_txid)["confirmations"], 1)
+        new_txid = self.bumpfee(wallet, txid)
+        self.mine_and_check_confirmed(wallet, new_txid)
         self.assert_sp_outputs(new_txid, self.sp_1)
 
     def test_external_inputs(self):
@@ -540,18 +526,15 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         sp_index = next(o["n"] for o in node.getrawtransaction(txid, True)["vout"] if o["value"] == 5)
 
         # The fee is deducted from the silent payments output, which is recomputed for the new inputs
-        new_txid = wallet.bumpfee(txid, {"original_change_index": sp_index})["txid"]
-        assert new_txid in node.getrawmempool()
-        assert txid not in node.getrawmempool()
+        new_txid = self.bumpfee(wallet, txid, original_change_index=sp_index)
         self.assert_sp_outputs(new_txid, self.sp_1)
         found = scan_tx(node, node.getrawtransaction(new_txid), self.sp_1.scan_key.get_bytes(), self.sp_1.spend_key.get_pubkey().get_bytes())
         sp_vout = next(o for o in node.getrawtransaction(new_txid, True)["vout"] if o["scriptPubKey"]["hex"] == "5120" + found[0]["output"])
         assert_greater_than(5, sp_vout["value"])
 
         # The silent payments change destination is persisted, so the output is found again on the next bump
-        newer_txid = wallet.bumpfee(new_txid)["txid"]
-        self.generate(node, 1)
-        assert_equal(wallet.gettransaction(newer_txid)["confirmations"], 1)
+        newer_txid = self.bumpfee(wallet, new_txid)
+        self.mine_and_check_confirmed(wallet, newer_txid)
         self.assert_sp_outputs(newer_txid, self.sp_1)
 
     def test_rbf_sp_change_dropped(self):
@@ -563,15 +546,14 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         sp_index = next(o["n"] for o in node.getrawtransaction(txid, True)["vout"] if o["value"] == Decimal("0.00001"))
 
         # Deducting the higher fee from the sp_addr_1 output leaves less than dust, so it is dropped
-        new_txid = wallet.bumpfee(txid, {"original_change_index": sp_index, "fee_rate": 6})["txid"]
+        new_txid = self.bumpfee(wallet, txid, original_change_index=sp_index, fee_rate=6)
         assert_equal(len(node.getrawtransaction(new_txid, True)["vout"]), 2)
         self.assert_sp_outputs(new_txid, self.sp_1, n=0)
         self.assert_sp_outputs(new_txid, self.sp_3)
 
         # The remaining output is recomputed again when the replacement is bumped
-        newer_txid = wallet.bumpfee(new_txid)["txid"]
-        self.generate(node, 1)
-        assert_equal(wallet.gettransaction(newer_txid)["confirmations"], 1)
+        newer_txid = self.bumpfee(wallet, new_txid)
+        self.mine_and_check_confirmed(wallet, newer_txid)
         self.assert_sp_outputs(newer_txid, self.sp_1, n=0)
         self.assert_sp_outputs(newer_txid, self.sp_3)
 
@@ -591,11 +573,10 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
         # The change does not return to the wallet, so bumping adds an input, which changes the
         # silent payments output. The change destination is persisted, so the output is recomputed.
-        new_txid = wallet.bumpfee(txid)["txid"]
+        new_txid = self.bumpfee(wallet, txid)
         assert_greater_than(len(node.getrawtransaction(new_txid, True)["vin"]), num_inputs)
         self.assert_sp_outputs(new_txid, self.sp_1)
-        self.generate(node, 1)
-        assert_equal(wallet.gettransaction(new_txid)["confirmations"], 1)
+        self.mine_and_check_confirmed(wallet, new_txid)
 
         self.log.info("- the transaction must be added to the wallet")
         for options, error in [
