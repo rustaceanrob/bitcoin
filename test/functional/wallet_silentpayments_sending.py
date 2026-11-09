@@ -578,6 +578,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             if "address" in v["scriptPubKey"] and wallet.getaddressinfo(v["scriptPubKey"]["address"])["ischange"]
         ]
         assert_equal(len(change_vouts), 1)
+        assert_equal(change_vouts[0]["scriptPubKey"]["type"], "witness_v1_taproot")
 
         self.log.info("- change to a custom address")
         change_addr = self.funder.getnewaddress()
