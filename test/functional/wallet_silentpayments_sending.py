@@ -482,6 +482,15 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.assert_sp_outputs(newer_txid, self.sp_1, n=0)
         self.assert_sp_outputs(newer_txid, self.sp_3)
 
+    def test_rbf_regular_to_sp(self):
+        self.log.info("Testing bumpfee replacing the outputs of a regular transaction with a silent payments output")
+        wallet = self.create_funded_wallet("rbf_regular_to_sp", amount=Decimal("4.001"))
+        txid = wallet.sendtoaddress(self.funder.getnewaddress(), 4)
+
+        new_txid = self.bumpfee(wallet, txid, outputs=[{self.sp_1.address: 4}])
+        self.assert_sp_outputs(new_txid, self.sp_1)
+        self.mine_and_check_confirmed(wallet, new_txid)
+
     def test_sp_change_address(self):
         self.log.info("Testing a silent payments change address")
         node = self.nodes[0]
@@ -615,6 +624,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.test_rbf()
         self.test_rbf_sp_change()
         self.test_rbf_sp_change_dropped()
+        self.test_rbf_regular_to_sp()
         self.test_sp_change_address()
         self.test_regular_change()
         self.test_reorg()
