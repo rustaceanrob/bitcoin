@@ -13,6 +13,7 @@ from test_framework.util import (
     assert_greater_than_or_equal,
     assert_not_equal,
     assert_raises_rpc_error,
+    find_vout_for_address,
 )
 from test_framework.wallet_util import generate_keypair
 
@@ -167,8 +168,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         addr = self.nodes[0].deriveaddresses(descriptor, [0, 0] if "*" in template else None)[0]
         txid = self.funder.sendtoaddress(addr, amount)
         self.generate(self.nodes[0], 1)
-        vout = next(o["n"] for o in self.nodes[0].getrawtransaction(txid, True)["vout"] if o["scriptPubKey"].get("address") == addr)
-        return {"txid": txid, "vout": vout}
+        return {"txid": txid, "vout": find_vout_for_address(self.nodes[0], txid, addr)}
 
     def test_taproot_script_path_inputs(self):
         self.log.info("Testing explicit taproot inputs that have a script path")
@@ -388,7 +388,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         addr = node.deriveaddresses(descriptor)[0]
         external_txid = self.funder.sendtoaddress(addr, 2)
         self.generate(node, 1)
-        vout = next(o["n"] for o in node.getrawtransaction(external_txid, True)["vout"] if o["scriptPubKey"].get("address") == addr)
+        vout = find_vout_for_address(node, external_txid, addr)
         assert_raises_rpc_error(-4, "Silent payments transactions must be fully signed by the wallet",
             wallet.send, outputs=[{self.sp_addr_1: 3}],
             options={"inputs": [{"txid": external_txid, "vout": vout}], "solving_data": {"descriptors": [descriptor]}, "add_inputs": True, "lock_unspents": True})
@@ -554,7 +554,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             addr = owner.getnewaddress(address_type=address_type)
             txid = self.funder.sendtoaddress(addr, 5)
             self.generate(node, 1)
-            vout = next(o["n"] for o in node.getrawtransaction(txid, True)["vout"] if o["scriptPubKey"].get("address") == addr)
+            vout = find_vout_for_address(node, txid, addr)
             assert_raises_rpc_error(-4, f"External input COutPoint({txid[:10]}, {vout}) cannot be used in a silent payments transaction",
                 wallet.send, outputs=[{self.sp_addr_1: 1}],
                 options={"inputs": [{"txid": txid, "vout": vout}],
