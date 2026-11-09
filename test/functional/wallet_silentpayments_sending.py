@@ -41,9 +41,7 @@ def desc(template):
     return {"desc": descsum_create(template), "timestamp": "now", "active": True}
 
 def internal_desc(template):
-    d = desc(template)
-    d["internal"] = True
-    return d
+    return {**desc(template), "internal": True}
 
 class SilentPaymentsSendingTest(BitcoinTestFramework):
     def set_test_params(self):
