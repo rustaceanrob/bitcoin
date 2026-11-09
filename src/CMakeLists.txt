@@ -417,6 +417,10 @@ if(BUILD_GUI)
 endif()
 
 
+if(BUILD_MEMPOOL_LIB)
+  add_subdirectory(mempool)
+endif()
+
 if(BUILD_KERNEL_LIB)
   add_subdirectory(kernel)
   if (BUILD_KERNEL_TEST)

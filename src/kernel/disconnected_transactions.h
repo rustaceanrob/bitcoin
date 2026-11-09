@@ -70,6 +70,9 @@ public:
 
     size_t size() const { return queuedTx.size(); }
 
+    /** The queued transactions, most recently confirmed first. */
+    const std::list<CTransactionRef>& Transactions() const { return queuedTx; }
+
     void clear();
 
     /** Clear all data structures and return the list of transactions. */
