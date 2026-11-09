@@ -64,23 +64,11 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         disable_private_keys=False,
         address_type=None,
     ):
-        kwargs = {"wallet_name": name}
-        if blank:
-            kwargs["blank"] = True
-        if passphrase:
-            kwargs["passphrase"] = passphrase
-        if disable_private_keys:
-            kwargs["disable_private_keys"] = True
-        self.nodes[0].createwallet(**kwargs)
+        self.nodes[0].createwallet(wallet_name=name, blank=blank, passphrase=passphrase, disable_private_keys=disable_private_keys)
         wallet = self.nodes[0].get_wallet_rpc(name)
         if descriptors:
             wallet.importdescriptors(descriptors)
-        recv_addr = (
-            wallet.getnewaddress(address_type=address_type)
-            if address_type
-            else wallet.getnewaddress()
-        )
-        self.funder.sendtoaddress(recv_addr, amount)
+        self.funder.sendtoaddress(wallet.getnewaddress(address_type=address_type), amount)
         self.generate(self.nodes[0], 1)
         return wallet
 
