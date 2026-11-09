@@ -200,18 +200,12 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
     def test_encrypted_wallet_locked(self):
         self.log.info("Testing locked encrypted wallet cannot send silent payments")
-        wallet = self.create_funded_wallet(
-            "encrypted_locked",
-            passphrase="passphrase",
-        )
+        wallet = self.create_funded_wallet("encrypted_locked", passphrase="passphrase")
         self.do_send(wallet, {self.sp_1.address: 5}, expected_error=(-13, "Please enter the wallet passphrase"))
 
     def test_encrypted_wallet_unlocked(self):
         self.log.info("Testing unlocked encrypted wallet can send silent payments")
-        wallet = self.create_funded_wallet(
-            "encrypted_unlocked",
-            passphrase="passphrase",
-        )
+        wallet = self.create_funded_wallet("encrypted_unlocked", passphrase="passphrase")
         wallet.walletpassphrase("passphrase", 120)
         self.do_send(wallet, {self.sp_1.address: 5}, expect=[self.sp_1])
 
