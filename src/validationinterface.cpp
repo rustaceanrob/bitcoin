@@ -7,14 +7,13 @@
 
 #include <chain.h>
 #include <consensus/validation.h>
-#include <kernel/mempool_tx_info.h>
-#include <kernel/mempool_removal_reason.h>
 #include <kernel/types.h>
 #include <primitives/block.h>
 #include <primitives/transaction.h>
 #include <util/check.h>
 #include <util/log.h>
 #include <util/task_runner.h>
+#include <validationinterface_events.h>
 
 #include <future>
 #include <list>
@@ -144,6 +143,16 @@ void ValidationSignals::CallFunctionInValidationInterfaceQueue(std::function<voi
     m_internals->m_task_runner->insert(std::move(func));
 }
 
+void ValidationSignals::Enqueue(std::function<void()> event)
+{
+    m_internals->m_task_runner->insert(std::move(event));
+}
+
+void ValidationSignals::ForEachSubscriber(const std::function<void(CValidationInterface&)>& f)
+{
+    m_internals->Iterate(f);
+}
+
 void ValidationSignals::SyncWithValidationInterfaceQueue()
 {
     AssertLockNotHeld(cs_main);
@@ -154,28 +163,6 @@ void ValidationSignals::SyncWithValidationInterfaceQueue()
     });
     promise.get_future().wait();
 }
-
-// Use a macro instead of a function for conditional logging to prevent
-// evaluating arguments when logging is not enabled.
-#define ENQUEUE_AND_LOG_EVENT(event, log_msg)                                                                    \
-    do {                                                                                                         \
-        static_assert(std::is_rvalue_reference_v<decltype((event))>,                                             \
-                      "event must be passed as an rvalue");                                                      \
-        static_assert(std::is_rvalue_reference_v<decltype((log_msg))>,                                           \
-                      "log_msg must be passed as an rvalue");                                                    \
-        auto enqueue_log_msg = (log_msg);                                                                        \
-        LOG_EVENT("Enqueuing %s", enqueue_log_msg);                                                              \
-        m_internals->m_task_runner->insert([local_log_msg = std::move(enqueue_log_msg), local_event = (event)] { \
-            LOG_EVENT("%s", local_log_msg);                                                                      \
-            local_event();                                                                                       \
-        });                                                                                                      \
-    } while (0)
-
-#define LOG_MSG(fmt, ...) \
-    (util::log::ShouldDebugLog(BCLog::VALIDATION) ? tfm::format((fmt), __VA_ARGS__) : std::string{})
-
-#define LOG_EVENT(fmt, ...) \
-    LogDebug(BCLog::VALIDATION, fmt, __VA_ARGS__)
 
 void ValidationSignals::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload) {
     // Dependencies exist that require UpdatedBlockTip events to be delivered in the order in which
@@ -198,28 +185,6 @@ void ValidationSignals::ActiveTipChange(const CBlockIndex& new_tip, bool is_ibd)
     m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.ActiveTipChange(new_tip, is_ibd); });
 }
 
-void ValidationSignals::TransactionAddedToMempool(const NewMempoolTransactionInfo& tx, uint64_t mempool_sequence)
-{
-    auto log_msg = LOG_MSG("%s: txid=%s wtxid=%s", __func__,
-                          tx.info.m_tx->GetHash().ToString(),
-                          tx.info.m_tx->GetWitnessHash().ToString());
-    auto event = [tx, mempool_sequence, this] {
-        m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.TransactionAddedToMempool(tx, mempool_sequence); });
-    };
-    ENQUEUE_AND_LOG_EVENT(std::move(event), std::move(log_msg));
-}
-
-void ValidationSignals::TransactionRemovedFromMempool(const CTransactionRef& tx, MemPoolRemovalReason reason, uint64_t mempool_sequence) {
-    auto log_msg = LOG_MSG("%s: txid=%s wtxid=%s reason=%s", __func__,
-                          tx->GetHash().ToString(),
-                          tx->GetWitnessHash().ToString(),
-                          RemovalReasonToString(reason));
-    auto event = [tx, reason, mempool_sequence, this] {
-        m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.TransactionRemovedFromMempool(tx, reason, mempool_sequence); });
-    };
-    ENQUEUE_AND_LOG_EVENT(std::move(event), std::move(log_msg));
-}
-
 void ValidationSignals::BlockConnected(const ChainstateRole& role, std::shared_ptr<const CBlock> pblock, const CBlockIndex* pindex)
 {
     auto log_msg = LOG_MSG("%s: block hash=%s block height=%d", __func__,
@@ -227,20 +192,6 @@ void ValidationSignals::BlockConnected(const ChainstateRole& role, std::shared_p
                           pindex->nHeight);
     auto event = [role, pblock = std::move(pblock), pindex, this] {
         m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.BlockConnected(role, pblock, pindex); });
-    };
-    ENQUEUE_AND_LOG_EVENT(std::move(event), std::move(log_msg));
-}
-
-void ValidationSignals::MempoolTransactionsRemovedForBlock(std::shared_ptr<const CBlock> block, std::vector<RemovedMempoolTransactionInfo> txs_removed_for_block, unsigned int block_height)
-{
-    Assume(block);
-    auto log_msg = LOG_MSG("%s: block hash=%s block height=%s txs removed=%s block txs=%s", __func__,
-                           block->GetHash().ToString(),
-                           block_height,
-                           txs_removed_for_block.size(),
-                           block->vtx.size());
-    auto event = [block = std::move(block), txs_removed_for_block = std::move(txs_removed_for_block), block_height, this] {
-        m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.MempoolTransactionsRemovedForBlock(block, txs_removed_for_block, block_height); });
     };
     ENQUEUE_AND_LOG_EVENT(std::move(event), std::move(log_msg));
 }

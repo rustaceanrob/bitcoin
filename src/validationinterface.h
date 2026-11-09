@@ -170,6 +170,12 @@ class ValidationSignals {
 private:
     std::unique_ptr<ValidationSignalsImpl> m_internals;
 
+    //! Queue an event on the task runner. Lets signals be defined outside of
+    //! validationinterface.cpp, so libraries only compile the ones they emit.
+    void Enqueue(std::function<void()> event);
+    //! Call f on every registered subscriber.
+    void ForEachSubscriber(const std::function<void(CValidationInterface&)>& f);
+
 public:
     // The task runner will block validation if it calls its insert method's
     // func argument synchronously. In this class func contains a loop that
@@ -223,6 +229,7 @@ public:
 
     void UpdatedBlockTip(const CBlockIndex *, const CBlockIndex *, bool fInitialDownload);
     void ActiveTipChange(const CBlockIndex&, bool);
+    //! Mempool signals, defined in validationinterface_mempool.cpp, which libbitcoinkernel does not compile.
     void TransactionAddedToMempool(const NewMempoolTransactionInfo&, uint64_t mempool_sequence);
     void TransactionRemovedFromMempool(const CTransactionRef&, MemPoolRemovalReason, uint64_t mempool_sequence);
     void MempoolTransactionsRemovedForBlock(std::shared_ptr<const CBlock>, std::vector<RemovedMempoolTransactionInfo>, unsigned int block_height);

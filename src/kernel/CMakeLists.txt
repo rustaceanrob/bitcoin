@@ -16,7 +16,6 @@ add_library(bitcoinkernel
   coinstats.cpp
   context.cpp
   cs_main.cpp
-  mempool_removal_reason.cpp
   ../arith_uint256.cpp
   ../chain.cpp
   ../coins.cpp

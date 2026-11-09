@@ -284,6 +284,7 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   validation.cpp
   validation_common.cpp
   validationinterface.cpp
+  validationinterface_mempool.cpp
   versionbits.cpp
   $<$<TARGET_EXISTS:bitcoin_wallet>:wallet/init.cpp>
   $<$<NOT:$<TARGET_EXISTS:bitcoin_wallet>>:dummywallet.cpp>
