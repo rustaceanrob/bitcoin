@@ -390,6 +390,20 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             ]
             assert_equal(len(regular_vouts), 1)
 
+    def test_subtract_fee_from_sp_output(self):
+        self.log.info("Testing the fee can be subtracted from a silent payments output")
+        wallet = self.create_funded_wallet("subtract_fee_from_sp")
+        for send in [
+            lambda: wallet.sendtoaddress(self.sp_1.address, 1, subtractfeefromamount=True),
+            lambda: wallet.sendmany("", {self.sp_1.address: 1}, subtractfeefrom=[self.sp_1.address]),
+            lambda: wallet.send(outputs=[{self.sp_1.address: 1}], options={"subtract_fee_from_outputs": [0]})["txid"],
+        ]:
+            txid = send()
+            found = self.assert_sp_outputs(txid, self.sp_1)
+            sp_vout = next(o for o in self.nodes[0].getrawtransaction(txid, True)["vout"] if o["scriptPubKey"]["hex"] == "5120" + found[0]["output"])
+            assert_equal(sp_vout["value"], 1 + wallet.gettransaction(txid)["fee"])
+        self.generate(self.nodes[0], 1)
+
     def test_rbf(self):
         self.log.info("Testing RBF for silent payment transactions")
         node = self.nodes[0]
@@ -645,6 +659,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
         self.test_multiple_sp_recipients()
         self.test_mixed_sp_and_regular()
+        self.test_subtract_fee_from_sp_output()
 
         self.test_external_inputs()
         self.test_must_add_to_wallet()
