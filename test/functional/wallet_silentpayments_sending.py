@@ -286,6 +286,23 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         assert_raises_rpc_error(-4, "No silent payment eligible inputs were found.",
                                 wallet.send, outputs=[{self.sp_1.address: 5}], options={"inputs": [ineligible_input], "add_inputs": False})
 
+    def test_coin_selection_skipped_inputs(self):
+        self.log.info("Testing coin selection skips coins that cannot be spent in a silent payments transaction")
+        wallet = self.create_funded_wallet("coin_selection_skipped_inputs")
+        external_internal_key = generate_key().get_pubkey().get_bytes()[1:].hex()
+        skipped = self.fund_descriptor(wallet, f"tr({external_internal_key},pk({self.xprv}/21/0/*))", 2)
+
+        for send in [
+            lambda: wallet.sendtoaddress(self.sp_1.address, 1),
+            lambda: wallet.sendmany("", {self.sp_1.address: 1}),
+            lambda: wallet.send(outputs=[{self.sp_1.address: 1}])["txid"],
+        ]:
+            txid = send()
+            prevouts = [{"txid": i["txid"], "vout": i["vout"]} for i in self.nodes[0].getrawtransaction(txid, True)["vin"]]
+            assert skipped not in prevouts
+            self.assert_sp_outputs(txid, self.sp_1)
+        self.generate(self.nodes[0], 1)
+
     def test_sendall_skipped_inputs(self):
         self.log.info("Testing sendall fails if the wallet has coins that cannot be spent in a silent payments transaction")
         wallet = self.create_funded_wallet("sendall_skipped_inputs")
@@ -618,6 +635,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.test_no_eligible_inputs()
         self.test_preset_eligible_input()
         self.test_preset_ineligible_input()
+        self.test_coin_selection_skipped_inputs()
         self.test_sendall_skipped_inputs()
         self.test_taproot_script_path_inputs()
         self.test_uncompressed_p2pkh_inputs()
