@@ -5,6 +5,7 @@
 #ifndef BITCOIN_TEST_UTIL_TXMEMPOOL_H
 #define BITCOIN_TEST_UTIL_TXMEMPOOL_H
 
+#include <mempool_accept.h>
 #include <policy/packages.h>
 #include <txmempool.h>
 #include <util/time.h>

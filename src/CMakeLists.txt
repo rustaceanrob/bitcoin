@@ -212,6 +212,7 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   kernel/disconnected_transactions.cpp
   kernel/mempool_removal_reason.cpp
   mapport.cpp
+  mempool_accept.cpp
   net.cpp
   net_processing.cpp
   netgroup.cpp
@@ -221,6 +222,7 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   node/blockstorage.cpp
   node/caches.cpp
   node/chainstate.cpp
+  node/chainstate_mempool.cpp
   node/chainstatemanager_args.cpp
   node/coin.cpp
   node/coins_view_args.cpp
@@ -280,6 +282,7 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   txmempool.cpp
   txrequest.cpp
   validation.cpp
+  validation_common.cpp
   validationinterface.cpp
   versionbits.cpp
   $<$<TARGET_EXISTS:bitcoin_wallet>:wallet/init.cpp>

@@ -34,6 +34,7 @@ class WalletLoader;
 } // namespace interfaces
 namespace kernel {
 struct Context;
+class MempoolHooks;
 }
 namespace util {
 class SignalInterrupt;
@@ -67,6 +68,8 @@ struct NodeContext {
     std::unique_ptr<AddrMan> addrman;
     std::unique_ptr<CConnman> connman;
     std::unique_ptr<CTxMemPool> mempool;
+    //! Keeps `mempool` in sync with the active chainstate.
+    std::unique_ptr<kernel::MempoolHooks> mempool_hooks;
     std::unique_ptr<const NetGroupManager> netgroupman;
     std::unique_ptr<FeeRateEstimatorManager> fee_estimator_man;
     std::unique_ptr<PeerManager> peerman;

@@ -187,7 +187,7 @@ BOOST_FIXTURE_TEST_CASE(chainstatemanager_ibd_exit_after_loading_blocks, ChainTe
     auto apply{[&](bool cached_is_ibd, bool loading_blocks, bool tip_exists, bool enough_work, bool tip_recent) {
         LOCK(::cs_main);
         chainman.ResetChainstates();
-        chainman.InitializeChainstate(m_node.mempool.get());
+        chainman.InitializeChainstate(m_node.mempool_hooks.get());
 
         const auto recent_time{Now<NodeSeconds>() - chainman.m_options.max_tip_age};
 
@@ -743,12 +743,10 @@ BOOST_FIXTURE_TEST_CASE(chainstatemanager_snapshot_init, SnapshotTestSetup)
     // it will initialize instead of attempting to complete validation.
     //
     // Note that this is not a realistic use of DisconnectTip().
-    DisconnectedBlockTransactions unused_pool{MAX_DISCONNECTED_TX_POOL_BYTES};
     BlockValidationState unused_state;
     {
         LOCK2(::cs_main, bg_chainstate.MempoolMutex());
-        BOOST_CHECK(bg_chainstate.DisconnectTip(unused_state, &unused_pool));
-        unused_pool.clear();  // to avoid queuedTx assertion errors on teardown
+        BOOST_CHECK(bg_chainstate.DisconnectTip(unused_state));
     }
     BOOST_CHECK_EQUAL(bg_chainstate.m_chain.Height(), 109);
 

@@ -29,6 +29,7 @@
 #include <node/block_template_manager.h>
 #include <node/blockstorage.h>
 #include <node/chainstate.h>
+#include <node/chainstate_mempool.h>
 #include <node/context.h>
 #include <node/kernel_notifications.h>
 #include <node/miner.h>
@@ -364,7 +365,8 @@ void ChainTestingSetup::LoadVerifyActivateChainstate()
 {
     auto& chainman{*Assert(m_node.chainman)};
     node::ChainstateLoadOptions options;
-    options.mempool = Assert(m_node.mempool.get());
+    if (!m_node.mempool_hooks) m_node.mempool_hooks = std::make_unique<node::ChainstateMempoolHooks>(m_node.mempool);
+    options.mempool = m_node.mempool_hooks.get();
     options.coins_db_in_memory = m_coins_db_in_memory;
     options.wipe_chainstate_db = m_args.GetBoolArg("-reindex", false) || m_args.GetBoolArg("-reindex-chainstate", false);
     options.prune = chainman.m_blockman.IsPruneMode();
@@ -563,7 +565,7 @@ CMutableTransaction TestChain100Setup::CreateValidMempoolTransaction(const std::
     // If submit=true, add transaction to the mempool.
     if (submit) {
         LOCK(cs_main);
-        const MempoolAcceptResult result = m_node.chainman->ProcessTransaction(MakeTransactionRef(mempool_txn));
+        const MempoolAcceptResult result = ProcessTransaction(*m_node.chainman, m_node.mempool.get(), MakeTransactionRef(mempool_txn));
         assert(result.m_result_type == MempoolAcceptResult::ResultType::VALID);
     }
     return mempool_txn;

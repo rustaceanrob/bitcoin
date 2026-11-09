@@ -6,6 +6,7 @@
 #include <consensus/amount.h>
 #include <consensus/consensus.h>
 #include <consensus/validation.h>
+#include <node/chainstate_mempool.h>
 #include <node/mining_types.h>
 #include <policy/feerate.h>
 #include <policy/packages.h>
@@ -250,7 +251,8 @@ FUZZ_TARGET(ephemeral_package_eval, .init = initialize_ephemeral_package_eval)
     auto tx_pool_{MakeEphemeralMempool(node)};
     MockedTxPool& tx_pool = *static_cast<MockedTxPool*>(tx_pool_.get());
 
-    chainstate.SetMempool(&tx_pool);
+    node::ChainstateMempoolHooks mempool_hooks{tx_pool_};
+    chainstate.SetMempool(&mempool_hooks);
 
     bool valid_package{false};
 
@@ -362,7 +364,7 @@ FUZZ_TARGET(ephemeral_package_eval, .init = initialize_ephemeral_package_eval)
                                     return ProcessNewPackage(chainstate, tx_pool, txs, /*test_accept=*/single_submit, /*client_maxfeerate=*/{}));
         valid_package |= result_package.m_state.IsValid();
 
-        const auto res = WITH_LOCK(::cs_main, return AcceptToMemoryPool(chainstate, txs.back(), GetTime(),
+        const auto res = WITH_LOCK(::cs_main, return AcceptToMemoryPool(chainstate, tx_pool, txs.back(), GetTime(),
                                    /*bypass_limits=*/false, /*test_accept=*/!single_submit));
 
         if (!single_submit && result_package.m_state.GetResult() != PackageValidationResult::PCKG_POLICY) {
@@ -408,7 +410,8 @@ FUZZ_TARGET(tx_package_eval, .init = initialize_tx_package_eval)
     auto tx_pool_{MakeMempool(fuzzed_data_provider, node)};
     MockedTxPool& tx_pool = *static_cast<MockedTxPool*>(tx_pool_.get());
 
-    chainstate.SetMempool(&tx_pool);
+    node::ChainstateMempoolHooks mempool_hooks{tx_pool_};
+    chainstate.SetMempool(&mempool_hooks);
 
     bool valid_package{false};
 
@@ -542,7 +545,7 @@ FUZZ_TARGET(tx_package_eval, .init = initialize_tx_package_eval)
 
         // Always set bypass_limits to false because it is not supported in ProcessNewPackage and
         // can be a source of divergence.
-        const auto res = WITH_LOCK(::cs_main, return AcceptToMemoryPool(chainstate, txs.back(), GetTime(),
+        const auto res = WITH_LOCK(::cs_main, return AcceptToMemoryPool(chainstate, tx_pool, txs.back(), GetTime(),
                                    /*bypass_limits=*/false, /*test_accept=*/!single_submit));
         const bool passed = res.m_result_type == MempoolAcceptResult::ResultType::VALID;
 

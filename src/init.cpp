@@ -56,6 +56,7 @@
 #include <node/blockstorage.h>
 #include <node/caches.h>
 #include <node/chainstate.h>
+#include <node/chainstate_mempool.h>
 #include <node/chainstatemanager_args.h>
 #include <node/context.h>
 #include <node/interface_ui.h>
@@ -426,6 +427,7 @@ void Shutdown(NodeContext& node)
     node.block_template_manager.reset();
     node.mempool.reset();
     node.chainman.reset();
+    node.mempool_hooks.reset();
     node.validation_signals.reset();
     node.scheduler.reset();
     node.ecc_context.reset();
@@ -1480,7 +1482,8 @@ static ChainstateLoadResult InitAndLoadChainstate(
         }
     };
     node::ChainstateLoadOptions options;
-    options.mempool = Assert(node.mempool.get());
+    if (!node.mempool_hooks) node.mempool_hooks = std::make_unique<node::ChainstateMempoolHooks>(node.mempool);
+    options.mempool = node.mempool_hooks.get();
     options.wipe_chainstate_db = do_reindex || do_reindex_chainstate;
     options.prune = chainman.m_blockman.IsPruneMode();
     options.check_blocks = args.GetIntArg("-checkblocks", DEFAULT_CHECKBLOCKS);
@@ -2156,7 +2159,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
             return;
         }
         // Load mempool from disk
-        if (auto* pool{chainman.ActiveChainstate().GetMempool()}) {
+        if (auto* pool{node.mempool.get()}) {
             const bool loaded{LoadMempool(*pool, ShouldPersistMempool(args) ? MempoolPath(args) : fs::path{}, chainman.ActiveChainstate(), {})};
             // A shutdown request sets m_interrupt and aborts the mempool load, which is not a
             // load failure, so only notify the fee estimator when the load actually failed.

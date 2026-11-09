@@ -7,7 +7,7 @@
 
 #include <chain.h>
 #include <consensus/validation.h>
-#include <kernel/mempool_entry.h>
+#include <kernel/mempool_tx_info.h>
 #include <kernel/mempool_removal_reason.h>
 #include <kernel/types.h>
 #include <primitives/block.h>
@@ -17,6 +17,7 @@
 #include <util/task_runner.h>
 
 #include <future>
+#include <list>
 #include <memory>
 #include <unordered_map>
 #include <utility>

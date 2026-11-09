@@ -4,6 +4,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <rpc/mempool.h>
+#include <node/chainstate_mempool.h>
 #include <rpc/register.h> // IWYU pragma: associated
 
 #include <common/args.h>
@@ -399,7 +400,7 @@ static RPCMethod testmempoolaccept()
                 LOCK(::cs_main);
                 if (txns.size() > 1) return ProcessNewPackage(chainstate, mempool, txns, /*test_accept=*/true, /*client_maxfeerate=*/{});
                 return PackageMempoolAcceptResult(txns[0]->GetWitnessHash(),
-                                                  chainman.ProcessTransaction(txns[0], /*test_accept=*/true));
+                                                  ProcessTransaction(chainman, &mempool, txns[0], /*test_accept=*/true));
             }();
 
             UniValue rpc_result(UniValue::VARR);

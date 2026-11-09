@@ -7,6 +7,7 @@
 #include <consensus/amount.h>
 #include <consensus/consensus.h>
 #include <consensus/validation.h>
+#include <node/chainstate_mempool.h>
 #include <node/miner.h>
 #include <node/mining_types.h>
 #include <policy/feerate.h>
@@ -176,7 +177,7 @@ void Finish(FuzzedDataProvider& fuzzed_data_provider, MockedTxPool& tx_pool, Cha
         // Now try to add those transactions back, as though a reorg happened.
         std::vector<Txid> hashes_to_update;
         for (const auto& tx : block_template->block.vtx) {
-            const auto res = AcceptToMemoryPool(chainstate, tx, GetTime(), true, /*test_accept=*/false);
+            const auto res = AcceptToMemoryPool(chainstate, tx_pool, tx, GetTime(), true, /*test_accept=*/false);
             if (res.m_result_type == MempoolAcceptResult::ResultType::VALID) {
                 hashes_to_update.push_back(tx->GetHash());
             } else {
@@ -327,7 +328,8 @@ FUZZ_TARGET(tx_pool_standard, .init = initialize_tx_pool_standard)
     auto tx_pool_{MakeMempool(fuzzed_data_provider, node)};
     MockedTxPool& tx_pool = *static_cast<MockedTxPool*>(tx_pool_.get());
 
-    chainstate.SetMempool(&tx_pool);
+    node::ChainstateMempoolHooks mempool_hooks{tx_pool_};
+    chainstate.SetMempool(&mempool_hooks);
 
     bool accepted_transaction{false};
 
@@ -433,7 +435,7 @@ FUZZ_TARGET(tx_pool_standard, .init = initialize_tx_pool_standard)
                    it->second.m_result_type == MempoolAcceptResult::ResultType::INVALID);
         }
 
-        const auto res = WITH_LOCK(::cs_main, return AcceptToMemoryPool(chainstate, tx, GetTime(), /*bypass_limits=*/false, /*test_accept=*/false));
+        const auto res = WITH_LOCK(::cs_main, return AcceptToMemoryPool(chainstate, tx_pool, tx, GetTime(), /*bypass_limits=*/false, /*test_accept=*/false));
         const bool accepted = res.m_result_type == MempoolAcceptResult::ResultType::VALID;
         accepted_transaction |= accepted;
         node.validation_signals->SyncWithValidationInterfaceQueue();
@@ -516,7 +518,8 @@ FUZZ_TARGET(tx_pool, .init = initialize_tx_pool)
     auto tx_pool_{MakeMempool(fuzzed_data_provider, node)};
     MockedTxPool& tx_pool = *static_cast<MockedTxPool*>(tx_pool_.get());
 
-    chainstate.SetMempool(&tx_pool);
+    node::ChainstateMempoolHooks mempool_hooks{tx_pool_};
+    chainstate.SetMempool(&mempool_hooks);
 
     bool accepted_transaction{false};
 
@@ -544,7 +547,7 @@ FUZZ_TARGET(tx_pool, .init = initialize_tx_pool)
         ever_bypassed_limits |= bypass_limits;
 
         const auto tx = MakeTransactionRef(mut_tx);
-        const auto res = WITH_LOCK(::cs_main, return AcceptToMemoryPool(chainstate, tx, GetTime(), bypass_limits, /*test_accept=*/false));
+        const auto res = WITH_LOCK(::cs_main, return AcceptToMemoryPool(chainstate, tx_pool, tx, GetTime(), bypass_limits, /*test_accept=*/false));
         const bool accepted = res.m_result_type == MempoolAcceptResult::ResultType::VALID;
         accepted_transaction |= accepted;
         if (accepted) {

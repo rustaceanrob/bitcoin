@@ -31,6 +31,7 @@
 #include <netbase.h>
 #include <netmessagemaker.h>
 #include <node/blockstorage.h>
+#include <node/chainstate_mempool.h>
 #include <node/connection_types.h>
 #include <node/protocol_version.h>
 #include <node/timeoffsets.h>
@@ -1749,7 +1750,7 @@ void PeerManagerImpl::ReattemptPrivateBroadcast(CScheduler& scheduler)
         for (const auto& stale_tx : stale_txs) {
             // Only hold lock per single submission
             LOCK(cs_main);
-            auto mempool_acceptable = m_chainman.ProcessTransaction(stale_tx, /*test_accept=*/true);
+            auto mempool_acceptable = ProcessTransaction(m_chainman, &m_mempool, stale_tx, /*test_accept=*/true);
             if (mempool_acceptable.m_result_type == MempoolAcceptResult::ResultType::VALID) {
                 if (!m_tx_for_private_broadcast.TryGrantRetry(stale_tx)) continue;
                 LogDebug(BCLog::PRIVBROADCAST,
@@ -3487,7 +3488,7 @@ bool PeerManagerImpl::ProcessOrphanTx(Peer& peer)
     LOCK2(::cs_main, m_tx_download_mutex);
 
     if (CTransactionRef porphanTx = m_txdownloadman.GetTxToReconsider(peer.m_id)) {
-        const MempoolAcceptResult result = m_chainman.ProcessTransaction(porphanTx);
+        const MempoolAcceptResult result = ProcessTransaction(m_chainman, &m_mempool, porphanTx);
         const TxValidationState& state = result.m_state;
         const Txid& orphanHash = porphanTx->GetHash();
         const Wtxid& orphan_wtxid = porphanTx->GetWitnessHash();
@@ -4760,7 +4761,7 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         // ReceivedTx should not be telling us to validate the tx and a package.
         Assume(!package_to_validate.has_value());
 
-        const MempoolAcceptResult result = m_chainman.ProcessTransaction(ptx);
+        const MempoolAcceptResult result = ProcessTransaction(m_chainman, &m_mempool, ptx);
         const TxValidationState& state = result.m_state;
 
         if (result.m_result_type == MempoolAcceptResult::ResultType::VALID) {

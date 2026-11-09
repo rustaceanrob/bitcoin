@@ -10,6 +10,7 @@
 #include <net.h>
 #include <net_processing.h>
 #include <node/blockstorage.h>
+#include <node/chainstate_mempool.h>
 #include <node/context.h>
 #include <node/types.h>
 #include <policy/feerate.h>
@@ -76,7 +77,7 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
             if (check_max_fee || check_max_feerate || broadcast_method == TxBroadcast::NO_MEMPOOL_PRIVATE_BROADCAST) {
                 // First, call ATMP with test_accept and check the fee. If ATMP
                 // fails here, return error immediately.
-                const MempoolAcceptResult result = node.chainman->ProcessTransaction(tx, /*test_accept=*/ true);
+                const MempoolAcceptResult result = ProcessTransaction(*node.chainman, node.mempool.get(), tx, /*test_accept=*/ true);
                 if (result.m_result_type != MempoolAcceptResult::ResultType::VALID) {
                     return HandleATMPError(result.m_state, err_string);
                 } else if (check_max_fee && result.m_base_fees.value() > max_tx_fee) {
@@ -92,7 +93,7 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
                 // Try to submit the transaction to the mempool.
                 {
                     const MempoolAcceptResult result =
-                        node.chainman->ProcessTransaction(tx, /*test_accept=*/false);
+                        ProcessTransaction(*node.chainman, node.mempool.get(), tx, /*test_accept=*/false);
                     if (result.m_result_type != MempoolAcceptResult::ResultType::VALID) {
                         return HandleATMPError(result.m_state, err_string);
                     }

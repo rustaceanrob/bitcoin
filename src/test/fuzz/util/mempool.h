@@ -6,6 +6,7 @@
 #define BITCOIN_TEST_FUZZ_UTIL_MEMPOOL_H
 
 #include <kernel/mempool_entry.h>
+#include <kernel/mempool_hooks.h>
 #include <validation.h>
 
 class CTransaction;
@@ -15,7 +16,7 @@ class FuzzedDataProvider;
 class DummyChainState final : public Chainstate
 {
 public:
-    void SetMempool(CTxMemPool* mempool)
+    void SetMempool(kernel::MempoolHooks* mempool)
     {
         m_mempool = mempool;
     }

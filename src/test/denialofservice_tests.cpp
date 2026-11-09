@@ -19,6 +19,7 @@
 #include <test/util/net.h>
 #include <test/util/random.h>
 #include <test/util/setup_common.h>
+#include <txmempool.h>
 #include <test/util/time.h>
 #include <util/string.h>
 #include <util/time.h>

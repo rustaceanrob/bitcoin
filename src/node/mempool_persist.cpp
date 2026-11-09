@@ -6,6 +6,7 @@
 
 #include <clientversion.h>
 #include <consensus/amount.h>
+#include <node/chainstate_mempool.h>
 #include <primitives/transaction.h>
 #include <random.h>
 #include <serialize.h>
@@ -102,7 +103,7 @@ bool LoadMempool(CTxMemPool& pool, const fs::path& load_path, Chainstate& active
             }
             if (nTime > TicksSinceEpoch<std::chrono::seconds>(now - pool.m_opts.expiry)) {
                 LOCK(cs_main);
-                const auto& accepted = AcceptToMemoryPool(active_chainstate, tx, nTime, /*bypass_limits=*/false, /*test_accept=*/false);
+                const auto& accepted = AcceptToMemoryPool(active_chainstate, pool, tx, nTime, /*bypass_limits=*/false, /*test_accept=*/false);
                 if (accepted.m_result_type == MempoolAcceptResult::ResultType::VALID) {
                     ++count;
                 } else {

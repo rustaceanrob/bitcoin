@@ -12,16 +12,15 @@
 #include <functional>
 #include <tuple>
 
-class CTxMemPool;
-
 namespace kernel {
 struct CacheSizes;
+class MempoolHooks;
 } // namespace kernel
 
 namespace node {
 
 struct ChainstateLoadOptions {
-    CTxMemPool* mempool{nullptr};
+    kernel::MempoolHooks* mempool{nullptr};
     bool coins_db_in_memory{false};
     // Whether to wipe the chainstate database when loading it. If set, this
     // will cause the chainstate database to be rebuilt starting from genesis.

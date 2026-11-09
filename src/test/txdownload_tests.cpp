@@ -5,6 +5,7 @@
 #include <addresstype.h>
 #include <consensus/validation.h>
 #include <net_processing.h>
+#include <node/chainstate_mempool.h>
 #include <node/txdownloadman_impl.h>
 #include <primitives/transaction.h>
 #include <script/script.h>
@@ -220,7 +221,7 @@ BOOST_FIXTURE_TEST_CASE(handle_missing_inputs, TestChain100Setup)
         if (parent_recent_rej_recon) txdownload_impl.RecentRejectsReconsiderableFilter().insert(single_parent->GetHash().ToUint256());
         if (parent_recent_conf) txdownload_impl.RecentConfirmedTransactionsFilter().insert(single_parent->GetHash().ToUint256());
         if (parent_in_mempool) {
-            const auto mempool_result = WITH_LOCK(::cs_main, return m_node.chainman->ProcessTransaction(single_parent));
+            const auto mempool_result = WITH_LOCK(::cs_main, return ProcessTransaction(*m_node.chainman, m_node.mempool.get(), single_parent));
             BOOST_CHECK(mempool_result.m_result_type == MempoolAcceptResult::ResultType::VALID);
             coinbase_idx += 1;
             assert(coinbase_idx < m_coinbase_txns.size());

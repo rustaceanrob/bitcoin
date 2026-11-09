@@ -21,6 +21,7 @@
 #include <test/util/setup_common.h>
 #include <test/util/time.h>
 #include <test/util/validation.h>
+#include <txmempool.h>
 #include <uint256.h>
 #include <util/check.h>
 #include <util/time.h>

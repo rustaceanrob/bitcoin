@@ -13,6 +13,7 @@
 #include <interfaces/types.h>
 #include <kernel/chainparams.h>
 #include <node/block_template_manager.h>
+#include <mempool_accept.h>
 #include <node/miner.h>
 #include <node/mining_args.h>
 #include <node/mining_types.h>

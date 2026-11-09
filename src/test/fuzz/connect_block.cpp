@@ -7,6 +7,7 @@
 #include <consensus/amount.h>
 #include <consensus/merkle.h>
 #include <node/block_template_manager.h>
+#include <node/chainstate_mempool.h>
 #include <node/kernel_notifications.h>
 #include <node/mining_types.h>
 #include <primitives/block.h>
@@ -189,7 +190,7 @@ void ResetChainman(TestingSetup& setup)
  */
 void AddExtraTxsToMempool(TestingSetup& setup)
 {
-    Assert(setup.m_node.chainman->ActiveChainstate().GetMempool()->size() == 0);
+    Assert(setup.m_node.mempool->size() == 0);
     for (size_t i = 1; i <= 10; i++) {
         CMutableTransaction ctx;
         ctx.version = CTransaction::CURRENT_VERSION;
@@ -214,12 +215,12 @@ void AddExtraTxsToMempool(TestingSetup& setup)
 
         LOCK(::cs_main);
         // Add transaction to the mempool.
-        const MempoolAcceptResult ctx_result = setup.m_node.chainman->ProcessTransaction(MakeTransactionRef(ctx));
+        const MempoolAcceptResult ctx_result = ProcessTransaction(*setup.m_node.chainman, setup.m_node.mempool.get(), MakeTransactionRef(ctx));
         Assert(ctx_result.m_result_type == MempoolAcceptResult::ResultType::VALID);
 
-        Assert(setup.m_node.chainman->ActiveChainstate().GetMempool()->size() == i);
+        Assert(setup.m_node.mempool->size() == i);
         // Force the mempool to select this transaction even though its fee is zero.
-        setup.m_node.chainman->ActiveChainstate().GetMempool()->PrioritiseTransaction(ctx.GetHash(), COIN);
+        setup.m_node.mempool->PrioritiseTransaction(ctx.GetHash(), COIN);
     }
 }
 
@@ -253,7 +254,7 @@ static void initialize_connect_block()
     node::BlockCreateOptions options;
     options.coinbase_output_script = P2WSH_OP_TRUE;
     MineBlock(g_setup->m_node, options);
-    Assert(g_setup->m_node.chainman->ActiveChainstate().GetMempool()->size() == 0);
+    Assert(g_setup->m_node.mempool->size() == 0);
 
     // Load the 201st block into g_blocks.
     LOCK(::cs_main);
