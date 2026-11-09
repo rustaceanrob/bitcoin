@@ -82,7 +82,6 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
     def create_funded_wallet(
         self,
-        node,
         name,
         *,
         amount=25,
@@ -99,8 +98,8 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             kwargs["passphrase"] = passphrase
         if disable_private_keys:
             kwargs["disable_private_keys"] = True
-        node.createwallet(**kwargs)
-        wallet = node.get_wallet_rpc(name)
+        self.nodes[0].createwallet(**kwargs)
+        wallet = self.nodes[0].get_wallet_rpc(name)
         if descriptors:
             wallet.importdescriptors(descriptors)
         recv_addr = (
@@ -112,17 +111,11 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.generate(self.nodes[0], 1)
         return wallet
 
-    def do_send(self, wallet, node, recipients, *, expected_error=None, expected_error_fund=None, mine_block=True):
-        results = {}
+    def do_send(self, wallet, recipients, *, expect=(), expected_error=None, expected_error_fund=None, mine_block=True):
         addr0 = recipients[0]["address"]
         amt0 = recipients[0]["amount"]
         outputs = [{r["address"]: r["amount"]} for r in recipients]
         sendmany_dict = {r["address"]: r["amount"] for r in recipients}
-
-        def _collect(txid):
-            tx = node.getrawtransaction(txid, True)
-            return {"txid": txid, "vouts": tx["vout"]}
-
         single = len(recipients) == 1
 
         if expected_error is not None:
@@ -136,32 +129,25 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             assert_raises_rpc_error(fund_code, fund_msg, wallet.send, outputs=outputs)
             return {}
 
+        txids = {}
         if single:
-            txid = wallet.sendtoaddress(addr0, amt0)
-            assert txid in node.getrawmempool()
+            txids["sendtoaddress"] = wallet.sendtoaddress(addr0, amt0)
+        txids["sendmany"] = wallet.sendmany("", sendmany_dict)
+        txids["send"] = wallet.send(outputs=outputs)["txid"]
+        txids["sendall"] = wallet.sendall(recipients=[r["address"] for r in recipients])["txid"]
+
+        mempool = self.nodes[0].getrawmempool()
+        for txid in txids.values():
+            assert txid in mempool
             assert_equal(wallet.gettransaction(txid)["confirmations"], 0)
-            results["sendtoaddress"] = _collect(txid)
-
-        txid = wallet.sendmany("", sendmany_dict)
-        assert txid in node.getrawmempool()
-        assert_equal(wallet.gettransaction(txid)["confirmations"], 0)
-        results["sendmany"] = _collect(txid)
-
-        txid = wallet.send(outputs=outputs)["txid"]
-        assert txid in node.getrawmempool()
-        assert_equal(wallet.gettransaction(txid)["confirmations"], 0)
-        results["send"] = _collect(txid)
-
-        txid = wallet.sendall(recipients=[r["address"] for r in recipients])["txid"]
-        assert txid in node.getrawmempool()
-        results["sendall"] = _collect(txid)
+            self.assert_sp_outputs(txid, *expect)
 
         if mine_block:
-            self.generate(node, 1)
-            for rpc_result in results.values():
-                assert_equal(wallet.gettransaction(rpc_result["txid"])["confirmations"], 1)
+            self.generate(self.nodes[0], 1)
+            for txid in txids.values():
+                assert_equal(wallet.gettransaction(txid)["confirmations"], 1)
 
-        return results
+        return txids
 
     def assert_sp_outputs(self, txid, *recipients, n=1):
         """Assert each recipient has exactly n SP outputs in txid."""
@@ -219,7 +205,6 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_watch_only_wallet(self):
         self.log.info("Testing watch-only wallet cannot send silent payments")
         wallet = self.create_funded_wallet(
-            self.nodes[0],
             "watch_only",
             blank=True,
             disable_private_keys=True,
@@ -234,7 +219,6 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         )
         self.do_send(
             wallet,
-            self.nodes[0],
             [{"address": self.sp_1.address, "amount": 5}],
             expected_error=(-4, "Private keys are disabled for this wallet"),
             expected_error_fund=(-4, "Silent payments require access to private keys to build transactions."),
@@ -243,13 +227,11 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_encrypted_wallet_locked(self):
         self.log.info("Testing locked encrypted wallet cannot send silent payments")
         wallet = self.create_funded_wallet(
-            self.nodes[0],
             "encrypted_locked",
             passphrase="passphrase",
         )
         self.do_send(
             wallet,
-            self.nodes[0],
             [{"address": self.sp_1.address, "amount": 5}],
             expected_error=(-13, "Please enter the wallet passphrase"),
         )
@@ -257,19 +239,15 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_encrypted_wallet_unlocked(self):
         self.log.info("Testing unlocked encrypted wallet can send silent payments")
         wallet = self.create_funded_wallet(
-            self.nodes[0],
             "encrypted_unlocked",
             passphrase="passphrase",
         )
         wallet.walletpassphrase("passphrase", 120)
-        results = self.do_send(wallet, self.nodes[0], [{"address": self.sp_1.address, "amount": 5}])
-        for r in results.values():
-            self.assert_sp_outputs(r["txid"], self.sp_1)
+        self.do_send(wallet, [{"address": self.sp_1.address, "amount": 5}], expect=[self.sp_1])
 
     def test_p2tr_inputs(self):
         self.log.info("Testing P2TR inputs are eligible for silent payments")
         wallet = self.create_funded_wallet(
-            self.nodes[0],
             "p2tr_wallet",
             blank=True,
             address_type="bech32m",
@@ -278,14 +256,11 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
                 internal_desc(f"tr({P2TR_INT})"),
             ],
         )
-        results = self.do_send(wallet, self.nodes[0], [{"address": self.sp_1.address, "amount": 5}])
-        for r in results.values():
-            self.assert_sp_outputs(r["txid"], self.sp_1)
+        self.do_send(wallet, [{"address": self.sp_1.address, "amount": 5}], expect=[self.sp_1])
 
     def test_inputs_with_multiple_spkms(self):
         self.log.info("Testing inputs whose script is managed by more than one ScriptPubKeyMan")
         wallet = self.create_funded_wallet(
-            self.nodes[0],
             "multiple_spkms",
             blank=True,
             descriptors=[
@@ -296,14 +271,11 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         # combo() also produces the P2WPKH scripts of the active receive descriptor, including the funded one
         result = wallet.importdescriptors([{"desc": descsum_create(f"combo({MULTIPLE_SPKMS_EXT})"), "timestamp": "now", "range": [0, 10]}])[0]
         assert result["success"], result
-        results = self.do_send(wallet, self.nodes[0], [{"address": self.sp_1.address, "amount": 5}])
-        for r in results.values():
-            self.assert_sp_outputs(r["txid"], self.sp_1)
+        self.do_send(wallet, [{"address": self.sp_1.address, "amount": 5}], expect=[self.sp_1])
 
     def test_p2pkh_inputs(self):
         self.log.info("Testing P2PKH inputs are eligible for silent payments")
         wallet = self.create_funded_wallet(
-            self.nodes[0],
             "p2pkh_wallet",
             blank=True,
             address_type="legacy",
@@ -313,14 +285,11 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
                 internal_desc(f"wpkh({WPKH_INT})"),
             ],
         )
-        results = self.do_send(wallet, self.nodes[0], [{"address": self.sp_1.address, "amount": 5}])
-        for r in results.values():
-            self.assert_sp_outputs(r["txid"], self.sp_1)
+        self.do_send(wallet, [{"address": self.sp_1.address, "amount": 5}], expect=[self.sp_1])
 
     def test_p2sh_p2wpkh_inputs(self):
         self.log.info("Testing P2SH-P2WPKH inputs are eligible for silent payments")
         wallet = self.create_funded_wallet(
-            self.nodes[0],
             "p2sh_p2wpkh_wallet",
             blank=True,
             address_type="p2sh-segwit",
@@ -330,14 +299,11 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
                 internal_desc(f"wpkh({WPKH_INT})"),
             ],
         )
-        results = self.do_send(wallet, self.nodes[0], [{"address": self.sp_1.address, "amount": 5}])
-        for r in results.values():
-            self.assert_sp_outputs(r["txid"], self.sp_1)
+        self.do_send(wallet, [{"address": self.sp_1.address, "amount": 5}], expect=[self.sp_1])
 
     def test_no_eligible_inputs(self):
         self.log.info("Testing wallet with only P2WSH inputs cannot send silent payments")
         wallet = self.create_funded_wallet(
-            self.nodes[0],
             "wsh_only_wallet",
             blank=True,
             descriptors=[
@@ -347,7 +313,6 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         )
         self.do_send(
             wallet,
-            self.nodes[0],
             [{"address": self.sp_1.address, "amount": 5}],
             expected_error=(-6, "No silent payment eligible inputs were found."),
             expected_error_fund=(-4, "No silent payment eligible inputs were found."),
@@ -356,7 +321,6 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_preset_eligible_input(self):
         self.log.info("Testing an eligible preset input allows the other inputs to be ineligible")
         wallet = self.create_funded_wallet(
-            self.nodes[0],
             "preset_eligible_wallet",
             blank=True,
             descriptors=[
@@ -374,7 +338,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
     def test_preset_ineligible_input(self):
         self.log.info("Testing ineligible preset inputs alone cannot fund a silent payments transaction")
-        wallet = self.create_funded_wallet(self.nodes[0], "preset_ineligible_wallet")
+        wallet = self.create_funded_wallet("preset_ineligible_wallet")
         ineligible_input = self.fund_descriptor(wallet, f"wsh(multi(1,{PRESET_INELIGIBLE_WSH}))", 10)
 
         assert_raises_rpc_error(-4, "No silent payment eligible inputs were found.",
@@ -383,7 +347,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_must_add_to_wallet(self):
         self.log.info("Testing silent payments transactions must be added to the wallet when they are created")
         node = self.nodes[0]
-        wallet = self.create_funded_wallet(node, "must_add_to_wallet")
+        wallet = self.create_funded_wallet("must_add_to_wallet")
 
         for options, error in [
             ({"psbt": True}, "psbt=true is not supported for silent payments transactions"),
@@ -441,39 +405,36 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
     def test_multiple_sp_recipients(self):
         self.log.info("Testing a single tx with multiple SP recipient addresses")
-        wallet = self.create_funded_wallet(self.nodes[0], "multi_sp_wallet")
-        results = self.do_send(
+        wallet = self.create_funded_wallet("multi_sp_wallet")
+        self.do_send(
             wallet,
-            self.nodes[0],
             [
                 {"address": self.sp_1.address, "amount": 3},
                 {"address": self.sp_2.address, "amount": 4},
             ],
+            expect=[self.sp_1, self.sp_2],
         )
-        for result in results.values():
-            self.assert_sp_outputs(result["txid"], self.sp_1, self.sp_2)
 
     def test_mixed_sp_and_regular(self):
         self.log.info("Testing a single tx with both SP and regular outputs")
-        wallet = self.create_funded_wallet(self.nodes[0], "mixed_output_wallet")
-        regular_wallet = self.create_funded_wallet(self.nodes[0], "regular_recv_wallet", amount=1)
+        wallet = self.create_funded_wallet("mixed_output_wallet")
+        regular_wallet = self.create_funded_wallet("regular_recv_wallet", amount=1)
         regular_addr = regular_wallet.getnewaddress()
 
-        results = self.do_send(
+        txids = self.do_send(
             wallet,
-            self.nodes[0],
             [
                 {"address": self.sp_1.address, "amount": 2},
                 {"address": regular_addr, "amount": 3},
             ],
+            expect=[self.sp_1],
         )
-        for result in results.values():
+        for txid in txids.values():
             regular_vouts = [
-                v for v in result["vouts"]
+                v for v in self.nodes[0].getrawtransaction(txid, True)["vout"]
                 if v["scriptPubKey"].get("address") == regular_addr
             ]
             assert_equal(len(regular_vouts), 1)
-            self.assert_sp_outputs(result["txid"], self.sp_1)
 
     def test_rbf(self):
         self.log.info("Testing RBF for silent payment transactions")
@@ -518,12 +479,12 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
             ("rbf_send",          lambda w: w.send(outputs=[{self.sp_1.address: 5}])["txid"]),
         ]
         for name, send_fn in send_methods:
-            wallet = self.create_funded_wallet(node, name)
+            wallet = self.create_funded_wallet(name)
             bump_and_confirm(wallet, send_fn)
 
         # sendall: use maxconf=1 to restrict sendall to one UTXO, leaving the
         # original (2+ confirmations) available as additional input for the fee bump
-        wallet = self.create_funded_wallet(node, "rbf_sendall", amount=25)
+        wallet = self.create_funded_wallet("rbf_sendall", amount=25)
         extra_addr = wallet.getnewaddress()
         self.funder.sendtoaddress(extra_addr, 5)
         self.generate(node, 1)  # rbf_sendall funding UTXO now has 2 confs; extra UTXO has 1 conf
@@ -541,7 +502,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
         self.assert_sp_outputs(new_txid, self.sp_1)
 
         # Test wallet unload/reload: verify m_sprecipients is persisted and RBF still works
-        wallet = self.create_funded_wallet(node, "rbf_reload")
+        wallet = self.create_funded_wallet("rbf_reload")
         txid = wallet.sendtoaddress(self.sp_1.address, 5)
         assert txid in node.getrawmempool()
         node.unloadwallet("rbf_reload")
@@ -557,7 +518,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_external_inputs(self):
         self.log.info("Testing external inputs that may be eligible cannot fund a silent payments transaction")
         node = self.nodes[0]
-        wallet = self.create_funded_wallet(node, "external_inputs_sender")
+        wallet = self.create_funded_wallet("external_inputs_sender")
         node.createwallet("external_inputs_owner")
         owner = node.get_wallet_rpc("external_inputs_owner")
         for address_type in ["bech32m", "p2sh-segwit"]:
@@ -574,7 +535,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_rbf_sp_change(self):
         self.log.info("Testing bumpfee with a silent payments output as original_change_index")
         node = self.nodes[0]
-        wallet = self.create_funded_wallet(node, "rbf_sp_change")
+        wallet = self.create_funded_wallet("rbf_sp_change")
         txid = wallet.sendtoaddress(self.sp_1.address, 5)
         sp_index = next(o["n"] for o in node.getrawtransaction(txid, True)["vout"] if o["value"] == 5)
 
@@ -596,7 +557,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_rbf_sp_change_dropped(self):
         self.log.info("Testing bumpfee drops a silent payments change output without affecting a recipient with the same scan key")
         node = self.nodes[0]
-        wallet = self.create_funded_wallet(node, "rbf_sp_change_dropped")
+        wallet = self.create_funded_wallet("rbf_sp_change_dropped")
         # sp_addr_1 and sp_addr_3 share a scan key, so their outputs are numbered together
         txid = wallet.sendmany("", {self.sp_1.address: 0.00001, self.sp_3.address: 1}, fee_rate=1)
         sp_index = next(o["n"] for o in node.getrawtransaction(txid, True)["vout"] if o["value"] == Decimal("0.00001"))
@@ -617,7 +578,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_sp_change_address(self):
         self.log.info("Testing a silent payments change address")
         node = self.nodes[0]
-        wallet = self.create_funded_wallet(node, "sp_change_address")
+        wallet = self.create_funded_wallet("sp_change_address")
         # A second coin, for the bump below
         self.funder.sendtoaddress(wallet.getnewaddress(), 5)
         self.generate(node, 1)
@@ -651,7 +612,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
     def test_regular_change(self):
         self.log.info("Testing a silent payments transaction with regular change")
         node = self.nodes[0]
-        wallet = self.create_funded_wallet(node, "regular_change")
+        wallet = self.create_funded_wallet("regular_change")
 
         self.log.info("- change to a newly generated address")
         txid = wallet.send(outputs=[{self.sp_1.address: 1}])["txid"]
@@ -672,20 +633,13 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
 
     def test_reorg(self):
         self.log.info("Testing wallet state is correctly updated after a reorg of SP transactions")
-        wallet = self.create_funded_wallet(self.nodes[0], "reorg_wallet")
+        wallet = self.create_funded_wallet("reorg_wallet")
 
-        results = self.do_send(
+        txids = self.do_send(
             wallet,
-            self.nodes[0],
             [{"address": self.sp_1.address, "amount": 5}],
             mine_block=False,
-        )
-        txids = [r["txid"] for r in results.values()]
-
-        mempool = self.nodes[0].getrawmempool()
-        for txid in txids:
-            assert txid in mempool
-            assert_equal(wallet.gettransaction(txid)["confirmations"], 0)
+        ).values()
 
         self.generate(self.nodes[0], 3)
         for txid in txids:
