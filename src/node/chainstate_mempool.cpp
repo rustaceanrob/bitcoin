@@ -25,7 +25,19 @@ namespace node {
 
 CCoinsViewCache& ChainstateMempoolView::CoinsTip() { return m_chainstate.CoinsTip(); }
 
-CChain& ChainstateMempoolView::ActiveChain() { return m_chainstate.m_chain; }
+int ChainstateMempoolView::TipHeight() { return m_chainstate.m_chain.Height(); }
+
+std::optional<uint256> ChainstateMempoolView::BlockHash(int height)
+{
+    const CBlockIndex* block{m_chainstate.m_chain[height]};
+    if (!block) return std::nullopt;
+    return block->GetBlockHash();
+}
+
+int64_t ChainstateMempoolView::MedianTimePast(int height)
+{
+    return Assert(m_chainstate.m_chain[height])->GetMedianTimePast();
+}
 
 script_verify_flags ChainstateMempoolView::TipScriptFlags()
 {

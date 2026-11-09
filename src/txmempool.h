@@ -42,7 +42,6 @@
 #include <utility>
 #include <vector>
 
-class CChain;
 class ValidationSignals;
 
 struct bilingual_str;
@@ -57,11 +56,6 @@ inline constexpr uint64_t ACCEPTABLE_COST = 75'000;
 /** How much work we ask TxGraph to do after a mempool change occurs (either
  * due to a changeset being applied, a new block being found, or a reorg). */
 inline constexpr uint64_t POST_CHANGE_COST = 5 * ACCEPTABLE_COST;
-
-/**
- * Test whether the LockPoints height and time are still valid on the current chain
- */
-bool TestLockPointValidity(CChain& active_chain, const LockPoints& lp) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 // extracts a transaction hash from CTxMemPoolEntry or CTransactionRef
 struct mempoolentry_txid
@@ -328,8 +322,11 @@ public:
      * returns true.
      * @param[in]   filter_final_and_mature   Predicate that checks the relevant validation rules
      *                                        and updates an entry's LockPoints.
+     * @param[in]   lock_points_valid         Whether LockPoints are valid on the new chain. Asserted
+     *                                        for all remaining entries.
      * */
-    void removeForReorg(CChain& chain, std::function<bool(txiter)> filter_final_and_mature) EXCLUSIVE_LOCKS_REQUIRED(cs, cs_main);
+    void removeForReorg(std::function<bool(txiter)> filter_final_and_mature,
+                        std::function<bool(const LockPoints&)> lock_points_valid) EXCLUSIVE_LOCKS_REQUIRED(cs, cs_main);
     std::vector<RemovedMempoolTransactionInfo> removeForBlock(const std::vector<CTransactionRef>& vtx) EXCLUSIVE_LOCKS_REQUIRED(cs);
 
     /** Look up wtxids in the mempool and (partially) sort by mining score.

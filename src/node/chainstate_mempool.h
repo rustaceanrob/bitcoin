@@ -33,7 +33,9 @@ public:
     explicit ChainstateMempoolView(Chainstate& chainstate) : m_chainstate{chainstate} {}
 
     CCoinsViewCache& CoinsTip() override EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
-    CChain& ActiveChain() override EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+    int TipHeight() override EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+    std::optional<uint256> BlockHash(int height) override EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+    int64_t MedianTimePast(int height) override EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
     script_verify_flags TipScriptFlags() override EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
     script_verify_flags AllConsensusScriptFlags() const override;
     ValidationCache& GetValidationCache() override;

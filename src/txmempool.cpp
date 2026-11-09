@@ -37,23 +37,6 @@
 TRACEPOINT_SEMAPHORE(mempool, added);
 TRACEPOINT_SEMAPHORE(mempool, removed);
 
-bool TestLockPointValidity(CChain& active_chain, const LockPoints& lp)
-{
-    AssertLockHeld(cs_main);
-    // If there are relative lock times then the maxInputBlock will be set
-    // If there are no relative lock times, the LockPoints don't depend on the chain
-    if (lp.maxInputBlock) {
-        // Check whether active_chain is an extension of the block at which the LockPoints
-        // calculation was valid.  If not LockPoints are no longer valid
-        if (!active_chain.Contains(*lp.maxInputBlock)) {
-            return false;
-        }
-    }
-
-    // LockPoints still valid
-    return true;
-}
-
 std::vector<CTxMemPoolEntry::CTxMemPoolEntryRef> CTxMemPool::GetChildren(const CTxMemPoolEntry& entry) const
 {
     std::vector<CTxMemPoolEntry::CTxMemPoolEntryRef> ret;
@@ -357,7 +340,8 @@ void CTxMemPool::removeRecursive(const CTransaction &origTx, MemPoolRemovalReaso
     }
 }
 
-void CTxMemPool::removeForReorg(CChain& chain, std::function<bool(txiter)> check_final_and_mature)
+void CTxMemPool::removeForReorg(std::function<bool(txiter)> check_final_and_mature,
+                                std::function<bool(const LockPoints&)> lock_points_valid)
 {
     // Remove transactions spending a coinbase which are now immature and no-longer-final transactions
     AssertLockHeld(cs);
@@ -378,7 +362,7 @@ void CTxMemPool::removeForReorg(CChain& chain, std::function<bool(txiter)> check
         removeUnchecked(it, MemPoolRemovalReason::REORG);
     }
     for (indexed_transaction_set::const_iterator it = mapTx.begin(); it != mapTx.end(); it++) {
-        assert(TestLockPointValidity(chain, it->GetLockPoints()));
+        assert(lock_points_valid(it->GetLockPoints()));
     }
     if (!m_txgraph->DoWork(/*max_cost=*/POST_CHANGE_COST)) {
         LogDebug(BCLog::MEMPOOL, "Mempool in non-optimal ordering after reorg.");

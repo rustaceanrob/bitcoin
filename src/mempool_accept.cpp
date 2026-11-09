@@ -5,7 +5,6 @@
 
 #include <mempool_accept.h>
 
-#include <chain.h>
 #include <coins.h>
 #include <consensus/amount.h>
 #include <consensus/consensus.h>
@@ -44,24 +43,25 @@
 TRACEPOINT_SEMAPHORE(mempool, replaced);
 TRACEPOINT_SEMAPHORE(mempool, rejected);
 
-bool CheckFinalTxAtTip(const CBlockIndex& active_chain_tip, const CTransaction& tx)
+bool CheckFinalTxAtTip(MempoolChainView& chain, const CTransaction& tx)
 {
     AssertLockHeld(cs_main);
 
-    // CheckFinalTxAtTip() uses active_chain_tip.Height()+1 to evaluate
+    // CheckFinalTxAtTip() uses the tip height + 1 to evaluate
     // nLockTime because when IsFinalTx() is called within
     // AcceptBlock(), the height of the block *being*
     // evaluated is what is used. Thus if we want to know if a
     // transaction can be part of the *next* block, we need to call
-    // IsFinalTx() with one more than active_chain_tip.Height().
-    const int nBlockHeight = active_chain_tip.nHeight + 1;
+    // IsFinalTx() with one more than the tip height.
+    const int tip_height{chain.TipHeight()};
+    const int nBlockHeight = tip_height + 1;
 
     // BIP113 requires that time-locked transactions have nLockTime set to
     // less than the median time of the previous block they're contained in.
     // When the next block is created its previous block will be the current
     // chain tip, so we use that to calculate the median time passed to
     // IsFinalTx().
-    const int64_t nBlockTime{active_chain_tip.GetMedianTimePast()};
+    const int64_t nBlockTime{chain.MedianTimePast(tip_height)};
 
     return IsFinalTx(tx, nBlockHeight, nBlockTime);
 }
@@ -70,15 +70,15 @@ namespace {
 /**
  * A helper which calculates heights of inputs of a given transaction.
  *
- * @param[in] tip    The current chain tip. If an input belongs to a mempool
- *                   transaction, we assume it will be confirmed in the next block.
- * @param[in] coins  Any CCoinsView that provides access to the relevant coins.
- * @param[in] tx     The transaction being evaluated.
+ * @param[in] tip_height The current chain tip height. If an input belongs to a mempool
+ *                       transaction, we assume it will be confirmed in the next block.
+ * @param[in] coins      Any CCoinsView that provides access to the relevant coins.
+ * @param[in] tx         The transaction being evaluated.
  *
  * @returns A vector of input heights or nullopt, in case of an error.
  */
 std::optional<std::vector<int>> CalculatePrevHeights(
-    const CBlockIndex& tip,
+    int tip_height,
     const CCoinsView& coins,
     const CTransaction& tx)
 {
@@ -87,7 +87,7 @@ std::optional<std::vector<int>> CalculatePrevHeights(
     for (size_t i = 0; i < tx.vin.size(); ++i) {
         if (auto coin{coins.GetCoin(tx.vin[i].prevout)}) {
             prev_heights[i] = coin->nHeight == MEMPOOL_HEIGHT
-                              ? tip.nHeight + 1 // Assume all mempool transaction confirm in the next block.
+                              ? tip_height + 1 // Assume all mempool transaction confirm in the next block.
                               : coin->nHeight;
         } else {
             LogWarning("%s: Missing input %d in transaction \'%s\'", __func__, i, tx.GetHash().GetHex());
@@ -99,23 +99,22 @@ std::optional<std::vector<int>> CalculatePrevHeights(
 } // namespace
 
 std::optional<LockPoints> CalculateLockPointsAtTip(
-    CBlockIndex* tip,
+    MempoolChainView& chain,
     const CCoinsView& coins_view,
     const CTransaction& tx)
 {
-    assert(tip);
+    const int tip_height{chain.TipHeight()};
 
-    auto prev_heights{CalculatePrevHeights(*tip, coins_view, tx)};
+    auto prev_heights{CalculatePrevHeights(tip_height, coins_view, tx)};
     if (!prev_heights.has_value()) return std::nullopt;
 
-    CBlockIndex next_tip;
-    next_tip.pprev = tip;
     // When SequenceLocks() is called within ConnectBlock(), the height
     // of the block *being* evaluated is what is used.
     // Thus if we want to know if a transaction can be part of the
-    // *next* block, we need to use one more than active_chainstate.m_chain.Height()
-    next_tip.nHeight = tip->nHeight + 1;
-    const auto [min_height, min_time] = CalculateSequenceLocks(tx, STANDARD_LOCKTIME_VERIFY_FLAGS, prev_heights.value(), next_tip);
+    // *next* block, we need to use one more than the tip height.
+    const int next_height{tip_height + 1};
+    const auto [min_height, min_time] = CalculateSequenceLocks(tx, STANDARD_LOCKTIME_VERIFY_FLAGS, prev_heights.value(),
+                                                               [&](int height) EXCLUSIVE_LOCKS_REQUIRED(::cs_main) { return chain.MedianTimePast(height); });
 
     // Also store the hash of the block with the highest height of
     // all the blocks which have sequence locked prevouts.
@@ -130,35 +129,46 @@ std::optional<LockPoints> CalculateLockPointsAtTip(
     int max_input_height{0};
     for (const int height : prev_heights.value()) {
         // Can ignore mempool inputs since we'll fail if they had non-zero locks
-        if (height != next_tip.nHeight) {
+        if (height != next_height) {
             max_input_height = std::max(max_input_height, height);
         }
     }
 
-    // tip->GetAncestor(max_input_height) should never return a nullptr
-    // because max_input_height is always less than the tip height.
-    // It would, however, be a bad bug to continue execution, since a
-    // LockPoints object with the maxInputBlock member set to nullptr
-    // signifies no relative lock time.
-    return LockPoints{min_height, min_time, Assert(tip->GetAncestor(max_input_height))};
+    // max_input_height is always at most the tip height, so the block exists.
+    // It would, however, be a bad bug to continue execution without it, since
+    // LockPoints without max_input_block signify no relative lock time.
+    return LockPoints{min_height, min_time, std::make_pair(max_input_height, *Assert(chain.BlockHash(max_input_height)))};
 }
 
-bool CheckSequenceLocksAtTip(CBlockIndex* tip,
+bool CheckSequenceLocksAtTip(MempoolChainView& chain,
                              const LockPoints& lock_points)
 {
-    assert(tip != nullptr);
-
-    CBlockIndex index;
-    index.pprev = tip;
-    // CheckSequenceLocksAtTip() uses active_chainstate.m_chain.Height()+1 to evaluate
+    // CheckSequenceLocksAtTip() uses the tip height + 1 to evaluate
     // height based locks because when SequenceLocks() is called within
     // ConnectBlock(), the height of the block *being*
     // evaluated is what is used.
     // Thus if we want to know if a transaction can be part of the
-    // *next* block, we need to use one more than active_chainstate.m_chain.Height()
-    index.nHeight = tip->nHeight + 1;
+    // *next* block, we need to use one more than the tip height.
+    const int tip_height{chain.TipHeight()};
+    return EvaluateSequenceLocks(tip_height + 1, chain.MedianTimePast(tip_height), {lock_points.height, lock_points.time});
+}
 
-    return EvaluateSequenceLocks(index, {lock_points.height, lock_points.time});
+bool TestLockPointValidity(MempoolChainView& chain, const LockPoints& lp)
+{
+    AssertLockHeld(cs_main);
+    // If there are relative lock times then max_input_block will be set
+    // If there are no relative lock times, the LockPoints don't depend on the chain
+    if (lp.max_input_block) {
+        // Check whether the active chain is an extension of the block at which the LockPoints
+        // calculation was valid.  If not LockPoints are no longer valid
+        const auto& [height, hash] = *lp.max_input_block;
+        if (chain.BlockHash(height) != hash) {
+            return false;
+        }
+    }
+
+    // LockPoints still valid
+    return true;
 }
 
 void LimitMempoolSize(CTxMemPool& pool, CCoinsViewCache& coins_cache)
@@ -228,19 +238,19 @@ void UpdateMempoolForReorg(CTxMemPool& pool, MempoolChainView& chain,
         const CTransaction& tx = it->GetTx();
 
         // The transaction must be final.
-        if (!CheckFinalTxAtTip(*Assert(chain.ActiveChain().Tip()), tx)) return true;
+        if (!CheckFinalTxAtTip(chain, tx)) return true;
 
         const LockPoints& lp = it->GetLockPoints();
         // CheckSequenceLocksAtTip checks if the transaction will be final in the next block to be
         // created on top of the new chain.
-        if (TestLockPointValidity(chain.ActiveChain(), lp)) {
-            if (!CheckSequenceLocksAtTip(chain.ActiveChain().Tip(), lp)) {
+        if (TestLockPointValidity(chain, lp)) {
+            if (!CheckSequenceLocksAtTip(chain, lp)) {
                 return true;
             }
         } else {
             const CCoinsViewMemPool view_mempool{&chain.CoinsTip(), pool};
-            const std::optional<LockPoints> new_lock_points{CalculateLockPointsAtTip(chain.ActiveChain().Tip(), view_mempool, tx)};
-            if (new_lock_points.has_value() && CheckSequenceLocksAtTip(chain.ActiveChain().Tip(), *new_lock_points)) {
+            const std::optional<LockPoints> new_lock_points{CalculateLockPointsAtTip(chain, view_mempool, tx)};
+            if (new_lock_points.has_value() && CheckSequenceLocksAtTip(chain, *new_lock_points)) {
                 // Now update the mempool entry lockpoints as well.
                 it->UpdateLockPoints(*new_lock_points);
             } else {
@@ -254,7 +264,7 @@ void UpdateMempoolForReorg(CTxMemPool& pool, MempoolChainView& chain,
                 if (pool.exists(txin.prevout.hash)) continue;
                 const Coin& coin{chain.CoinsTip().AccessCoin(txin.prevout)};
                 assert(!coin.IsSpent());
-                const auto mempool_spend_height{chain.ActiveChain().Tip()->nHeight + 1};
+                const auto mempool_spend_height{chain.TipHeight() + 1};
                 if (coin.IsCoinBase() && mempool_spend_height - coin.nHeight < COINBASE_MATURITY) {
                     return true;
                 }
@@ -265,7 +275,10 @@ void UpdateMempoolForReorg(CTxMemPool& pool, MempoolChainView& chain,
     };
 
     // We also need to remove any now-immature transactions
-    pool.removeForReorg(chain.ActiveChain(), filter_final_and_mature);
+    pool.removeForReorg(filter_final_and_mature, [&](const LockPoints& lp) EXCLUSIVE_LOCKS_REQUIRED(::cs_main) {
+        AssertLockHeld(::cs_main);
+        return TestLockPointValidity(chain, lp);
+    });
     // Re-limit mempool size, in case we added any transactions
     LimitMempoolSize(pool, chain.CoinsTip());
 }
@@ -687,7 +700,7 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
     // Only accept nLockTime-using transactions that can be mined in the next
     // block; we don't want our mempool filled up with transactions that can't
     // be mined yet.
-    if (!CheckFinalTxAtTip(*Assert(m_chain.ActiveChain().Tip()), tx)) {
+    if (!CheckFinalTxAtTip(m_chain, tx)) {
         return state.Invalid(TxValidationResult::TX_PREMATURE_SPEND, "non-final");
     }
 
@@ -747,20 +760,20 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
     // backend lookups (which would avoid coins_to_uncache tracking).
     m_view.SetBackend(CoinsViewEmpty::Get());
 
-    assert(m_view.GetBestBlock() == m_chain.ActiveChain().Tip()->GetBlockHash());
+    assert(m_view.GetBestBlock() == m_chain.BlockHash(m_chain.TipHeight()));
 
     // Only accept BIP68 sequence locked transactions that can be mined in the next
     // block; we don't want our mempool filled up with transactions that can't
     // be mined yet.
     // Pass in m_view which has all of the relevant inputs cached. Note that, since m_view's
     // backend was removed, it no longer pulls coins from the mempool.
-    const std::optional<LockPoints> lock_points{CalculateLockPointsAtTip(m_chain.ActiveChain().Tip(), m_view, tx)};
-    if (!lock_points.has_value() || !CheckSequenceLocksAtTip(m_chain.ActiveChain().Tip(), *lock_points)) {
+    const std::optional<LockPoints> lock_points{CalculateLockPointsAtTip(m_chain, m_view, tx)};
+    if (!lock_points.has_value() || !CheckSequenceLocksAtTip(m_chain, *lock_points)) {
         return state.Invalid(TxValidationResult::TX_PREMATURE_SPEND, "non-BIP68-final");
     }
 
     // The mempool holds txs for the next block, so pass height+1 to CheckTxInputs
-    if (!Consensus::CheckTxInputs(tx, state, m_view, m_chain.ActiveChain().Height() + 1, ws.m_base_fees)) {
+    if (!Consensus::CheckTxInputs(tx, state, m_view, m_chain.TipHeight() + 1, ws.m_base_fees)) {
         return false; // state filled in by CheckTxInputs
     }
 
@@ -795,7 +808,7 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
     if (!m_subpackage.m_changeset) {
         m_subpackage.m_changeset = m_pool.GetChangeSet();
     }
-    ws.m_tx_handle = m_subpackage.m_changeset->StageAddition(ptx, ws.m_base_fees, nAcceptTime, m_chain.ActiveChain().Height(), entry_sequence, fSpendsCoinbase, nSigOpsCost, lock_points.value());
+    ws.m_tx_handle = m_subpackage.m_changeset->StageAddition(ptx, ws.m_base_fees, nAcceptTime, m_chain.TipHeight(), entry_sequence, fSpendsCoinbase, nSigOpsCost, lock_points.value());
 
     // ws.m_modified_fees includes any fee deltas from PrioritiseTransaction
     ws.m_modified_fees = ws.m_tx_handle->GetModifiedFee();

@@ -16,14 +16,13 @@
 #include <script/verify_flags.h>
 #include <sync.h>
 #include <txmempool.h>
+#include <uint256.h>
 
 #include <cstdint>
 #include <map>
 #include <optional>
 #include <vector>
 
-class CBlockIndex;
-class CChain;
 class CCoinsView;
 class CCoinsViewCache;
 class DisconnectedBlockTransactions;
@@ -44,8 +43,12 @@ public:
 
     //! UTXO set at the chain tip. Coins pulled in during validation are uncached again if the transaction is rejected.
     virtual CCoinsViewCache& CoinsTip() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) = 0;
-    //! Active chain, used for finality, BIP68 lock points and coinbase maturity.
-    virtual CChain& ActiveChain() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) = 0;
+    //! Height of the chain tip.
+    virtual int TipHeight() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) = 0;
+    //! Hash of the active chain block at height, or nullopt if height is above the tip.
+    virtual std::optional<uint256> BlockHash(int height) EXCLUSIVE_LOCKS_REQUIRED(::cs_main) = 0;
+    //! Median time past of the active chain block at height, which is at most the tip height.
+    virtual int64_t MedianTimePast(int height) EXCLUSIVE_LOCKS_REQUIRED(::cs_main) = 0;
     //! Consensus script flags in effect at the chain tip.
     virtual script_verify_flags TipScriptFlags() EXCLUSIVE_LOCKS_REQUIRED(::cs_main) = 0;
     //! All consensus script flags of the chain, used when standardness is not required.
@@ -262,14 +265,13 @@ void LimitMempoolSize(CTxMemPool& pool, CCoinsViewCache& coins_cache)
 /**
  * Check if transaction will be final in the next block to be created.
  */
-bool CheckFinalTxAtTip(const CBlockIndex& active_chain_tip, const CTransaction& tx) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+bool CheckFinalTxAtTip(MempoolChainView& chain, const CTransaction& tx) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
 /**
  * Calculate LockPoints required to check if transaction will be BIP68 final in the next block
  * to be created on top of tip.
  *
- * @param[in]   tip             Chain tip for which tx sequence locks are calculated. For
- *                              example, the tip of the current active chain.
+ * @param[in]   chain           Chain whose tip tx sequence locks are calculated for.
  * @param[in]   coins_view      Any CCoinsView that provides access to the relevant coins for
  *                              checking sequence locks. For example, it can be a CCoinsViewCache
  *                              that isn't connected to anything but contains all the relevant
@@ -283,20 +285,24 @@ bool CheckFinalTxAtTip(const CBlockIndex& active_chain_tip, const CTransaction& 
  *          calculation, or std::nullopt if there is an error.
  */
 std::optional<LockPoints> CalculateLockPointsAtTip(
-    CBlockIndex* tip,
+    MempoolChainView& chain,
     const CCoinsView& coins_view,
-    const CTransaction& tx);
+    const CTransaction& tx) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
 /**
  * Check if transaction will be BIP68 final in the next block to be created on top of tip.
- * @param[in]   tip             Chain tip to check tx sequence locks against. For example,
- *                              the tip of the current active chain.
+ * @param[in]   chain           Chain whose tip tx sequence locks are checked against.
  * @param[in]   lock_points     LockPoints containing the height and time at which this
  *                              transaction is final.
  * Simulates calling SequenceLocks() with data from the tip passed in.
  * The LockPoints should not be considered valid if CheckSequenceLocksAtTip returns false.
  */
-bool CheckSequenceLocksAtTip(CBlockIndex* tip,
-                             const LockPoints& lock_points);
+bool CheckSequenceLocksAtTip(MempoolChainView& chain,
+                             const LockPoints& lock_points) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+
+/**
+ * Test whether the LockPoints height and time are still valid on the current chain
+ */
+bool TestLockPointValidity(MempoolChainView& chain, const LockPoints& lp) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
 #endif // BITCOIN_MEMPOOL_ACCEPT_H

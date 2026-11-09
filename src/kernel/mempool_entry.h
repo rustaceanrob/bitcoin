@@ -13,6 +13,7 @@
 #include <primitives/transaction.h>
 #include <kernel/mempool_tx_info.h> // IWYU pragma: export
 #include <txgraph.h>
+#include <uint256.h>
 #include <util/overflow.h>
 #include <util/time.h>
 
@@ -20,9 +21,9 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <set>
-
-class CBlockIndex;
+#include <utility>
 
 struct LockPoints {
     // Will be set to the blockchain height and median time past
@@ -32,8 +33,8 @@ struct LockPoints {
     int64_t time{0};
     // As long as the current chain descends from the highest height block
     // containing one of the inputs used in the calculation, then the cached
-    // values are still valid even after a reorg.
-    CBlockIndex* maxInputBlock{nullptr};
+    // values are still valid even after a reorg. Height and hash of that block.
+    std::optional<std::pair<int, uint256>> max_input_block;
 };
 
 struct CompareIteratorByHash {

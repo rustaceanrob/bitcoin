@@ -9,6 +9,7 @@
 #include <script/verify_flags.h>
 
 #include <cstdint>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -70,7 +71,16 @@ bool IsFinalTx(const CTransaction &tx, int nBlockHeight, int64_t nBlockTime);
  */
 std::pair<int, int64_t> CalculateSequenceLocks(const CTransaction &tx, int flags, std::vector<int>& prevHeights, const CBlockIndex& block);
 
+/**
+ * Same as above, for a block whose ancestor at a given height has the median
+ * time past returned by ancestor_median_time_past.
+ */
+std::pair<int, int64_t> CalculateSequenceLocks(const CTransaction& tx, int flags, std::vector<int>& prevHeights,
+                                               const std::function<int64_t(int height)>& ancestor_median_time_past);
+
 bool EvaluateSequenceLocks(const CBlockIndex& block, std::pair<int, int64_t> lockPair);
+/** Same as above, for a block at block_height whose parent has the median time past prev_median_time_past. */
+bool EvaluateSequenceLocks(int block_height, int64_t prev_median_time_past, std::pair<int, int64_t> lockPair);
 /**
  * Check if transaction is final per BIP 68 sequence numbers and can be included in a block.
  * Consensus critical. Takes as input a list of heights at which tx's inputs (in order) confirmed.
