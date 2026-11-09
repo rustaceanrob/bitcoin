@@ -84,6 +84,7 @@ class SilentPaymentsSendingTest(BitcoinTestFramework):
                 assert_raises_rpc_error(code, msg, wallet.sendtoaddress, addr0, amt0)
             assert_raises_rpc_error(code, msg, wallet.sendmany, "", recipients)
             assert_raises_rpc_error(fund_code, fund_msg, wallet.send, outputs=outputs)
+            assert_raises_rpc_error(fund_code, fund_msg, wallet.sendall, recipients=list(recipients))
             return {}
 
         txids = {}
