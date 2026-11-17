@@ -2,20 +2,27 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-"""Test-only implementation of low-level secp256k1 field and group arithmetic
+"""Test-only secp256k1 field and group arithmetic
 
-It is designed for ease of understanding, not performance.
+Group operations are performed by libsecp256k1, loaded from the build directory via ctypes.
+Field arithmetic is implemented in Python.
 
-WARNING: This code is slow and trivially vulnerable to side channel attacks. Do not use for
+WARNING: This code is trivially vulnerable to side channel attacks. Do not use for
 anything but tests.
 
 Exports:
 * FE: class for secp256k1 field elements
 * GE: class for secp256k1 group elements
 * G: the secp256k1 generator point
+* lib: libsecp256k1, loaded on first use
 """
 
+import configparser
+import ctypes
 import functools
+import glob
+import os
+import sys
 import unittest
 from hashlib import sha256
 from test_framework.util import assert_equal, assert_not_equal
@@ -152,15 +159,86 @@ class FE:
         return f"FE(0x{int(self):x})"
 
 
+SECP256K1_CONTEXT_NONE = 1
+SECP256K1_EC_COMPRESSED = (1 << 1) | (1 << 8)
+SECP256K1_EC_UNCOMPRESSED = 1 << 1
+
+
+_c_int = ctypes.c_int
+_c_buf = ctypes.c_char_p
+_c_ptr = ctypes.c_void_p
+_c_size = ctypes.c_size_t
+
+_FUNCTIONS = {
+    "secp256k1_context_create": (_c_ptr, [ctypes.c_uint]),
+    "secp256k1_ec_pubkey_parse": (_c_int, [_c_ptr, _c_buf, _c_buf, _c_size]),
+    "secp256k1_ec_pubkey_serialize": (_c_int, [_c_ptr, _c_buf, ctypes.POINTER(_c_size), _c_buf, ctypes.c_uint]),
+    "secp256k1_ec_pubkey_create": (_c_int, [_c_ptr, _c_buf, _c_buf]),
+    "secp256k1_ec_pubkey_negate": (_c_int, [_c_ptr, _c_buf]),
+    "secp256k1_ec_pubkey_tweak_mul": (_c_int, [_c_ptr, _c_buf, _c_buf]),
+    "secp256k1_ec_pubkey_combine": (_c_int, [_c_ptr, _c_buf, ctypes.POINTER(_c_buf), _c_size]),
+}
+
+
+class Library:
+    """The libsecp256k1 built for the functional tests (BUILD_SECP256K1_TEST_LIB), loaded on first use.
+
+    Functions are called with the context argument already bound, e.g. lib.secp256k1_ec_pubkey_negate(pubkey).
+    The library path can be overridden with the SECP256K1_TEST_LIB environment variable. Otherwise it is
+    found through config, which the test framework sets, or else the config.ini next to the running script."""
+
+    def __init__(self):
+        self.config = None
+
+    def _path(self):
+        path = os.getenv("SECP256K1_TEST_LIB")
+        if path is not None:
+            return path
+        config = self.config
+        if config is None:
+            config_path = os.path.join(os.path.dirname(os.path.abspath(sys.modules["__main__"].__file__)), "..", "config.ini")
+            config = configparser.ConfigParser()
+            if not config.read(config_path):
+                raise RuntimeError(f"{config_path} not found, cannot locate libsecp256k1. Set SECP256K1_TEST_LIB to its path.")
+        test_lib_dir = os.path.join(config["environment"]["BUILDDIR"], "secp256k1_test_lib")
+        if os.name == "nt":
+            return next(iter(glob.glob(os.path.join(test_lib_dir, "bin", "libsecp256k1-*.dll"))), os.path.join(test_lib_dir, "bin", "libsecp256k1.dll"))
+        return os.path.join(test_lib_dir, "lib", "libsecp256k1.dylib" if sys.platform == "darwin" else "libsecp256k1.so")
+
+    @functools.cached_property
+    def _loaded(self):
+        path = self._path()
+        if not os.path.isfile(path):
+            raise RuntimeError(f"{path} not found. Configure with -DBUILD_SECP256K1_TEST_LIB=ON and rebuild, or set SECP256K1_TEST_LIB.")
+        cdll = ctypes.CDLL(path)
+        for function_name, (restype, argtypes) in _FUNCTIONS.items():
+            function = getattr(cdll, function_name)
+            function.restype = restype
+            function.argtypes = argtypes
+        return cdll, ctypes.c_void_p(cdll.secp256k1_context_create(SECP256K1_CONTEXT_NONE))
+
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        cdll, ctx = self._loaded
+        return functools.partial(getattr(cdll, name), ctx)
+
+
+lib = Library()
+
+
 class GE:
     """Objects of this class represent secp256k1 group elements (curve points or infinity)
 
-    Normal points on the curve have fields:
+    The point is held as a 64-byte libsecp256k1 secp256k1_pubkey in the pubkey field, which is
+    None for the point at infinity.
+
+    Normal points on the curve have properties:
     * x: the x coordinate (a field element)
     * y: the y coordinate (a field element, satisfying y^2 = x^3 + 7)
     * infinity: False
 
-    The point at infinity has field:
+    The point at infinity has property:
     * infinity: True
     """
 
@@ -173,136 +251,129 @@ class GE:
     def __init__(self, x=None, y=None):
         """Initialize a group element with specified x and y coordinates, or infinity."""
         if x is None:
-            # Initialize as infinity.
             assert y is None
-            self.infinity = True
+            self.pubkey = None
         else:
-            # Initialize as point on the curve (and check that it is).
-            fx = FE(x)
-            fy = FE(y)
-            assert_equal(fy**2, fx**3 + 7)
-            self.infinity = False
-            self.x = fx
-            self.y = fy
+            r = GE.from_bytes(b'\x04' + FE(x).to_bytes() + FE(y).to_bytes())
+            assert r is not None, "point is not on the curve"
+            self.pubkey = r.pubkey
+
+    @staticmethod
+    def from_pubkey(pubkey):
+        """Construct a group element from a 64-byte secp256k1_pubkey (None for infinity)."""
+        r = GE()
+        r.pubkey = pubkey
+        return r
+
+    @property
+    def infinity(self):
+        return self.pubkey is None
+
+    @property
+    def x(self):
+        assert not self.infinity
+        return FE.from_bytes(self.to_bytes_uncompressed()[1:33])
+
+    @property
+    def y(self):
+        assert not self.infinity
+        return FE.from_bytes(self.to_bytes_uncompressed()[33:])
+
+    @staticmethod
+    def _sum(pubkeys):
+        """Add up a list of 64-byte secp256k1_pubkeys."""
+        if len(pubkeys) == 0:
+            return GE()
+        if len(pubkeys) == 1:
+            return GE.from_pubkey(pubkeys[0])
+        out = ctypes.create_string_buffer(64)
+        ins = (ctypes.c_char_p * len(pubkeys))(*pubkeys)
+        if not lib.secp256k1_ec_pubkey_combine(out, ins, len(pubkeys)):
+            return GE()
+        return GE.from_pubkey(out.raw)
 
     def __add__(self, a):
         """Add two group elements together."""
-        # Deal with infinity: a + infinity == infinity + a == a.
-        if self.infinity:
-            return a
-        if a.infinity:
-            return self
-        if self.x == a.x:
-            if self.y != a.y:
-                # A point added to its own negation is infinity.
-                assert_equal(self.y + a.y, 0)
-                return GE()
-            else:
-                # For identical inputs, use the tangent (doubling formula).
-                lam = (3 * self.x**2) / (2 * self.y)
-        else:
-            # For distinct inputs, use the line through both points (adding formula).
-            lam = (self.y - a.y) / (self.x - a.x)
-        # Determine point opposite to the intersection of that line with the curve.
-        x = lam**2 - (self.x + a.x)
-        y = lam * (self.x - x) - self.y
-        return GE(x, y)
+        return GE._sum([p.pubkey for p in (self, a) if not p.infinity])
 
     @staticmethod
     def mul(*aps):
         """Compute a (batch) scalar group element multiplication.
 
-        GE.mul((a1, p1), (a2, p2), (a3, p3)) is identical to a1*p1 + a2*p2 + a3*p3,
-        but more efficient."""
-        # Reduce all the scalars modulo order first (so we can deal with negatives etc).
-        naps = [(a % GE.ORDER, p) for a, p in aps]
-        # Start with point at infinity.
-        r = GE()
-        # Iterate over all bit positions, from high to low.
-        for i in range(255, -1, -1):
-            # Double what we have so far.
-            r = r + r
-            # Add then add the points for which the corresponding scalar bit is set.
-            for (a, p) in naps:
-                if (a >> i) & 1:
-                    r += p
-        return r
+        GE.mul((a1, p1), (a2, p2), (a3, p3)) is identical to a1*p1 + a2*p2 + a3*p3."""
+        terms = []
+        for a, p in aps:
+            a %= GE.ORDER
+            if a == 0 or p.infinity:
+                continue
+            out = ctypes.create_string_buffer(64)
+            if p is G:
+                assert lib.secp256k1_ec_pubkey_create(out, a.to_bytes(32, 'big'))
+            else:
+                ctypes.memmove(out, p.pubkey, 64)
+                assert lib.secp256k1_ec_pubkey_tweak_mul(out, a.to_bytes(32, 'big'))
+            terms.append(out.raw)
+        return GE._sum(terms)
 
     def __rmul__(self, a):
         """Multiply an integer with a group element."""
-        if self == G:
-            return mul_G(a % GE.ORDER)
         return GE.mul((a, self))
 
     def __neg__(self):
         """Compute the negation of a group element."""
         if self.infinity:
             return self
-        return GE(self.x, -self.y)
+        out = ctypes.create_string_buffer(self.pubkey, 64)
+        assert lib.secp256k1_ec_pubkey_negate(out)
+        return GE.from_pubkey(out.raw)
+
+    def _serialize(self, size, flags):
+        assert not self.infinity
+        out = ctypes.create_string_buffer(size)
+        outlen = ctypes.c_size_t(size)
+        assert lib.secp256k1_ec_pubkey_serialize(out, ctypes.byref(outlen), self.pubkey, flags)
+        return out.raw
 
     def to_bytes_compressed(self):
         """Convert a non-infinite group element to 33-byte compressed encoding."""
-        assert not self.infinity
-        return bytes([3 - self.y.is_even()]) + self.x.to_bytes()
+        return self._serialize(33, SECP256K1_EC_COMPRESSED)
 
     def to_bytes_uncompressed(self):
         """Convert a non-infinite group element to 65-byte uncompressed encoding."""
-        assert not self.infinity
-        return b'\x04' + self.x.to_bytes() + self.y.to_bytes()
+        return self._serialize(65, SECP256K1_EC_UNCOMPRESSED)
 
     def to_bytes_xonly(self):
         """Convert (the x coordinate of) a non-infinite group element to 32-byte xonly encoding."""
-        assert not self.infinity
-        return self.x.to_bytes()
+        return self.to_bytes_compressed()[1:]
 
     @staticmethod
     def lift_x(x):
         """Return group element with specified field element as x coordinate (and even y)."""
-        y = (FE(x)**3 + 7).sqrt()
-        if y is None:
-            return None
-        if not y.is_even():
-            y = -y
-        return GE(x, y)
+        return GE.from_bytes(b'\x02' + FE(x).to_bytes())
 
     @staticmethod
     def from_bytes(b):
         """Convert a compressed or uncompressed encoding to a group element."""
         assert len(b) in (33, 65)
-        if len(b) == 33:
-            if b[0] != 2 and b[0] != 3:
-                return None
-            x = FE.from_bytes(b[1:])
-            if x is None:
-                return None
-            r = GE.lift_x(x)
-            if r is None:
-                return None
-            if b[0] == 3:
-                r = -r
-            return r
-        else:
-            if b[0] != 4:
-                return None
-            x = FE.from_bytes(b[1:33])
-            y = FE.from_bytes(b[33:])
-            if y**2 != x**3 + 7:
-                return None
-            return GE(x, y)
+        if b[0] not in ((2, 3) if len(b) == 33 else (4,)):
+            return None
+        out = ctypes.create_string_buffer(64)
+        if not lib.secp256k1_ec_pubkey_parse(out, b, len(b)):
+            return None
+        return GE.from_pubkey(out.raw)
 
     @staticmethod
     def from_bytes_xonly(b):
         """Convert a point given in xonly encoding to a group element."""
         assert_equal(len(b), 32)
-        x = FE.from_bytes(b)
-        if x is None:
+        if FE.from_bytes(b) is None:
             return None
-        return GE.lift_x(x)
+        return GE.from_bytes(b'\x02' + b)
 
     @staticmethod
     def is_valid_x(x):
         """Determine whether the provided field element is a valid X coordinate."""
-        return (FE(x)**3 + 7).is_square()
+        return GE.lift_x(x) is not None
 
     def __str__(self):
         """Convert this group element to a string."""
@@ -316,50 +387,17 @@ class GE:
             return "GE()"
         return f"GE(0x{int(self.x):x},0x{int(self.y):x})"
 
-# The secp256k1 generator point
-G = GE.lift_x(0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798)
+class Generator(GE):
+    """The secp256k1 generator point, converted by libsecp256k1 on first use."""
 
+    def __init__(self):
+        pass
 
-class FastGEMul:
-    """Table for fast multiplication with a constant group element.
+    @functools.cached_property
+    def pubkey(self):
+        return GE.lift_x(0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798).pubkey
 
-    Speed up scalar multiplication with a fixed point P by using a precomputed lookup table.
-    The scalar is split into WINDOW-bit chunks, and for every chunk position i the table holds
-    a row [(0 * 2^(WINDOW*i)) * P, (1 * 2^(WINDOW*i)) * P, ..., ((2^WINDOW-1) * 2^(WINDOW*i)) * P]:
-
-        table[i][j] = j * (2^(WINDOW*i)) * P
-
-    During multiplication, one table entry per chunk is added up, i.e. 256/WINDOW point
-    additions take place (instead of ~128 on average for a bit-by-bit approach).
-    """
-
-    WINDOW = 4
-
-    def __init__(self, p):
-        self.table = []  # table[i][j] = j * (2^(WINDOW*i)) * p
-        for _ in range((256 + self.WINDOW - 1) // self.WINDOW):
-            row = [GE()]
-            for _ in range((1 << self.WINDOW) - 1):
-                row.append(row[-1] + p)
-            self.table.append(row)
-            for _ in range(self.WINDOW):
-                p = p + p
-
-    def mul(self, a):
-        result = GE()
-        a = a % GE.ORDER
-        mask = (1 << self.WINDOW) - 1
-        for row in self.table:
-            result += row[a & mask]
-            a >>= self.WINDOW
-        return result
-
-# Precomputed table with multiples of G for fast multiplication
-FAST_G = FastGEMul(G)
-
-@functools.lru_cache(maxsize=1024)
-def mul_G(a):
-    return FAST_G.mul(a)
+G = Generator()
 
 class TestFrameworkSecp256k1(unittest.TestCase):
     def test_H(self):

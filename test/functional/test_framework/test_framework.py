@@ -25,6 +25,7 @@ import time
 
 from .address import create_deterministic_address_bcrt1_p2tr_op_true
 from . import coverage
+from .crypto import secp256k1
 from .messages import CAddress
 from .p2p import NetworkThread
 from .test_node import TestNode
@@ -219,6 +220,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         self.config = configparser.ConfigParser()
         self.config.read_file(open(self.options.configfile))
         self.binary_paths = get_binary_paths(self.config)
+        secp256k1.lib.config = self.config
         if self.options.v1transport:
             self.options.v2transport=False
 
