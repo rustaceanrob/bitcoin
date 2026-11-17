@@ -54,4 +54,36 @@ function(add_secp256k1 subdir)
   set_target_properties(secp256k1 PROPERTIES
     EXCLUDE_FROM_ALL TRUE
   )
+
+  if(BUILD_SECP256K1_TEST_LIB)
+    # Shared library loaded by the functional test framework via ctypes, built by secp256k1's own build system.
+    string(REPLACE ";" "|" c_compiler_launcher "${CMAKE_C_COMPILER_LAUNCHER}")
+    set(test_lib_args
+      -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+      -DCMAKE_C_COMPILER_LAUNCHER=${c_compiler_launcher}
+      -DBUILD_SHARED_LIBS=ON
+      -DSECP256K1_ENABLE_MODULE_EXTRAKEYS=ON
+      -DSECP256K1_ENABLE_MODULE_SCHNORRSIG=ON
+      -DSECP256K1_ENABLE_MODULE_ELLSWIFT=ON
+      -DSECP256K1_BUILD_BENCHMARK=OFF
+      -DSECP256K1_BUILD_TESTS=OFF
+      -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF
+      -DSECP256K1_BUILD_CTIME_TESTS=OFF
+      -DSECP256K1_BUILD_EXAMPLES=OFF
+    )
+    if(CMAKE_TOOLCHAIN_FILE)
+      list(APPEND test_lib_args -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
+    endif()
+    include(ExternalProject)
+    ExternalProject_Add(secp256k1_test_lib
+      SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${subdir}
+      BINARY_DIR ${PROJECT_BINARY_DIR}/secp256k1_test_lib
+      LIST_SEPARATOR |
+      CMAKE_ARGS ${test_lib_args}
+      BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config RelWithDebInfo --target secp256k1
+      BUILD_ALWAYS TRUE
+      INSTALL_COMMAND ""
+    )
+  endif()
 endfunction()
