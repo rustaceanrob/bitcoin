@@ -203,6 +203,8 @@ _FUNCTIONS = {
     "secp256k1_xonly_pubkey_tweak_add": (_c_int, [_c_ptr, _c_buf, _c_buf, _c_buf]),
     "secp256k1_schnorrsig_sign_custom": (_c_int, [_c_ptr, _c_buf, _c_buf, _c_size, _c_buf, ctypes.POINTER(SchnorrsigExtraparams)]),
     "secp256k1_schnorrsig_verify": (_c_int, [_c_ptr, _c_buf, _c_buf, _c_size, _c_buf]),
+    "secp256k1_ellswift_create": (_c_int, [_c_ptr, _c_buf, _c_buf, _c_buf]),
+    "secp256k1_ellswift_decode": (_c_int, [_c_ptr, _c_buf, _c_buf]),
 }
 
 

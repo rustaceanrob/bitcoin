@@ -4,34 +4,33 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test-only Elligator Swift implementation
 
-WARNING: This code is slow and uses bad randomness.
+Encoding and decoding of public keys are performed by libsecp256k1. The inverse
+map (xswiftec_inv) is implemented in Python, as libsecp256k1 does not expose it.
+
+WARNING: This code uses bad randomness.
 Do not use for anything but tests."""
 
 import csv
+import ctypes
 import os
 import random
 import unittest
 
-from test_framework.crypto.secp256k1 import FE, G, GE
+from test_framework.crypto.secp256k1 import FE, GE, lib
 from test_framework.util import assert_equal
 
 # Precomputed constant square root of -3 (mod p).
 MINUS_3_SQRT = FE(-3).sqrt()
 
+def ellswift_decode(ellswift):
+    """Decode a 64-byte ellswift encoding to a group element."""
+    pubkey = ctypes.create_string_buffer(64)
+    assert lib.secp256k1_ellswift_decode(pubkey, ellswift)
+    return GE.from_pubkey(pubkey.raw)
+
 def xswiftec(u, t):
     """Decode field elements (u, t) to an X coordinate on the curve."""
-    if u == 0:
-        u = FE(1)
-    if t == 0:
-        t = FE(1)
-    if u**3 + t**2 + 7 == 0:
-        t = 2 * t
-    X = (u**3 + 7 - t**2) / (2 * t)
-    Y = (X + t) / (MINUS_3_SQRT * u)
-    for x in (u + 4 * Y**2, (-X / Y - u) / 2, (X / Y - u) / 2):
-        if GE.is_valid_x(x):
-            return x
-    assert False
+    return ellswift_decode(u.to_bytes() + t.to_bytes()).x
 
 def xswiftec_inv(x, u, case):
     """Given x and u, find t such that xswiftec(u, t) = x, or return None.
@@ -77,16 +76,15 @@ def xelligatorswift(x):
 
 def ellswift_create():
     """Generate a (privkey, ellswift_pubkey) pair."""
-    priv = random.randrange(1, GE.ORDER)
-    u, t = xelligatorswift((priv * G).x)
-    return priv.to_bytes(32, 'big'), u.to_bytes() + t.to_bytes()
+    priv = random.randrange(1, GE.ORDER).to_bytes(32, 'big')
+    ellswift = ctypes.create_string_buffer(64)
+    assert lib.secp256k1_ellswift_create(ellswift, priv, random.randbytes(32))
+    return priv, ellswift.raw
 
 def ellswift_ecdh_xonly(pubkey_theirs, privkey):
     """Compute X coordinate of shared ECDH point between ellswift pubkey and privkey."""
-    u = FE(int.from_bytes(pubkey_theirs[:32], 'big'))
-    t = FE(int.from_bytes(pubkey_theirs[32:], 'big'))
     d = int.from_bytes(privkey, 'big')
-    return (d * GE.lift_x(xswiftec(u, t))).x.to_bytes()
+    return (d * ellswift_decode(pubkey_theirs)).to_bytes_xonly()
 
 
 class TestFrameworkEllSwift(unittest.TestCase):
