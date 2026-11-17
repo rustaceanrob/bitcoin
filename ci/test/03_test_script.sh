@@ -189,6 +189,19 @@ if [ "$RUN_UNIT_TESTS" = "true" ]; then
 fi
 
 if [ "$RUN_FUNCTIONAL_TESTS" = "true" ]; then
+  if [[ "$HOST" != "$(uname -m)"-* ]]; then
+    # The functional test framework loads libsecp256k1 into the native Python, so build it natively.
+    cmake -S "${BASE_ROOT_DIR}/src/secp256k1" -B "${BASE_SCRATCH_DIR}/secp256k1-native" \
+      -DBUILD_SHARED_LIBS=ON \
+      -DSECP256K1_ENABLE_MODULE_EXTRAKEYS=ON \
+      -DSECP256K1_ENABLE_MODULE_SCHNORRSIG=ON \
+      -DSECP256K1_ENABLE_MODULE_ELLSWIFT=ON \
+      -DSECP256K1_BUILD_TESTS=OFF \
+      -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF \
+      -DSECP256K1_BUILD_CTIME_TESTS=OFF
+    cmake --build "${BASE_SCRATCH_DIR}/secp256k1-native" "$MAKEJOBS" --target secp256k1
+    export SECP256K1_TEST_LIB="${BASE_SCRATCH_DIR}/secp256k1-native/lib/libsecp256k1.so"
+  fi
   # parses TEST_RUNNER_EXTRA as an array which allows for multiple arguments such as TEST_RUNNER_EXTRA='--exclude "rpc_bind.py --ipv6"'
   eval "TEST_RUNNER_EXTRA=($TEST_RUNNER_EXTRA)"
   LD_LIBRARY_PATH="${DEPENDS_DIR}/${HOST}/lib" \

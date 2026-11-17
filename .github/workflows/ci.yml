@@ -348,6 +348,7 @@ jobs:
           path: |
             ${{ env.BASE_BUILD_DIR }}/bin/*.dll
             ${{ env.BASE_BUILD_DIR }}/bin/*.exe
+            ${{ env.BASE_BUILD_DIR }}/secp256k1_test_lib/bin/*.dll
             ${{ env.BASE_BUILD_DIR }}/src/secp256k1/bin/*.exe
             ${{ env.BASE_BUILD_DIR }}/src/univalue/*.exe
             ${{ env.BASE_BUILD_DIR }}/test/config.ini
