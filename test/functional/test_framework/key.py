@@ -1,12 +1,12 @@
 # Copyright (c) 2019-2020 Pieter Wuille
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
-"""Test-only secp256k1 elliptic curve protocols implementation
+"""Test-only secp256k1 elliptic curve protocols, backed by libsecp256k1
 
-WARNING: This code is slow, uses bad randomness, does not properly protect
-keys, and is trivially vulnerable to side channel attacks. Do not use for
-anything but tests."""
+WARNING: This code uses bad randomness, does not properly protect keys, and is
+trivially vulnerable to side channel attacks. Do not use for anything but tests."""
 import csv
+import ctypes
 import hashlib
 import hmac
 import os
@@ -101,14 +101,13 @@ class ECPubKey:
             return False
         if low_s and s >= secp256k1.GE.ORDER_HALF:
             return False
-        z = int.from_bytes(msg, 'big')
 
-        # Run verifier algorithm on r, s
-        w = pow(s, -1, ORDER)
-        R = secp256k1.GE.mul((z * w, secp256k1.G), (r * w, self.p))
-        if R.infinity or (int(R.x) % ORDER) != r:
-            return False
-        return True
+        assert_equal(len(msg), 32)
+        parsed = ctypes.create_string_buffer(64)
+        assert secp256k1.lib.secp256k1_ecdsa_signature_parse_compact(parsed, r.to_bytes(32, 'big') + s.to_bytes(32, 'big'))
+        normalized = ctypes.create_string_buffer(64)
+        secp256k1.lib.secp256k1_ecdsa_signature_normalize(normalized, parsed)
+        return secp256k1.lib.secp256k1_ecdsa_verify(normalized, msg, self.p.pubkey) == 1
 
 def generate_privkey():
     """Generate a valid random 32-byte private key."""
@@ -170,6 +169,16 @@ class ECKey:
         See https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm for the
         ECDSA signer algorithm."""
         assert self.valid
+        assert_equal(len(msg), 32)
+        if low_s:
+            # Note: no RFC6979 by default, but random extra entropy (some tests rely on distinct transactions for the same operation)
+            ndata = None if rfc6979 else random.randbytes(32)
+            sig = ctypes.create_string_buffer(64)
+            assert secp256k1.lib.secp256k1_ecdsa_sign(sig, msg, self.get_bytes(), None, ndata)
+            der = ctypes.create_string_buffer(72)
+            derlen = ctypes.c_size_t(72)
+            assert secp256k1.lib.secp256k1_ecdsa_signature_serialize_der(der, ctypes.byref(derlen), sig)
+            return der.raw[:derlen.value]
         z = int.from_bytes(msg, 'big')
         # Note: no RFC6979 by default, but a simple random nonce (some tests rely on distinct transactions for the same operation)
         if rfc6979:
@@ -179,14 +188,24 @@ class ECKey:
         R = k * secp256k1.G
         r = int(R.x) % ORDER
         s = (pow(k, -1, ORDER) * (z + self.secret * r)) % ORDER
-        if low_s and s > secp256k1.GE.ORDER_HALF:
-            s = ORDER - s
         # Represent in DER format. The byte representations of r and s have
         # length rounded up (255 bits becomes 32 bytes and 256 bits becomes 33
         # bytes).
         rb = r.to_bytes((r.bit_length() + 8) // 8, 'big')
         sb = s.to_bytes((s.bit_length() + 8) // 8, 'big')
         return b'\x30' + bytes([4 + len(rb) + len(sb), 2, len(rb)]) + rb + bytes([2, len(sb)]) + sb
+
+def keypair_create(key):
+    """Create a secp256k1_keypair from a 32-byte private key, or None if the key is invalid."""
+    keypair = ctypes.create_string_buffer(96)
+    if not secp256k1.lib.secp256k1_keypair_create(keypair, key):
+        return None
+    return keypair
+
+def xonly_pubkey_serialize(xonly_pubkey):
+    out = ctypes.create_string_buffer(32)
+    assert secp256k1.lib.secp256k1_xonly_pubkey_serialize(out, xonly_pubkey)
+    return out.raw
 
 def compute_xonly_pubkey(key):
     """Compute an x-only (32 byte) public key from a (32 byte) private key.
@@ -195,11 +214,13 @@ def compute_xonly_pubkey(key):
     """
 
     assert_equal(len(key), 32)
-    x = int.from_bytes(key, 'big')
-    if x == 0 or x >= ORDER:
+    keypair = keypair_create(key)
+    if keypair is None:
         return (None, None)
-    P = x * secp256k1.G
-    return (P.to_bytes_xonly(), not P.y.is_even())
+    xonly_pubkey = ctypes.create_string_buffer(64)
+    parity = ctypes.c_int()
+    assert secp256k1.lib.secp256k1_keypair_xonly_pub(xonly_pubkey, ctypes.byref(parity), keypair)
+    return (xonly_pubkey_serialize(xonly_pubkey), parity.value == 1)
 
 def tweak_add_privkey(key, tweak):
     """Tweak a private key (after negating it if needed)."""
@@ -207,18 +228,14 @@ def tweak_add_privkey(key, tweak):
     assert_equal(len(key), 32)
     assert_equal(len(tweak), 32)
 
-    x = int.from_bytes(key, 'big')
-    if x == 0 or x >= ORDER:
+    keypair = keypair_create(key)
+    if keypair is None:
         return None
-    if not (x * secp256k1.G).y.is_even():
-       x = ORDER - x
-    t = int.from_bytes(tweak, 'big')
-    if t >= ORDER:
+    if not secp256k1.lib.secp256k1_keypair_xonly_tweak_add(keypair, tweak):
         return None
-    x = (x + t) % ORDER
-    if x == 0:
-        return None
-    return x.to_bytes(32, 'big')
+    out = ctypes.create_string_buffer(32)
+    assert secp256k1.lib.secp256k1_keypair_sec(out, keypair)
+    return out.raw
 
 def tweak_add_pubkey(key, tweak):
     """Tweak a public key and return whether the result had to be negated."""
@@ -226,16 +243,16 @@ def tweak_add_pubkey(key, tweak):
     assert_equal(len(key), 32)
     assert_equal(len(tweak), 32)
 
-    P = secp256k1.GE.from_bytes_xonly(key)
-    if P is None:
+    internal = ctypes.create_string_buffer(64)
+    if not secp256k1.lib.secp256k1_xonly_pubkey_parse(internal, key):
         return None
-    t = int.from_bytes(tweak, 'big')
-    if t >= ORDER:
+    output = ctypes.create_string_buffer(64)
+    if not secp256k1.lib.secp256k1_xonly_pubkey_tweak_add(output, internal, tweak):
         return None
-    Q = t * secp256k1.G + P
-    if Q.infinity:
-        return None
-    return (Q.to_bytes_xonly(), not Q.y.is_even())
+    xonly_pubkey = ctypes.create_string_buffer(64)
+    parity = ctypes.c_int()
+    assert secp256k1.lib.secp256k1_xonly_pubkey_from_pubkey(xonly_pubkey, ctypes.byref(parity), output)
+    return (xonly_pubkey_serialize(xonly_pubkey), parity.value == 1)
 
 def verify_schnorr(key, sig, msg):
     """Verify a Schnorr signature (see BIP 340).
@@ -247,22 +264,10 @@ def verify_schnorr(key, sig, msg):
     assert_equal(len(key), 32)
     assert_equal(len(sig), 64)
 
-    P = secp256k1.GE.from_bytes_xonly(key)
-    if P is None:
+    xonly_pubkey = ctypes.create_string_buffer(64)
+    if not secp256k1.lib.secp256k1_xonly_pubkey_parse(xonly_pubkey, key):
         return False
-    r = int.from_bytes(sig[0:32], 'big')
-    if r >= secp256k1.FE.SIZE:
-        return False
-    s = int.from_bytes(sig[32:64], 'big')
-    if s >= ORDER:
-        return False
-    e = int.from_bytes(TaggedHash("BIP0340/challenge", sig[0:32] + key + msg), 'big') % ORDER
-    R = secp256k1.GE.mul((s, secp256k1.G), (-e, P))
-    if R.infinity or not R.y.is_even():
-        return False
-    if r != R.x:
-        return False
-    return True
+    return secp256k1.lib.secp256k1_schnorrsig_verify(sig, msg, len(msg), xonly_pubkey) == 1
 
 def sign_schnorr(key, msg, aux=None, flip_p=False, flip_r=False):
     """Create a Schnorr signature (see BIP 340)."""
@@ -272,6 +277,15 @@ def sign_schnorr(key, msg, aux=None, flip_p=False, flip_r=False):
 
     assert_equal(len(key), 32)
     assert_equal(len(aux), 32)
+
+    if not flip_p and not flip_r:
+        keypair = keypair_create(key)
+        if keypair is None:
+            return None
+        sig = ctypes.create_string_buffer(64)
+        extraparams = secp256k1.SchnorrsigExtraparams(aux)
+        assert secp256k1.lib.secp256k1_schnorrsig_sign_custom(sig, msg, len(msg), keypair, ctypes.byref(extraparams))
+        return sig.raw
 
     sec = int.from_bytes(key, 'big')
     if sec == 0 or sec >= ORDER:

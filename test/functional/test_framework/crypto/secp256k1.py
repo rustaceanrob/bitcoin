@@ -164,6 +164,17 @@ SECP256K1_EC_COMPRESSED = (1 << 1) | (1 << 8)
 SECP256K1_EC_UNCOMPRESSED = 1 << 1
 
 
+class SchnorrsigExtraparams(ctypes.Structure):
+    _fields_ = [
+        ("magic", ctypes.c_ubyte * 4),
+        ("noncefp", ctypes.c_void_p),
+        ("ndata", ctypes.c_char_p),
+    ]
+
+    def __init__(self, ndata):
+        super().__init__((ctypes.c_ubyte * 4)(0xda, 0x6f, 0xb3, 0x8c), None, ndata)
+
+
 _c_int = ctypes.c_int
 _c_buf = ctypes.c_char_p
 _c_ptr = ctypes.c_void_p
@@ -177,6 +188,21 @@ _FUNCTIONS = {
     "secp256k1_ec_pubkey_negate": (_c_int, [_c_ptr, _c_buf]),
     "secp256k1_ec_pubkey_tweak_mul": (_c_int, [_c_ptr, _c_buf, _c_buf]),
     "secp256k1_ec_pubkey_combine": (_c_int, [_c_ptr, _c_buf, ctypes.POINTER(_c_buf), _c_size]),
+    "secp256k1_ecdsa_signature_parse_compact": (_c_int, [_c_ptr, _c_buf, _c_buf]),
+    "secp256k1_ecdsa_signature_serialize_der": (_c_int, [_c_ptr, _c_buf, ctypes.POINTER(_c_size), _c_buf]),
+    "secp256k1_ecdsa_signature_normalize": (_c_int, [_c_ptr, _c_buf, _c_buf]),
+    "secp256k1_ecdsa_sign": (_c_int, [_c_ptr, _c_buf, _c_buf, _c_buf, _c_ptr, _c_buf]),
+    "secp256k1_ecdsa_verify": (_c_int, [_c_ptr, _c_buf, _c_buf, _c_buf]),
+    "secp256k1_keypair_create": (_c_int, [_c_ptr, _c_buf, _c_buf]),
+    "secp256k1_keypair_sec": (_c_int, [_c_ptr, _c_buf, _c_buf]),
+    "secp256k1_keypair_xonly_pub": (_c_int, [_c_ptr, _c_buf, ctypes.POINTER(_c_int), _c_buf]),
+    "secp256k1_keypair_xonly_tweak_add": (_c_int, [_c_ptr, _c_buf, _c_buf]),
+    "secp256k1_xonly_pubkey_parse": (_c_int, [_c_ptr, _c_buf, _c_buf]),
+    "secp256k1_xonly_pubkey_serialize": (_c_int, [_c_ptr, _c_buf, _c_buf]),
+    "secp256k1_xonly_pubkey_from_pubkey": (_c_int, [_c_ptr, _c_buf, ctypes.POINTER(_c_int), _c_buf]),
+    "secp256k1_xonly_pubkey_tweak_add": (_c_int, [_c_ptr, _c_buf, _c_buf, _c_buf]),
+    "secp256k1_schnorrsig_sign_custom": (_c_int, [_c_ptr, _c_buf, _c_buf, _c_size, _c_buf, ctypes.POINTER(SchnorrsigExtraparams)]),
+    "secp256k1_schnorrsig_verify": (_c_int, [_c_ptr, _c_buf, _c_buf, _c_size, _c_buf]),
 }
 
 
