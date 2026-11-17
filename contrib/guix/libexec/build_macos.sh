@@ -43,6 +43,7 @@ mkdir -p "$DISTSRC"
           -DBUILD_FUZZ_BINARY=OFF \
           -DBUILD_GUI=OFF \
           -DBUILD_GUI_TESTS=OFF \
+          -DBUILD_SECP256K1_TEST_LIB=OFF \
           -DCMAKE_INSTALL_PREFIX="${INSTALLPATH}" \
           -DCMAKE_SKIP_RPATH=TRUE \
           -DREDUCE_EXPORTS=ON \
